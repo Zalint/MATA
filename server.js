@@ -8,16 +8,14 @@ const session = require('express-session');
 const users = require('./users');
 const pointsVente = require('./points-vente');
 const produits = require('./produits');
+const bcrypt = require('bcrypt');
 
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors({
-    origin: 'http://localhost:3000',
-    credentials: true
-}));
-app.use(express.json({ limit: '50mb' }));
+app.use(cors());
+app.use(express.json());
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname))); // Servir les fichiers statiques (HTML, CSS, JS)
 
@@ -69,57 +67,42 @@ if (!fs.existsSync(csvFilePath)) {
     fs.writeFileSync(csvFilePath, headers);
 }
 
-// Route de connexion
-app.post('/api/login', (req, res) => {
-    console.log('Tentative de connexion:', req.body);
+// Route pour la connexion
+app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
+    console.log('Tentative de connexion reçue:', { username, password: '***' });
     
-    if (users[username] && users[username].password === password) {
+    try {
+        const user = await users.verifyCredentials(username, password);
+        if (!user) {
+            console.log('Échec de l\'authentification pour:', username);
+            return res.status(401).json({ success: false, message: 'Identifiants invalides' });
+        }
+
         console.log('Authentification réussie pour:', username);
-        // Stocker les informations de l'utilisateur dans la session
-        req.session.user = {
-            username,
-            isAdmin: users[username].isAdmin,
-            isSuperAdmin: users[username].isSuperAdmin,
-            pointVente: users[username].pointVente
-        };
-        
-        console.log('Session créée:', req.session);
-        
+        req.session.user = user;
         res.json({ 
             success: true, 
             user: {
-                username,
-                isAdmin: users[username].isAdmin,
-                isSuperAdmin: users[username].isSuperAdmin,
-                pointVente: users[username].pointVente
+                username: user.username,
+                role: user.role,
+                pointVente: user.pointVente
             }
         });
-    } else {
-        console.log('Échec de l\'authentification pour:', username);
-        res.status(401).json({ success: false, message: 'Identifiants invalides' });
+    } catch (error) {
+        console.error('Erreur de connexion:', error);
+        res.status(500).json({ success: false, message: 'Erreur lors de la connexion' });
     }
 });
 
-// Route de déconnexion
+// Route pour la déconnexion
 app.post('/api/logout', (req, res) => {
-    console.log('Tentative de déconnexion');
-    console.log('Session avant destruction:', req.session);
-    
     req.session.destroy((err) => {
         if (err) {
             console.error('Erreur lors de la déconnexion:', err);
-            res.status(500).json({ success: false, message: 'Erreur lors de la déconnexion' });
-        } else {
-            console.log('Session détruite avec succès');
-            res.clearCookie('connect.sid', {
-                httpOnly: true,
-                secure: false,
-                sameSite: 'lax',
-                path: '/'
-            });
-            res.json({ success: true });
+            return res.status(500).json({ success: false, message: 'Erreur lors de la déconnexion' });
         }
+        res.json({ success: true });
     });
 });
 
@@ -612,6 +595,6 @@ app.post('/api/vider-base', (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`Serveur démarré sur http://localhost:${port}`);
+app.listen(PORT, () => {
+    console.log(`Serveur démarré sur le port ${PORT}`);
 });

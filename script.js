@@ -663,11 +663,34 @@ function creerGraphiqueVentesParProduit(donnees) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',  // Changer l'axe pour un graphique horizontal
             scales: {
-                y: {
+                x: {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
+                            return value.toLocaleString('fr-FR') + ' FCFA';
+                        }
+                    }
+                },
+                y: {
+                    ticks: {
+                        autoSkip: false,
+                        font: {
+                            size: 11
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
                             return value.toLocaleString('fr-FR') + ' FCFA';
                         }
                     }
@@ -776,6 +799,7 @@ async function chargerVentes() {
             // Mettre à jour les graphiques
             creerGraphiqueVentesParMois(data.ventes);
             creerGraphiqueVentesParProduit(data.ventes);
+            creerGraphiqueVentesParCategorie(data.ventes);
 
             // Afficher la première page
             afficherPageVentes(1);
@@ -1064,4 +1088,90 @@ document.getElementById('save-import').addEventListener('click', async function(
         console.error('Erreur:', error);
         alert(error.message || 'Erreur lors de la sauvegarde des données');
     }
-}); 
+});
+
+// Fonction pour créer le graphique des ventes par catégorie
+function creerGraphiqueVentesParCategorie(ventes) {
+    const ctx = document.getElementById('ventesParCategorieChart');
+    if (!ctx) return;
+
+    // Détruire le graphique existant s'il existe
+    if (window.ventesParCategorieChart instanceof Chart) {
+        window.ventesParCategorieChart.destroy();
+    }
+
+    // Grouper les ventes par catégorie
+    const ventesParCategorie = {
+        'Bovin': 0,
+        'Ovin': 0,
+        'Volaille': 0,
+        'Pack': 0
+    };
+
+    ventes.forEach(vente => {
+        const categorie = vente.Catégorie || vente.categorie;
+        if (categorie && ventesParCategorie.hasOwnProperty(categorie)) {
+            ventesParCategorie[categorie] += parseFloat(vente.Montant || vente.total || 0);
+        }
+    });
+
+    // Calculer le total des ventes
+    const totalVentes = Object.values(ventesParCategorie).reduce((a, b) => a + b, 0);
+
+    // Filtrer les catégories avec des ventes
+    const categoriesAvecVentes = Object.entries(ventesParCategorie)
+        .filter(([_, montant]) => montant > 0);
+
+    // Préparer les données pour le graphique
+    const labels = categoriesAvecVentes.map(([categorie]) => categorie);
+    const montants = categoriesAvecVentes.map(([_, montant]) => montant);
+    const pourcentages = montants.map(montant => ((montant / totalVentes) * 100).toFixed(1));
+
+    // Créer le nouveau graphique
+    window.ventesParCategorieChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels.map((label, index) => `${label} (${pourcentages[index]}%)`),
+            datasets: [{
+                data: montants,
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',  // Rouge pour Bovin
+                    'rgba(54, 162, 235, 0.8)',  // Bleu pour Ovin
+                    'rgba(255, 206, 86, 0.8)',  // Jaune pour Volaille
+                    'rgba(75, 192, 192, 0.8)'   // Vert pour Pack
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        padding: 20,
+                        font: {
+                            size: 14
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            const percentage = ((value / totalVentes) * 100).toFixed(1);
+                            return `${value.toLocaleString('fr-FR')} FCFA (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+} 

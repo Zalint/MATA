@@ -29,4 +29,9 @@ yarn-error.log*
 
 # Fichiers de build
 dist/
-build/ 
+build/
+
+# Fichiers SSH
+mata
+mata.pub
+sal.txt 
