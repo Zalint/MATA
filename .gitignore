@@ -1,0 +1,32 @@
+# Dépendances
+node_modules/
+package-lock.json
+
+# Fichiers de configuration
+.env
+config.json
+
+# Fichiers de données
+*.csv
+*.xlsx
+*.xls
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Fichiers d'IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Fichiers de build
+dist/
+build/ 

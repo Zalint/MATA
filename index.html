@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Ventes</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container-fluid">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">Gestion des Ventes</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" id="saisie-tab">Saisie</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" id="visualisation-tab">Visualisation</a>
+                        </li>
+                        <li class="nav-item" id="import-tab-container">
+                            <a class="nav-link" href="#" id="import-tab">Import</a>
+                        </li>
+                    </ul>
+                    <div class="navbar-nav">
+                        <span class="nav-item nav-link" id="user-info"></span>
+                        <a class="nav-link" href="#" id="logout-btn">Déconnexion</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="content mt-4">
+            <!-- Formulaire de saisie -->
+            <div id="saisie-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Saisie des ventes</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="vente-form">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="date" class="form-label">Date</label>
+                                    <input type="text" class="form-control" id="date" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="point-vente" class="form-label">Point de Vente</label>
+                                    <select class="form-select" id="point-vente" required>
+                                        <option value="">Sélectionner un point de vente</option>
+                                        <option value="Mbao">Mbao</option>
+                                        <option value="O.Foire">O.Foire</option>
+                                        <option value="Linguere">Linguere</option>
+                                        <option value="Dahra">Dahra</option>
+                                        <option value="Touba">Touba</option>
+                                        <option value="Keur Massar">Keur Massar</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div id="produits-container">
+                                <div class="produit-entry mb-3">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Catégorie</label>
+                                            <select class="form-select categorie-select" required>
+                                                <option value="">Sélectionner une catégorie</option>
+                                                <option value="Bovin">Bovin</option>
+                                                <option value="Ovin">Ovin</option>
+                                                <option value="Volaille">Volaille</option>
+                                                <option value="Pack">Pack</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Produit</label>
+                                            <select class="form-select produit-select" required>
+                                                <option value="">Sélectionner un produit</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Prix Unit.</label>
+                                            <input type="number" class="form-control prix-unit" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Quantité</label>
+                                            <input type="number" class="form-control quantite" step="0.1" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Total</label>
+                                            <input type="number" class="form-control total" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="button" class="btn btn-secondary mb-3" id="ajouter-produit">
+                                Ajouter un produit
+                            </button>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6>Total Général</h6>
+                                            <h3 id="total-general">0 FCFA</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <button type="submit" class="btn btn-primary w-100">Enregistrer</button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <!-- Tableau des dernières ventes -->
+                        <div class="mt-4">
+                            <h5>Dernières ventes enregistrées</h5>
+                            <div class="table-responsive">
+                                <table id="dernieres-ventes" class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Mois</th>
+                                            <th>Date</th>
+                                            <th>Semaine</th>
+                                            <th>Point de Vente</th>
+                                            <th>Préparation</th>
+                                            <th>Catégorie</th>
+                                            <th>Produit</th>
+                                            <th>Prix Unitaire</th>
+                                            <th>Nombre</th>
+                                            <th>Montant</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section de visualisation -->
+            <div id="visualisation-section" class="content-section" style="display: none;">
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <label for="periode-select" class="form-label">Période</label>
+                                        <select class="form-select" id="periode-select">
+                                            <option value="jour">Aujourd'hui</option>
+                                            <option value="semaine">Cette semaine</option>
+                                            <option value="mois">Ce mois</option>
+                                            <option value="personnalise">Personnalisé</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="date-debut" class="form-label">Date de début</label>
+                                        <input type="text" class="form-control" id="date-debut">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="date-fin" class="form-label">Date de fin</label>
+                                        <input type="text" class="form-control" id="date-fin">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="point-vente-select" class="form-label">Point de vente</label>
+                                        <select class="form-select" id="point-vente-select">
+                                            <option value="tous">Tous les points de vente</option>
+                                            <option value="Mbao">Mbao</option>
+                                            <option value="O.Foire">O.Foire</option>
+                                            <option value="Linguere">Linguere</option>
+                                            <option value="Dahra">Dahra</option>
+                                            <option value="Touba">Touba</option>
+                                            <option value="Keur Massar">Keur Massar</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Ventes par Mois</h5>
+                                <canvas id="ventesParMoisChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Ventes par Produit</h5>
+                                <canvas id="ventesParProduitChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Montant Total des Ventes</h5>
+                                <h2 class="text-primary" id="montant-total">0 FCFA</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="card-title mb-0">Tableau des Ventes</h5>
+                                    <button id="vider-base" class="btn btn-danger" style="display: none;">
+                                        <i class="fas fa-trash"></i> Vider la base de données
+                                    </button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table id="tableau-ventes" class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Mois</th>
+                                                <th>Date</th>
+                                                <th>Semaine</th>
+                                                <th>Point de Vente</th>
+                                                <th>Préparation</th>
+                                                <th>Catégorie</th>
+                                                <th>Produit</th>
+                                                <th>Prix Unitaire</th>
+                                                <th>Quantité</th>
+                                                <th>Montant</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div id="pagination-info" class="text-muted"></div>
+                                    <div id="pagination-buttons"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section d'importation -->
+            <div id="import-section" class="content-section" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Importation de données</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="import-form">
+                            <div class="mb-3">
+                                <label for="file-import" class="form-label">Fichier Excel ou CSV</label>
+                                <input type="file" class="form-control" id="file-import" accept=".xlsx,.csv" required>
+                                <div class="form-text">
+                                    Format accepté : fichier Excel (.xlsx) ou CSV avec les colonnes suivantes :<br>
+                                    Mois, Date, Semaine, Point de Vente, Preparation, Catégorie, Produit, PU, Nombre, Montant<br>
+                                    Les points de vente seront automatiquement importés selon les données du fichier.
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 mb-3">
+                                <button type="submit" class="btn btn-primary">Aperçu</button>
+                                <button type="button" id="save-import" class="btn btn-success" disabled>Sauvegarder</button>
+                            </div>
+                        </form>
+
+                        <div class="mt-4">
+                            <h5>Aperçu des données</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped" id="preview-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Mois</th>
+                                            <th>Date</th>
+                                            <th style="width: 80px;">Sem.</th>
+                                            <th>Point de Vente</th>
+                                            <th>Preparation</th>
+                                            <th>Catégorie</th>
+                                            <th>Produit</th>
+                                            <th>PU</th>
+                                            <th>Nombre</th>
+                                            <th>Montant</th>
+                                            <th style="width: 50px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 

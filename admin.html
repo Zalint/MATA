@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration - Gestion des Ventes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        .admin-section {
+            display: none;
+        }
+        .admin-section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">Administration</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" data-section="points-vente">Points de Vente</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="prix">Prix</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="corrections">Corrections</a>
+                        </li>
+                    </ul>
+                    <div class="navbar-nav">
+                        <span class="nav-item nav-link" id="user-info"></span>
+                        <a class="nav-link" href="#" id="logout-btn">Déconnexion</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="content mt-4">
+            <!-- Section Points de Vente -->
+            <div id="points-vente-section" class="admin-section active">
+                <h2>Gestion des Points de Vente</h2>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Ajouter un Point de Vente</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="addPointVenteForm">
+                                    <div class="mb-3">
+                                        <label for="newPointVente" class="form-label">Nom du Point de Vente</label>
+                                        <input type="text" class="form-control" id="newPointVente" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Ajouter</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Liste des Points de Vente</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table" id="pointsVenteTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Nom</th>
+                                                <th>Statut</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Les points de vente seront ajoutés ici dynamiquement -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Prix -->
+            <div id="prix-section" class="admin-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Gestion des Prix</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Catégorie</label>
+                                <select class="form-select" id="categorie-select"></select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Produit</label>
+                                <select class="form-select" id="produit-select"></select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nouveau Prix</label>
+                                <input type="number" class="form-control" id="nouveau-prix">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="modifier-prix">Modifier le Prix</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Corrections -->
+            <div id="corrections-section" class="admin-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Correction des Totaux</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Date</label>
+                                <input type="text" class="form-control" id="date-correction">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Point de Vente</label>
+                                <select class="form-select" id="point-vente-correction"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Catégorie</label>
+                                <select class="form-select" id="categorie-correction"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Produit</label>
+                                <select class="form-select" id="produit-correction"></select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Nouveau Total</label>
+                                <input type="number" class="form-control" id="nouveau-total">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="corriger-total">Corriger le Total</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html> 

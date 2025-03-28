@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - Gestion des Ventes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            background-color: #f8f9fa;
+        }
+        .login-form {
+            width: 100%;
+            max-width: 400px;
+            padding: 15px;
+            margin: auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="login-form">
+            <h2 class="text-center mb-4">Connexion</h2>
+            <form id="loginForm">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Nom d'utilisateur</label>
+                    <input type="text" class="form-control" id="username" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Mot de passe</label>
+                    <input type="password" class="form-control" id="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Se connecter</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Vérifier si l'utilisateur est déjà connecté
+        async function checkSession() {
+            try {
+                console.log('Vérification de la session...');
+                const response = await fetch('http://localhost:3000/api/check-session', {
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                console.log('Réponse de check-session:', response.status);
+                
+                if (!response.ok) {
+                    console.log('Session invalide');
+                    return;
+                }
+                
+                const data = await response.json();
+                console.log('Données de session:', data);
+                
+                if (data.success) {
+                    console.log('Redirection vers la page appropriée');
+                    window.location.href = '/redirect';
+                }
+            } catch (error) {
+                console.error('Erreur lors de la vérification de la session:', error);
+            }
+        }
+
+        // Gérer la soumission du formulaire
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            console.log('Tentative de connexion pour:', username);
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ username, password })
+                });
+                
+                console.log('Réponse de login:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error('Échec de la connexion');
+                }
+                
+                const data = await response.json();
+                console.log('Données de connexion:', data);
+                
+                if (data.success) {
+                    console.log('Connexion réussie, redirection...');
+                    window.location.href = '/redirect';
+                } else {
+                    console.log('Échec de la connexion:', data.message);
+                    alert(data.message);
+                }
+            } catch (error) {
+                console.error('Erreur lors de la connexion:', error);
+                alert('Erreur lors de la connexion');
+            }
+        });
+
+        // Vérifier la session au chargement de la page
+        checkSession();
+    </script>
+</body>
+</html> 
