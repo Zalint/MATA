@@ -70,4 +70,40 @@ body {
     .produit-entry .row > div {
         margin-bottom: 1rem;
     }
+}
+
+/* Styles pour les tableaux d'inventaire */
+.table-responsive {
+    margin-top: 1rem;
+}
+
+#stock-table, #transfert-table {
+    font-size: 0.9rem;
+}
+
+#stock-table input, #transfert-table input,
+#stock-table select, #transfert-table select {
+    font-size: 0.9rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.total-cell {
+    font-weight: bold;
+    text-align: right;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Ajustements pour les inputs numériques */
+input[type="number"] {
+    text-align: right;
+}
+
+/* Style pour le sélecteur de type de stock */
+#type-stock {
+    width: auto;
+    min-width: 150px;
 } 
