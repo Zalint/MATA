@@ -988,7 +988,8 @@ document.getElementById('save-import').addEventListener('click', async function(
         }));
         
         // Envoyer les données au serveur
-        const response = await fetch('http://localhost:3000/api/import-ventes', {
+        const typeStock = document.getElementById('type-stock').value;
+        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1151,15 +1152,21 @@ async function sauvegarderDonneesStock() {
     document.querySelectorAll('#stock-table tbody tr').forEach(row => {
         const pointVente = row.querySelector('.point-vente-select').value;
         const produit = row.querySelector('.produit-select').value;
-        const quantite = row.querySelector('.quantite-input').value;
-        const prixUnitaire = row.querySelector('.prix-unitaire-input').value;
-        const commentaire = row.querySelector('.commentaire-input').value;
-        const key = `${pointVente}-${produit}`;
+        const quantite = row.querySelector('.quantite-input').value || '0';
+        const prixUnitaire = row.querySelector('.prix-unitaire-input').value || PRIX_DEFAUT[produit] || '0';
+        const commentaire = row.querySelector('.commentaire-input').value || '';
+        const total = (parseFloat(quantite) * parseFloat(prixUnitaire)).toString();
 
+        const key = `${pointVente}-${produit}`;
         donnees[key] = {
-            quantite: quantite || '0',
-            prixUnitaire: prixUnitaire || PRIX_DEFAUT[produit] || '0',
-            commentaire: commentaire || ''
+            date: date,
+            typeStock: typeStock,
+            "Point de Vente": pointVente,
+            Produit: produit,
+            Nombre: quantite,
+            PU: prixUnitaire,
+            Montant: total,
+            Commentaire: commentaire
         };
     });
 
@@ -1200,13 +1207,6 @@ function initTableauStock() {
         matin: stockData.matin.size + ' entrées',
         soir: stockData.soir.size + ' entrées'
     });
-
-    // Sauvegarder les données actuelles avant de vider le tableau
-    if (tbody.children.length > 0) {
-        console.log('Sauvegarde des données existantes...');
-        console.log('Nombre de lignes avant sauvegarde:', tbody.children.length);
-        sauvegarderDonneesStock();
-    }
 
     tbody.innerHTML = '';
     console.log('Tableau vidé');
@@ -1290,10 +1290,11 @@ function initTableauStock() {
             if (donneesSauvegardees && donneesSauvegardees.has(key)) {
                 const donnees = donneesSauvegardees.get(key);
                 console.log(`Restauration des données pour ${key}:`, donnees);
-                inputQuantite.value = donnees.quantite;
-                inputPrixUnitaire.value = donnees.prixUnitaire;
-                inputCommentaire.value = donnees.commentaire;
-                tdTotal.textContent = (parseFloat(donnees.quantite) * parseFloat(donnees.prixUnitaire)).toLocaleString('fr-FR');
+                inputQuantite.value = donnees.Nombre || donnees.quantite || '0';
+                inputPrixUnitaire.value = donnees.PU || donnees.prixUnitaire || PRIX_DEFAUT[produit] || '0';
+                inputCommentaire.value = donnees.Commentaire || donnees.commentaire || '';
+                // Recalculer le total
+                inputTotal.value = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value)).toString();
             } else {
                 console.log(`Pas de données sauvegardées pour ${key}, utilisation des valeurs par défaut`);
                 inputQuantite.value = '0';
@@ -1433,7 +1434,7 @@ function initInventaire() {
             });
             
             // Envoyer les données au serveur
-            const response = await fetch('http://localhost:3000/api/stock', {
+            const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1509,10 +1510,6 @@ async function onTypeStockChange() {
     console.log('%c Changement de type de stock', 'background: #222; color: #bada55');
     const typeStock = document.getElementById('type-stock').value;
     console.log('Nouveau type de stock:', typeStock);
-
-    // Sauvegarder les données actuelles avant de changer
-    sauvegarderDonneesStock();
-    console.log('Données sauvegardées pour le type précédent');
 
     // Récupérer les données du nouveau type depuis le serveur
     try {
@@ -1598,9 +1595,9 @@ async function onTypeStockChange() {
                 const key = `${pointVente}-${produit}`;
                 if (donnees[key]) {
                     console.log(`Restauration des données pour ${key}:`, donnees[key]);
-                    inputQuantite.value = donnees[key].quantite || '0';
-                    inputPrixUnitaire.value = donnees[key].prixUnitaire || PRIX_DEFAUT[produit] || '0';
-                    inputCommentaire.value = donnees[key].commentaire || '';
+                    inputQuantite.value = donnees[key].Nombre || donnees[key].quantite || '0';
+                    inputPrixUnitaire.value = donnees[key].PU || donnees[key].prixUnitaire || PRIX_DEFAUT[produit] || '0';
+                    inputCommentaire.value = donnees[key].Commentaire || donnees[key].commentaire || '';
                     // Recalculer le total
                     inputTotal.value = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value)).toString();
                 }
