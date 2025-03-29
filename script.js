@@ -1142,10 +1142,11 @@ let stockData = {
 };
 
 async function sauvegarderDonneesStock() {
-    console.log('%c Sauvegarde des données de stock', 'background: #222; color: #bada55');
+    console.log('%c=== Sauvegarde des données de stock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
     const typeStock = document.getElementById('type-stock').value;
     const date = document.getElementById('date-inventaire').value;
-    console.log('Type de stock:', typeStock);
+    console.log('%cType de stock:', 'color: #ff9900; font-weight: bold;', typeStock);
+    console.log('%cDate:', 'color: #ff9900;', date);
 
     // Collecter les données du tableau
     const donnees = {};
@@ -1168,12 +1169,14 @@ async function sauvegarderDonneesStock() {
             Montant: total,
             Commentaire: commentaire
         };
+
+        console.log('%cDonnées collectées pour ' + key + ':', 'color: #00aaff;', donnees[key]);
     });
 
-    console.log('Données à sauvegarder:', donnees);
+    console.log('%cDonnées complètes à sauvegarder:', 'color: #00ff00; font-weight: bold;', donnees);
 
     try {
-        // Envoyer les données au serveur
+        console.log('%cEnvoi des données au serveur...', 'color: #ff9900;');
         const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
             method: 'POST',
             headers: {
@@ -1185,47 +1188,53 @@ async function sauvegarderDonneesStock() {
 
         const result = await response.json();
         if (result.success) {
-            console.log('Données sauvegardées avec succès');
+            console.log('%cDonnées sauvegardées avec succès', 'color: #00ff00; font-weight: bold;');
         } else {
-            console.error('Erreur lors de la sauvegarde:', result.error);
+            console.error('%cErreur lors de la sauvegarde:', 'color: #ff0000; font-weight: bold;', result.error);
             alert('Erreur lors de la sauvegarde des données');
         }
     } catch (error) {
-        console.error('Erreur lors de la sauvegarde:', error);
+        console.error('%cErreur lors de la sauvegarde:', 'color: #ff0000; font-weight: bold;', error);
         alert('Erreur lors de la sauvegarde des données');
     }
 }
 
 // Fonction pour initialiser le tableau de stock
 function initTableauStock() {
-    console.log('%c Début initTableauStock', 'background: #222; color: #bada55; font-size: 16px;');
+    console.log('%c=== Début initTableauStock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
     
     const tbody = document.querySelector('#stock-table tbody');
     const typeStock = document.getElementById('type-stock').value;
-    console.log('Type de stock actuel:', typeStock);
-    console.log('État actuel de stockData:', {
-        matin: stockData.matin.size + ' entrées',
-        soir: stockData.soir.size + ' entrées'
+    console.log('%cType de stock actuel:', 'color: #ff9900; font-weight: bold;', typeStock);
+    console.log('%cÉtat des données stockData:', 'color: #00ff00; font-weight: bold;', {
+        matin: {
+            taille: stockData.matin.size + ' entrées',
+            données: Array.from(stockData.matin.entries())
+        },
+        soir: {
+            taille: stockData.soir.size + ' entrées',
+            données: Array.from(stockData.soir.entries())
+        }
     });
 
     tbody.innerHTML = '';
-    console.log('Tableau vidé');
+    console.log('%cTableau vidé', 'color: #ff0000;');
 
     // Récupérer les données sauvegardées pour le type de stock actuel
     const donneesSauvegardees = stockData[typeStock];
-    console.log('Données récupérées pour', typeStock, ':', {
+    console.log('%cDonnées récupérées pour', 'color: #00ff00;', typeStock, ':', {
         nombreEntrees: donneesSauvegardees ? donneesSauvegardees.size : 0,
         donnees: donneesSauvegardees ? Array.from(donneesSauvegardees.entries()) : []
     });
 
     // Pour chaque point de vente physique
     POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
-        console.log(`Traitement du point de vente: ${pointVente}`);
+        console.log('%c=== Traitement du point de vente: ' + pointVente + ' ===', 'background: #4a4a4a; color: #fff; padding: 3px;');
         
         // Pour chaque produit
         PRODUITS.forEach(produit => {
             const key = `${pointVente}-${produit}`;
-            console.log(`Création de la ligne pour: ${key}`);
+            console.log('%cCréation de la ligne pour:', 'color: #00aaff;', key);
             
             const row = document.createElement('tr');
             row.dataset.typeStock = typeStock;
@@ -1289,14 +1298,23 @@ function initTableauStock() {
             // Restaurer les valeurs sauvegardées si elles existent
             if (donneesSauvegardees && donneesSauvegardees.has(key)) {
                 const donnees = donneesSauvegardees.get(key);
-                console.log(`Restauration des données pour ${key}:`, donnees);
+                console.log('%cRestauration des données pour ' + key + ':', 'color: #00ff00;', {
+                    quantite: donnees.Nombre || donnees.quantite,
+                    prixUnitaire: donnees.PU || donnees.prixUnitaire,
+                    commentaire: donnees.Commentaire || donnees.commentaire,
+                    total: (parseFloat(donnees.Nombre || donnees.quantite) * parseFloat(donnees.PU || donnees.prixUnitaire)).toString()
+                });
                 inputQuantite.value = donnees.Nombre || donnees.quantite || '0';
                 inputPrixUnitaire.value = donnees.PU || donnees.prixUnitaire || PRIX_DEFAUT[produit] || '0';
                 inputCommentaire.value = donnees.Commentaire || donnees.commentaire || '';
-                // Recalculer le total
-                inputTotal.value = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value)).toString();
+                tdTotal.textContent = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value)).toLocaleString('fr-FR');
             } else {
-                console.log(`Pas de données sauvegardées pour ${key}, utilisation des valeurs par défaut`);
+                console.log('%cPas de données sauvegardées pour ' + key + ', utilisation des valeurs par défaut:', 'color: #ff9900;', {
+                    quantite: '0',
+                    prixUnitaire: PRIX_DEFAUT[produit],
+                    commentaire: '',
+                    total: '0'
+                });
                 inputQuantite.value = '0';
                 inputPrixUnitaire.value = PRIX_DEFAUT[produit];
                 inputCommentaire.value = '';
@@ -1344,7 +1362,7 @@ function initTableauStock() {
         });
     });
     
-    console.log('Fin initTableauStock');
+    console.log('%c=== Fin initTableauStock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
 }
 
 // Fonction pour initialiser le tableau de transfert
@@ -1507,18 +1525,37 @@ function initInventaire() {
 
 // Fonction séparée pour gérer le changement de type de stock
 async function onTypeStockChange() {
-    console.log('%c Changement de type de stock', 'background: #222; color: #bada55');
+    console.log('%c=== Changement de type de stock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
     const typeStock = document.getElementById('type-stock').value;
-    console.log('Nouveau type de stock:', typeStock);
+    console.log('%cNouveau type de stock:', 'color: #ff9900; font-weight: bold;', typeStock);
 
     // Récupérer les données du nouveau type depuis le serveur
     try {
+        console.log('%cRécupération des données depuis le serveur pour le type:', 'color: #00aaff;', typeStock);
         const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
             method: 'GET',
             credentials: 'include'
         });
-        const donnees = await response.json();
-        console.log('Données récupérées du serveur:', donnees);
+        let donneesRecues = await response.json();
+        console.log('%cDonnées brutes reçues du serveur:', 'color: #00ff00;', donneesRecues);
+
+        // Transformer le tableau en objet avec les clés au format "pointVente-produit"
+        const donnees = {};
+        if (Array.isArray(donneesRecues)) {
+            donneesRecues.forEach(item => {
+                const pointVente = item["Point de Vente"] || item.pointVente;
+                const produit = item.Produit || item.produit;
+                const key = `${pointVente}-${produit}`;
+                donnees[key] = item;
+            });
+        } else {
+            donneesRecues = donneesRecues || {};
+            Object.entries(donneesRecues).forEach(([key, value]) => {
+                donnees[key] = value;
+            });
+        }
+
+        console.log('%cDonnées transformées:', 'color: #00ff00;', donnees);
 
         // Vider le tableau
         const tbody = document.querySelector('#stock-table tbody');
@@ -1559,7 +1596,6 @@ async function onTypeStockChange() {
                 inputQuantite.type = 'number';
                 inputQuantite.className = 'quantite-input';
                 inputQuantite.min = '0';
-                inputQuantite.value = '0';
                 tdQuantite.appendChild(inputQuantite);
                 tr.appendChild(tdQuantite);
 
@@ -1569,7 +1605,6 @@ async function onTypeStockChange() {
                 inputPrixUnitaire.type = 'number';
                 inputPrixUnitaire.className = 'prix-unitaire-input';
                 inputPrixUnitaire.min = '0';
-                inputPrixUnitaire.value = PRIX_DEFAUT[produit] || '0';
                 tdPrixUnitaire.appendChild(inputPrixUnitaire);
                 tr.appendChild(tdPrixUnitaire);
 
@@ -1579,7 +1614,6 @@ async function onTypeStockChange() {
                 inputTotal.type = 'number';
                 inputTotal.className = 'total-input';
                 inputTotal.readOnly = true;
-                inputTotal.value = '0';
                 tdTotal.appendChild(inputTotal);
                 tr.appendChild(tdTotal);
 
@@ -1594,12 +1628,18 @@ async function onTypeStockChange() {
                 // Restaurer les données sauvegardées si elles existent
                 const key = `${pointVente}-${produit}`;
                 if (donnees[key]) {
-                    console.log(`Restauration des données pour ${key}:`, donnees[key]);
+                    console.log(`%cRestauration des données pour ${key}:`, 'color: #00ff00;', donnees[key]);
                     inputQuantite.value = donnees[key].Nombre || donnees[key].quantite || '0';
                     inputPrixUnitaire.value = donnees[key].PU || donnees[key].prixUnitaire || PRIX_DEFAUT[produit] || '0';
                     inputCommentaire.value = donnees[key].Commentaire || donnees[key].commentaire || '';
                     // Recalculer le total
                     inputTotal.value = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value)).toString();
+                } else {
+                    console.log(`%cPas de données pour ${key}, utilisation des valeurs par défaut`, 'color: #ff9900;');
+                    inputQuantite.value = '0';
+                    inputPrixUnitaire.value = PRIX_DEFAUT[produit] || '0';
+                    inputCommentaire.value = '';
+                    inputTotal.value = '0';
                 }
 
                 // Ajouter les écouteurs d'événements pour le calcul automatique du total
@@ -1619,9 +1659,9 @@ async function onTypeStockChange() {
             });
         });
 
-        console.log('Tableau mis à jour avec succès');
+        console.log('%cTableau mis à jour avec succès', 'color: #00ff00; font-weight: bold;');
     } catch (error) {
-        console.error('Erreur lors du chargement des données:', error);
+        console.error('%cErreur lors du chargement des données:', 'color: #ff0000; font-weight: bold;', error);
         alert('Erreur lors du chargement des données du stock');
     }
 }
