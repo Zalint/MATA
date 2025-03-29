@@ -9,6 +9,7 @@ const users = require('./users');
 const pointsVente = require('./points-vente');
 const produits = require('./produits');
 const bcrypt = require('bcrypt');
+const fsPromises = require('fs').promises;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -66,6 +67,34 @@ if (!fs.existsSync(csvFilePath)) {
     const headers = 'Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant\n';
     fs.writeFileSync(csvFilePath, headers);
 }
+
+// Chemin du fichier CSV pour le stock
+const stockCsvPath = path.join(__dirname, 'stock.csv');
+
+// Créer le fichier CSV de stock s'il n'existe pas
+if (!fs.existsSync(stockCsvPath)) {
+    const headers = 'Date;Type Stock;Point de Vente;Produit;Quantité;Prix Unitaire;Total;Commentaire\n';
+    fs.writeFileSync(stockCsvPath, headers);
+}
+
+// Chemins des fichiers JSON pour le stock
+const STOCK_MATIN_PATH = path.join(__dirname, 'data', 'stock-matin.json');
+const STOCK_SOIR_PATH = path.join(__dirname, 'data', 'stock-soir.json');
+
+// Fonction pour initialiser les fichiers JSON s'ils n'existent pas
+async function initStockFiles() {
+    try {
+        await fsPromises.access(STOCK_MATIN_PATH);
+        await fsPromises.access(STOCK_SOIR_PATH);
+    } catch {
+        // Créer les fichiers avec un objet vide si ils n'existent pas
+        await fsPromises.writeFile(STOCK_MATIN_PATH, JSON.stringify({}, null, 2));
+        await fsPromises.writeFile(STOCK_SOIR_PATH, JSON.stringify({}, null, 2));
+    }
+}
+
+// Initialiser les fichiers au démarrage
+initStockFiles();
 
 // Route pour la connexion
 app.post('/api/login', async (req, res) => {
@@ -595,6 +624,92 @@ app.post('/api/vider-base', (req, res) => {
     }
 });
 
+// Route pour sauvegarder le stock
+app.post('/api/stock', checkAuth, (req, res) => {
+    try {
+        const entries = req.body;
+        
+        // Vérifier que les données sont valides
+        if (!Array.isArray(entries) || entries.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Données invalides'
+            });
+        }
+
+        // Créer le contenu CSV
+        let csvContent = '';
+        entries.forEach(entry => {
+            // Vérifier que toutes les propriétés requises sont présentes
+            if (!entry.date || !entry.typeStock || !entry.pointVente || !entry.produit) {
+                throw new Error('Données manquantes dans une ou plusieurs lignes');
+            }
+
+            // Vérifier que le point de vente existe
+            if (!pointsVente[entry.pointVente]) {
+                throw new Error(`Le point de vente "${entry.pointVente}" n'existe pas`);
+            }
+
+            // S'assurer que toutes les valeurs sont définies, même si vides
+            const ligne = [
+                entry.date || '',
+                entry.typeStock || '',
+                entry.pointVente || '',
+                entry.produit || '',
+                entry.quantite || '0',
+                entry.prixUnitaire || '0',
+                entry.total || '0',
+                entry.commentaire || ''
+            ];
+
+            csvContent += ligne.join(';') + '\n';
+        });
+
+        // Ajouter les nouvelles entrées au fichier CSV
+        fs.appendFileSync(stockCsvPath, csvContent);
+
+        res.json({ 
+            success: true, 
+            message: 'Stock sauvegardé avec succès'
+        });
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde du stock:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Erreur lors de la sauvegarde du stock'
+        });
+    }
+});
+
+// Route pour charger les données de stock
+app.get('/api/stock/:type', async (req, res) => {
+    try {
+        const type = req.params.type;
+        const filePath = type === 'matin' ? STOCK_MATIN_PATH : STOCK_SOIR_PATH;
+        
+        const data = await fsPromises.readFile(filePath, 'utf8');
+        res.json(JSON.parse(data));
+    } catch (error) {
+        console.error('Erreur lors du chargement des données:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement des données' });
+    }
+});
+
+// Route pour sauvegarder les données de stock
+app.post('/api/stock/:type', async (req, res) => {
+    try {
+        const type = req.params.type;
+        const filePath = type === 'matin' ? STOCK_MATIN_PATH : STOCK_SOIR_PATH;
+        
+        await fsPromises.writeFile(filePath, JSON.stringify(req.body, null, 2));
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde des données:', error);
+        res.status(500).json({ error: 'Erreur lors de la sauvegarde des données' });
+    }
+});
+
+// Démarrer le serveur
 app.listen(PORT, () => {
     console.log(`Serveur démarré sur le port ${PORT}`);
 });

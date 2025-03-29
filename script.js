@@ -15,6 +15,78 @@ function updateViderBaseButtonVisibility() {
     }
 }
 
+// Fonction pour cacher toutes les sections
+function hideAllSections() {
+    document.getElementById('saisie-section').style.display = 'none';
+    document.getElementById('visualisation-section').style.display = 'none';
+    document.getElementById('import-section').style.display = 'none';
+    document.getElementById('stock-inventaire-section').style.display = 'none';
+}
+
+// Gestion des onglets
+document.addEventListener('DOMContentLoaded', function() {
+    const saisieTab = document.getElementById('saisie-tab');
+    const visualisationTab = document.getElementById('visualisation-tab');
+    const importTab = document.getElementById('import-tab');
+    const stockInventaireTab = document.getElementById('stock-inventaire-tab');
+    
+    const saisieSection = document.getElementById('saisie-section');
+    const visualisationSection = document.getElementById('visualisation-section');
+    const importSection = document.getElementById('import-section');
+    const stockInventaireSection = document.getElementById('stock-inventaire-section');
+
+    // Fonction pour désactiver tous les onglets
+    function deactivateAllTabs() {
+        saisieTab.classList.remove('active');
+        visualisationTab.classList.remove('active');
+        importTab.classList.remove('active');
+        if (stockInventaireTab) stockInventaireTab.classList.remove('active');
+    }
+
+    if (saisieTab) {
+        saisieTab.addEventListener('click', function(e) {
+            e.preventDefault();
+            hideAllSections();
+            saisieSection.style.display = 'block';
+            deactivateAllTabs();
+            this.classList.add('active');
+        });
+    }
+
+    if (visualisationTab) {
+        visualisationTab.addEventListener('click', function(e) {
+            e.preventDefault();
+            hideAllSections();
+            visualisationSection.style.display = 'block';
+            deactivateAllTabs();
+            this.classList.add('active');
+            chargerVentes();
+        });
+    }
+
+    if (importTab) {
+        importTab.addEventListener('click', function(e) {
+            e.preventDefault();
+            hideAllSections();
+            importSection.style.display = 'block';
+            deactivateAllTabs();
+            this.classList.add('active');
+        });
+    }
+
+    if (stockInventaireTab) {
+        stockInventaireTab.addEventListener('click', function(e) {
+            e.preventDefault();
+            hideAllSections();
+            stockInventaireSection.style.display = 'block';
+            deactivateAllTabs();
+            this.classList.add('active');
+            initInventaire();
+        });
+    }
+});
+
+// Modification de la fonction checkAuth pour gérer l'affichage de l'onglet Stock inventaire
 async function checkAuth() {
     try {
         const response = await fetch('http://localhost:3000/api/check-session', {
@@ -33,14 +105,16 @@ async function checkAuth() {
         // Afficher les informations de l'utilisateur
         document.getElementById('user-info').textContent = `Connecté en tant que ${currentUser.username}`;
         
-        // Gérer la visibilité de l'onglet Import
+        // Gérer la visibilité des onglets spéciaux
         const importTabContainer = document.getElementById('import-tab-container');
-        if (importTabContainer) {
-            if (currentUser.username === 'SALIOU' || currentUser.isSuperAdmin) {
-                importTabContainer.style.display = 'block';
-            } else {
-                importTabContainer.style.display = 'none';
-            }
+        const stockInventaireItem = document.getElementById('stock-inventaire-item');
+        
+        if (currentUser.username === 'SALIOU' || currentUser.isSuperAdmin) {
+            if (importTabContainer) importTabContainer.style.display = 'block';
+            if (stockInventaireItem) stockInventaireItem.style.display = 'block';
+        } else {
+            if (importTabContainer) importTabContainer.style.display = 'none';
+            if (stockInventaireItem) stockInventaireItem.style.display = 'none';
         }
 
         // Mettre à jour la visibilité du bouton de vidage
@@ -141,153 +215,6 @@ const produitsDB = {
         "Pack20000": [20000]
     }
 };
-
-// Gestion des onglets
-document.addEventListener('DOMContentLoaded', function() {
-    const saisieTab = document.getElementById('saisie-tab');
-    const visualisationTab = document.getElementById('visualisation-tab');
-    const importTab = document.getElementById('import-tab');
-    const saisieSection = document.getElementById('saisie-section');
-    const visualisationSection = document.getElementById('visualisation-section');
-    const importSection = document.getElementById('import-section');
-
-    if (saisieTab && visualisationTab && importTab && saisieSection && visualisationSection && importSection) {
-        saisieTab.addEventListener('click', function(e) {
-            e.preventDefault();
-            saisieSection.style.display = 'block';
-            visualisationSection.style.display = 'none';
-            importSection.style.display = 'none';
-            this.classList.add('active');
-            visualisationTab.classList.remove('active');
-            importTab.classList.remove('active');
-        });
-
-        visualisationTab.addEventListener('click', function(e) {
-            e.preventDefault();
-            saisieSection.style.display = 'none';
-            visualisationSection.style.display = 'block';
-            importSection.style.display = 'none';
-            this.classList.add('active');
-            saisieTab.classList.remove('active');
-            importTab.classList.remove('active');
-            chargerVentes();
-        });
-
-        importTab.addEventListener('click', function(e) {
-            e.preventDefault();
-            saisieSection.style.display = 'none';
-            visualisationSection.style.display = 'none';
-            importSection.style.display = 'block';
-            this.classList.add('active');
-            saisieTab.classList.remove('active');
-            visualisationTab.classList.remove('active');
-        });
-    }
-
-    // Gestion de la visualisation
-    const periodeSelect = document.getElementById('periode-select');
-    if (periodeSelect) {
-        // Définir "Ce mois" comme période par défaut
-        periodeSelect.value = 'mois';
-        
-        // Déclencher l'événement change pour initialiser les dates
-        periodeSelect.dispatchEvent(new Event('change'));
-        
-        periodeSelect.addEventListener('change', function() {
-            const periode = this.value;
-            const dateDebut = document.getElementById('date-debut');
-            const dateFin = document.getElementById('date-fin');
-            
-            // Réinitialiser les dates
-            dateDebut._flatpickr.clear();
-            dateFin._flatpickr.clear();
-            
-            const today = new Date();
-            
-            switch(periode) {
-                case 'jour':
-                    dateDebut._flatpickr.setDate(today);
-                    dateFin._flatpickr.setDate(today);
-                    break;
-                case 'semaine':
-                    const debutSemaine = new Date(today);
-                    debutSemaine.setDate(today.getDate() - today.getDay());
-                    dateDebut._flatpickr.setDate(debutSemaine);
-                    dateFin._flatpickr.setDate(today);
-                    break;
-                case 'mois':
-                    // Définir la date de début au 1er du mois en cours
-                    const debutMois = new Date(today.getFullYear(), today.getMonth(), 1);
-                    dateDebut._flatpickr.setDate(debutMois);
-                    dateFin._flatpickr.setDate(today);
-                    break;
-            }
-            
-            // Formater les dates pour l'affichage
-            const formatDate = (date) => {
-                return date.toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric'
-                });
-            };
-            
-            // Mettre à jour les valeurs des champs de date
-            dateDebut.value = formatDate(dateDebut._flatpickr.selectedDates[0]);
-            dateFin.value = formatDate(dateFin._flatpickr.selectedDates[0]);
-            
-            chargerVentes();
-        });
-    }
-
-    // Ajouter les event listeners pour le rechargement des données
-    const dateDebut = document.getElementById('date-debut');
-    const dateFin = document.getElementById('date-fin');
-    const pointVenteSelect = document.getElementById('point-vente-select');
-
-    if (dateDebut) dateDebut.addEventListener('change', chargerVentes);
-    if (dateFin) dateFin.addEventListener('change', chargerVentes);
-    if (pointVenteSelect) pointVenteSelect.addEventListener('change', chargerVentes);
-
-    // Gestion du bouton de vidage de la base de données
-    const viderBaseBtn = document.getElementById('vider-base');
-    if (viderBaseBtn) {
-        // Vérifier si l'utilisateur est SALIOU
-        if (currentUser && currentUser.username === 'SALIOU') {
-            viderBaseBtn.style.display = 'block';
-            console.log('Bouton de vidage affiché pour SALIOU');
-        } else {
-            viderBaseBtn.style.display = 'none';
-            console.log('Bouton de vidage masqué - utilisateur:', currentUser ? currentUser.username : 'non connecté');
-        }
-
-        // Gérer le clic sur le bouton
-        viderBaseBtn.addEventListener('click', async function() {
-            if (confirm('Êtes-vous sûr de vouloir vider la base de données ? Cette action est irréversible.')) {
-                try {
-                    const response = await fetch('http://localhost:3000/api/vider-base', {
-                        method: 'POST',
-                        credentials: 'include'
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        alert('Base de données vidée avec succès');
-                        // Recharger les données
-                        chargerVentes();
-                        chargerDernieresVentes();
-                    } else {
-                        throw new Error(data.message || 'Erreur lors du vidage de la base de données');
-                    }
-                } catch (error) {
-                    console.error('Erreur:', error);
-                    alert(error.message || 'Erreur lors du vidage de la base de données');
-                }
-            }
-        });
-    }
-});
 
 // Gestion des catégories et produits
 document.querySelectorAll('.categorie-select').forEach(select => {
@@ -1174,4 +1101,639 @@ function creerGraphiqueVentesParCategorie(ventes) {
             }
         }
     });
+}
+
+// Configuration pour l'inventaire
+const POINTS_VENTE = [
+    'Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba', 'Keur Massar',
+    'Abattage', 'Depot', 'Gros Client'
+];
+
+const PRODUITS = [
+    'Boeuf', 'Veau', 'Poulet', 'Tete De Mouton', 'Tablette',
+    'Foie', 'Yell', 'Agneau', 'Déchet 400', 'Autres', 'Mergez', 'Déchet 2000'
+];
+
+// Configuration des prix par défaut
+const PRIX_DEFAUT = {
+    'Boeuf': 3600,
+    'Veau': 3800,
+    'Poulet': 3500,
+    'Tete De Mouton': 1000,
+    'Tablette': 2800,
+    'Foie': 4000,
+    'Yell': 2500,
+    'Agneau': 4500,
+    'Déchet 400': 400,
+    'Autres': 1,
+    'Mergez': 5000,
+    'Déchet 2000': 2000
+};
+
+const POINTS_VENTE_PHYSIQUES = [
+    'Keur Massar', 'Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba'
+];
+
+// Variables globales pour stocker les données de stock
+let stockData = {
+    matin: new Map(),
+    soir: new Map()
+};
+
+async function sauvegarderDonneesStock() {
+    console.log('%c Sauvegarde des données de stock', 'background: #222; color: #bada55');
+    const typeStock = document.getElementById('type-stock').value;
+    const date = document.getElementById('date-inventaire').value;
+    console.log('Type de stock:', typeStock);
+
+    // Collecter les données du tableau
+    const donnees = {};
+    document.querySelectorAll('#stock-table tbody tr').forEach(row => {
+        const pointVente = row.querySelector('.point-vente-select').value;
+        const produit = row.querySelector('.produit-select').value;
+        const quantite = row.querySelector('.quantite-input').value;
+        const prixUnitaire = row.querySelector('.prix-unitaire-input').value;
+        const commentaire = row.querySelector('.commentaire-input').value;
+        const key = `${pointVente}-${produit}`;
+
+        donnees[key] = {
+            quantite: quantite || '0',
+            prixUnitaire: prixUnitaire || PRIX_DEFAUT[produit] || '0',
+            commentaire: commentaire || ''
+        };
+    });
+
+    console.log('Données à sauvegarder:', donnees);
+
+    try {
+        // Envoyer les données au serveur
+        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(donnees)
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            console.log('Données sauvegardées avec succès');
+        } else {
+            console.error('Erreur lors de la sauvegarde:', result.error);
+            alert('Erreur lors de la sauvegarde des données');
+        }
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde:', error);
+        alert('Erreur lors de la sauvegarde des données');
+    }
+}
+
+// Fonction pour initialiser le tableau de stock
+function initTableauStock() {
+    console.log('%c Début initTableauStock', 'background: #222; color: #bada55; font-size: 16px;');
+    
+    const tbody = document.querySelector('#stock-table tbody');
+    const typeStock = document.getElementById('type-stock').value;
+    console.log('Type de stock actuel:', typeStock);
+    console.log('État actuel de stockData:', {
+        matin: stockData.matin.size + ' entrées',
+        soir: stockData.soir.size + ' entrées'
+    });
+
+    // Sauvegarder les données actuelles avant de vider le tableau
+    if (tbody.children.length > 0) {
+        console.log('Sauvegarde des données existantes...');
+        console.log('Nombre de lignes avant sauvegarde:', tbody.children.length);
+        sauvegarderDonneesStock();
+    }
+
+    tbody.innerHTML = '';
+    console.log('Tableau vidé');
+
+    // Récupérer les données sauvegardées pour le type de stock actuel
+    const donneesSauvegardees = stockData[typeStock];
+    console.log('Données récupérées pour', typeStock, ':', {
+        nombreEntrees: donneesSauvegardees ? donneesSauvegardees.size : 0,
+        donnees: donneesSauvegardees ? Array.from(donneesSauvegardees.entries()) : []
+    });
+
+    // Pour chaque point de vente physique
+    POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
+        console.log(`Traitement du point de vente: ${pointVente}`);
+        
+        // Pour chaque produit
+        PRODUITS.forEach(produit => {
+            const key = `${pointVente}-${produit}`;
+            console.log(`Création de la ligne pour: ${key}`);
+            
+            const row = document.createElement('tr');
+            row.dataset.typeStock = typeStock;
+            
+            // Point de vente (éditable)
+            const tdPointVente = document.createElement('td');
+            const selectPointVente = document.createElement('select');
+            selectPointVente.className = 'form-select form-select-sm point-vente-select';
+            POINTS_VENTE_PHYSIQUES.forEach(pv => {
+                const option = document.createElement('option');
+                option.value = pv;
+                option.textContent = pv;
+                if (pv === pointVente) {
+                    option.selected = true;
+                }
+                selectPointVente.appendChild(option);
+            });
+            tdPointVente.appendChild(selectPointVente);
+            
+            // Produit (éditable)
+            const tdProduit = document.createElement('td');
+            const selectProduit = document.createElement('select');
+            selectProduit.className = 'form-select form-select-sm produit-select';
+            PRODUITS.forEach(prod => {
+                const option = document.createElement('option');
+                option.value = prod;
+                option.textContent = prod;
+                if (prod === produit) {
+                    option.selected = true;
+                }
+                selectProduit.appendChild(option);
+            });
+            tdProduit.appendChild(selectProduit);
+            
+            // Quantité (éditable)
+            const tdQuantite = document.createElement('td');
+            const inputQuantite = document.createElement('input');
+            inputQuantite.type = 'number';
+            inputQuantite.className = 'form-control form-control-sm quantite-input';
+            inputQuantite.step = '0.1';
+            
+            // Prix unitaire (éditable)
+            const tdPrixUnitaire = document.createElement('td');
+            const inputPrixUnitaire = document.createElement('input');
+            inputPrixUnitaire.type = 'number';
+            inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
+            inputPrixUnitaire.step = '100';
+            tdPrixUnitaire.appendChild(inputPrixUnitaire);
+            
+            // Total (calculé automatiquement)
+            const tdTotal = document.createElement('td');
+            tdTotal.className = 'total-cell';
+            
+            // Commentaire (éditable)
+            const tdCommentaire = document.createElement('td');
+            const inputCommentaire = document.createElement('input');
+            inputCommentaire.type = 'text';
+            inputCommentaire.className = 'form-control form-control-sm commentaire-input';
+            tdCommentaire.appendChild(inputCommentaire);
+            
+            // Restaurer les valeurs sauvegardées si elles existent
+            if (donneesSauvegardees && donneesSauvegardees.has(key)) {
+                const donnees = donneesSauvegardees.get(key);
+                console.log(`Restauration des données pour ${key}:`, donnees);
+                inputQuantite.value = donnees.quantite;
+                inputPrixUnitaire.value = donnees.prixUnitaire;
+                inputCommentaire.value = donnees.commentaire;
+                tdTotal.textContent = (parseFloat(donnees.quantite) * parseFloat(donnees.prixUnitaire)).toLocaleString('fr-FR');
+            } else {
+                console.log(`Pas de données sauvegardées pour ${key}, utilisation des valeurs par défaut`);
+                inputQuantite.value = '0';
+                inputPrixUnitaire.value = PRIX_DEFAUT[produit];
+                inputCommentaire.value = '';
+                tdTotal.textContent = '0';
+            }
+            
+            tdQuantite.appendChild(inputQuantite);
+            tdPrixUnitaire.appendChild(inputPrixUnitaire);
+            tdCommentaire.appendChild(inputCommentaire);
+            
+            // Actions
+            const tdActions = document.createElement('td');
+            const btnSupprimer = document.createElement('button');
+            btnSupprimer.className = 'btn btn-danger btn-sm';
+            btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
+            btnSupprimer.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (confirm('Êtes-vous sûr de vouloir supprimer cette ligne ?')) {
+                    row.remove();
+                }
+            });
+            tdActions.appendChild(btnSupprimer);
+            
+            // Ajouter les cellules à la ligne
+            row.append(tdPointVente, tdProduit, tdQuantite, tdPrixUnitaire, tdTotal, tdCommentaire, tdActions);
+            
+            // Gestionnaire pour le calcul automatique du total
+            const calculateTotal = () => {
+                const quantite = parseFloat(inputQuantite.value) || 0;
+                const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
+                tdTotal.textContent = (quantite * prixUnitaire).toLocaleString('fr-FR');
+            };
+            
+            // Gestionnaire pour la mise à jour du prix unitaire par défaut
+            selectProduit.addEventListener('change', function() {
+                const nouveauProduit = this.value;
+                inputPrixUnitaire.value = PRIX_DEFAUT[nouveauProduit];
+                calculateTotal();
+            });
+            
+            inputQuantite.addEventListener('input', calculateTotal);
+            inputPrixUnitaire.addEventListener('input', calculateTotal);
+            
+            tbody.appendChild(row);
+        });
+    });
+    
+    console.log('Fin initTableauStock');
+}
+
+// Fonction pour initialiser le tableau de transfert
+function initTableauTransfert() {
+    const tbody = document.querySelector('#transfert-table tbody');
+    if (tbody) {
+        tbody.innerHTML = '';
+        ajouterLigneTransfert();
+    }
+}
+
+// Modification de la fonction showUserInterface pour afficher l'onglet Stock inventaire
+function showUserInterface(userData) {
+    document.getElementById('login-section').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+    
+    // Afficher l'onglet Stock inventaire uniquement pour les utilisateurs avec accès à tous les points de vente
+    const stockInventaireItem = document.querySelector('.stock-inventaire-item');
+    if (userData.pointVente === 'tous') {
+        stockInventaireItem.style.display = 'block';
+    } else {
+        stockInventaireItem.style.display = 'none';
+    }
+}
+
+// Fonction pour initialiser la page d'inventaire
+function initInventaire() {
+    console.log('%c Initialisation de l\'inventaire', 'background: #222; color: #bada55; font-size: 16px;');
+    
+    // Initialiser le datepicker avec Flatpickr
+    flatpickr("#date-inventaire", {
+        locale: "fr",
+        dateFormat: "d/m/Y",
+        defaultDate: "today",
+        allowInput: true,
+        monthSelectorType: 'static',
+        plugins: []
+    });
+
+    // Initialiser les tableaux
+    initTableauStock();
+    initTableauTransfert();
+
+    // Gestionnaires d'événements pour les boutons d'ajout
+    document.getElementById('add-stock-row').addEventListener('click', () => ajouterLigneStock());
+    document.getElementById('add-transfert-row').addEventListener('click', () => ajouterLigneTransfert());
+
+    // Gestionnaire pour le changement de type de stock
+    const typeStockSelect = document.getElementById('type-stock');
+    console.log('Type de stock initial:', typeStockSelect.value);
+    
+    // Supprimer les anciens event listeners
+    typeStockSelect.removeEventListener('change', onTypeStockChange);
+    
+    // Ajouter le nouveau event listener
+    typeStockSelect.addEventListener('change', onTypeStockChange);
+
+    // Gestionnaires pour les boutons de sauvegarde
+    document.getElementById('save-stock').addEventListener('click', async function() {
+        try {
+            // Sauvegarder d'abord dans la variable locale
+            sauvegarderDonneesStock();
+            
+            const typeStock = document.getElementById('type-stock').value;
+            const date = document.getElementById('date-inventaire').value;
+            const donnees = [];
+            
+            // Récupérer toutes les lignes du tableau
+            document.querySelectorAll('#stock-table tbody tr').forEach(row => {
+                const pointVente = row.querySelector('.point-vente-select').value;
+                const produit = row.querySelector('.produit-select').value;
+                const quantite = row.querySelector('.quantite-input').value;
+                const prixUnitaire = row.querySelector('.prix-unitaire-input').value;
+                const total = parseFloat(quantite) * parseFloat(prixUnitaire);
+                const commentaire = row.querySelector('.commentaire-input').value;
+                
+                donnees.push({
+                    date,
+                    typeStock,
+                    pointVente,
+                    produit,
+                    quantite: parseFloat(quantite),
+                    prixUnitaire: parseFloat(prixUnitaire),
+                    total,
+                    commentaire
+                });
+            });
+            
+            // Envoyer les données au serveur
+            const response = await fetch('http://localhost:3000/api/stock', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify(donnees)
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert('Stock sauvegardé avec succès');
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la sauvegarde du stock:', error);
+            alert('Erreur lors de la sauvegarde du stock: ' + error.message);
+        }
+    });
+
+    document.getElementById('save-transfert').addEventListener('click', async function() {
+        try {
+            const date = document.getElementById('date-inventaire').value;
+            const donnees = [];
+            
+            // Récupérer toutes les lignes du tableau de transfert
+            document.querySelectorAll('#transfert-table tbody tr').forEach(row => {
+                const pointVente = row.querySelector('.point-vente-select').value;
+                const produit = row.querySelector('.produit-select').value;
+                const impact = row.querySelector('.impact-select').value;
+                const quantite = row.querySelector('.quantite-input').value;
+                const prixUnitaire = row.querySelector('.prix-unitaire-input').value;
+                const total = parseFloat(quantite) * parseFloat(prixUnitaire);
+                const commentaire = row.querySelector('.commentaire-input').value;
+                
+                donnees.push({
+                    date,
+                    pointVente,
+                    produit,
+                    impact: parseInt(impact),
+                    quantite: parseFloat(quantite),
+                    prixUnitaire: parseFloat(prixUnitaire),
+                    total,
+                    commentaire
+                });
+            });
+            
+            // Envoyer les données au serveur
+            const response = await fetch('http://localhost:3000/api/transfert', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify(donnees)
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert('Transfert sauvegardé avec succès');
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la sauvegarde du transfert:', error);
+            alert('Erreur lors de la sauvegarde du transfert: ' + error.message);
+        }
+    });
+}
+
+// Fonction séparée pour gérer le changement de type de stock
+async function onTypeStockChange() {
+    console.log('%c Changement de type de stock', 'background: #222; color: #bada55');
+    const typeStock = document.getElementById('type-stock').value;
+    console.log('Nouveau type de stock:', typeStock);
+
+    // Sauvegarder les données actuelles avant de changer
+    sauvegarderDonneesStock();
+    console.log('Données sauvegardées pour le type précédent');
+
+    // Récupérer les données du nouveau type depuis le serveur
+    try {
+        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        const donnees = await response.json();
+        console.log('Données récupérées du serveur:', donnees);
+
+        // Vider le tableau
+        const tbody = document.querySelector('#stock-table tbody');
+        tbody.innerHTML = '';
+
+        // Recréer les lignes pour chaque point de vente et produit
+        POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
+            PRODUITS.forEach(produit => {
+                const tr = document.createElement('tr');
+                
+                // Point de vente (non modifiable)
+                const tdPointVente = document.createElement('td');
+                const selectPointVente = document.createElement('select');
+                selectPointVente.className = 'point-vente-select';
+                selectPointVente.disabled = true;
+                const optionPointVente = document.createElement('option');
+                optionPointVente.value = pointVente;
+                optionPointVente.textContent = pointVente;
+                selectPointVente.appendChild(optionPointVente);
+                tdPointVente.appendChild(selectPointVente);
+                tr.appendChild(tdPointVente);
+
+                // Produit (non modifiable)
+                const tdProduit = document.createElement('td');
+                const selectProduit = document.createElement('select');
+                selectProduit.className = 'produit-select';
+                selectProduit.disabled = true;
+                const optionProduit = document.createElement('option');
+                optionProduit.value = produit;
+                optionProduit.textContent = produit;
+                selectProduit.appendChild(optionProduit);
+                tdProduit.appendChild(selectProduit);
+                tr.appendChild(tdProduit);
+
+                // Quantité
+                const tdQuantite = document.createElement('td');
+                const inputQuantite = document.createElement('input');
+                inputQuantite.type = 'number';
+                inputQuantite.className = 'quantite-input';
+                inputQuantite.min = '0';
+                inputQuantite.value = '0';
+                tdQuantite.appendChild(inputQuantite);
+                tr.appendChild(tdQuantite);
+
+                // Prix unitaire
+                const tdPrixUnitaire = document.createElement('td');
+                const inputPrixUnitaire = document.createElement('input');
+                inputPrixUnitaire.type = 'number';
+                inputPrixUnitaire.className = 'prix-unitaire-input';
+                inputPrixUnitaire.min = '0';
+                inputPrixUnitaire.value = PRIX_DEFAUT[produit] || '0';
+                tdPrixUnitaire.appendChild(inputPrixUnitaire);
+                tr.appendChild(tdPrixUnitaire);
+
+                // Total
+                const tdTotal = document.createElement('td');
+                const inputTotal = document.createElement('input');
+                inputTotal.type = 'number';
+                inputTotal.className = 'total-input';
+                inputTotal.readOnly = true;
+                inputTotal.value = '0';
+                tdTotal.appendChild(inputTotal);
+                tr.appendChild(tdTotal);
+
+                // Commentaire
+                const tdCommentaire = document.createElement('td');
+                const inputCommentaire = document.createElement('input');
+                inputCommentaire.type = 'text';
+                inputCommentaire.className = 'commentaire-input';
+                tdCommentaire.appendChild(inputCommentaire);
+                tr.appendChild(tdCommentaire);
+
+                // Restaurer les données sauvegardées si elles existent
+                const key = `${pointVente}-${produit}`;
+                if (donnees[key]) {
+                    console.log(`Restauration des données pour ${key}:`, donnees[key]);
+                    inputQuantite.value = donnees[key].quantite || '0';
+                    inputPrixUnitaire.value = donnees[key].prixUnitaire || PRIX_DEFAUT[produit] || '0';
+                    inputCommentaire.value = donnees[key].commentaire || '';
+                    // Recalculer le total
+                    inputTotal.value = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value)).toString();
+                }
+
+                // Ajouter les écouteurs d'événements pour le calcul automatique du total
+                inputQuantite.addEventListener('input', () => {
+                    const quantite = parseFloat(inputQuantite.value) || 0;
+                    const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
+                    inputTotal.value = (quantite * prixUnitaire).toString();
+                });
+
+                inputPrixUnitaire.addEventListener('input', () => {
+                    const quantite = parseFloat(inputQuantite.value) || 0;
+                    const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
+                    inputTotal.value = (quantite * prixUnitaire).toString();
+                });
+
+                tbody.appendChild(tr);
+            });
+        });
+
+        console.log('Tableau mis à jour avec succès');
+    } catch (error) {
+        console.error('Erreur lors du chargement des données:', error);
+        alert('Erreur lors du chargement des données du stock');
+    }
+}
+
+// Fonction pour ajouter une ligne au tableau de transfert
+function ajouterLigneTransfert() {
+    const tbody = document.querySelector('#transfert-table tbody');
+    const row = document.createElement('tr');
+    
+    // Point de vente
+    const tdPointVente = document.createElement('td');
+    const selectPointVente = document.createElement('select');
+    selectPointVente.className = 'form-select form-select-sm point-vente-select';
+    POINTS_VENTE.forEach(pv => {
+        const option = document.createElement('option');
+        option.value = pv;
+        option.textContent = pv;
+        selectPointVente.appendChild(option);
+    });
+    tdPointVente.appendChild(selectPointVente);
+    
+    // Produit
+    const tdProduit = document.createElement('td');
+    const selectProduit = document.createElement('select');
+    selectProduit.className = 'form-select form-select-sm produit-select';
+    PRODUITS.forEach(prod => {
+        const option = document.createElement('option');
+        option.value = prod;
+        option.textContent = prod;
+        selectProduit.appendChild(option);
+    });
+    tdProduit.appendChild(selectProduit);
+    
+    // Impact (+/-)
+    const tdImpact = document.createElement('td');
+    const selectImpact = document.createElement('select');
+    selectImpact.className = 'form-select form-select-sm impact-select';
+    [
+        { value: '1', text: '+' },
+        { value: '-1', text: '-' }
+    ].forEach(({ value, text }) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = text;
+        selectImpact.appendChild(option);
+    });
+    tdImpact.appendChild(selectImpact);
+    
+    // Quantité
+    const tdQuantite = document.createElement('td');
+    const inputQuantite = document.createElement('input');
+    inputQuantite.type = 'number';
+    inputQuantite.className = 'form-control form-control-sm quantite-input';
+    inputQuantite.step = '0.1';
+    inputQuantite.value = '0';
+    tdQuantite.appendChild(inputQuantite);
+    
+    // Prix unitaire
+    const tdPrixUnitaire = document.createElement('td');
+    const inputPrixUnitaire = document.createElement('input');
+    inputPrixUnitaire.type = 'number';
+    inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
+    inputPrixUnitaire.step = '100';
+    tdPrixUnitaire.appendChild(inputPrixUnitaire);
+    
+    // Total
+    const tdTotal = document.createElement('td');
+    tdTotal.className = 'total-cell';
+    tdTotal.textContent = '0';
+    
+    // Commentaire
+    const tdCommentaire = document.createElement('td');
+    const inputCommentaire = document.createElement('input');
+    inputCommentaire.type = 'text';
+    inputCommentaire.className = 'form-control form-control-sm commentaire-input';
+    tdCommentaire.appendChild(inputCommentaire);
+    
+    // Actions
+    const tdActions = document.createElement('td');
+    const btnSupprimer = document.createElement('button');
+    btnSupprimer.className = 'btn btn-danger btn-sm';
+    btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
+    btnSupprimer.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (confirm('Êtes-vous sûr de vouloir supprimer cette ligne ?')) {
+            row.remove();
+        }
+    });
+    tdActions.appendChild(btnSupprimer);
+    
+    // Ajouter les cellules à la ligne
+    row.append(tdPointVente, tdProduit, tdImpact, tdQuantite, tdPrixUnitaire, tdTotal, tdCommentaire, tdActions);
+    
+    // Gestionnaire pour le calcul automatique du total
+    const calculateTotal = () => {
+        const quantite = parseFloat(inputQuantite.value) || 0;
+        const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
+        tdTotal.textContent = (quantite * prixUnitaire).toLocaleString('fr-FR');
+    };
+    
+    // Gestionnaire pour la mise à jour du prix unitaire par défaut
+    selectProduit.addEventListener('change', function() {
+        const nouveauProduit = this.value;
+        inputPrixUnitaire.value = PRIX_DEFAUT[nouveauProduit];
+        calculateTotal();
+    });
+    
+    inputQuantite.addEventListener('input', calculateTotal);
+    inputPrixUnitaire.addEventListener('input', calculateTotal);
+    
+    tbody.appendChild(row);
 } 
