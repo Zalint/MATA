@@ -339,6 +339,53 @@
                             <input type="text" id="date-inventaire" class="form-control" required>
                         </div>
                     </div>
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div>
+                                <div class="mb-3">
+                                    <button type="button" class="btn btn-primary" id="import-csv">
+                                        <i class="fas fa-file-import"></i> Importer CSV
+                                    </button>
+                                    <input type="file" id="csv-file" accept=".csv" style="display: none;">
+                                </div>
+
+                                <!-- Section d'aperçu pour l'import CSV -->
+                                <div id="previewSection" style="display: none;" class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0">Aperçu des données à importer</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-bordered table-hover" id="previewTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Point de Vente</th>
+                                                        <th>Date</th>
+                                                        <th>Produit</th>
+                                                        <th>Stock Matin</th>
+                                                        <th>Stock Soir</th>
+                                                        <th>Transfert</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-success" id="confirmImport">
+                                                <i class="fas fa-check"></i> Confirmer l'import
+                                            </button>
+                                            <button type="button" class="btn btn-danger" id="cancelImport">
+                                                <i class="fas fa-times"></i> Annuler
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Tableau de stock -->
@@ -377,33 +424,28 @@
                 <!-- Tableau de transfert -->
                 <div class="card mt-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Transfert</h5>
+                        <h5>Transfert</h5>
                     </div>
                     <div class="card-body">
-                        <div class="table-responsive">
-                            <table id="transfert-table" class="table table-bordered table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Point de Vente</th>
-                                        <th>Produit</th>
-                                        <th>Impact (+/-)</th>
-                                        <th>Quantité</th>
-                                        <th>Prix Unitaire</th>
-                                        <th>Total</th>
-                                        <th>Commentaire</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
+                        <table class="table" id="transfertTable">
+                            <thead>
+                                <tr>
+                                    <th>Point de Vente</th>
+                                    <th>Produit</th>
+                                    <th>Impact (+/-)</th>
+                                    <th>Quantité</th>
+                                    <th>Prix Unitaire</th>
+                                    <th>Total</th>
+                                    <th>Commentaire</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
                         <div class="mt-3">
-                            <button id="add-transfert-row" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> Ajouter une ligne
-                            </button>
-                            <button id="save-transfert" class="btn btn-success ms-2">
-                                <i class="fas fa-save"></i> Sauvegarder le transfert
-                            </button>
+                            <button class="btn btn-primary" id="ajouterLigne">Ajouter une ligne</button>
+                            <button class="btn btn-success" id="sauvegarderTransfert">Sauvegarder le transfert</button>
                         </div>
                     </div>
                 </div>

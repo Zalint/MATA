@@ -639,34 +639,14 @@ app.post('/api/stock/:type', async (req, res) => {
 });
 
 // Route pour sauvegarder les transferts
-app.post('/api/transferts', checkAuth, async (req, res) => {
+app.post('/api/transferts', async (req, res) => {
     try {
         const transferts = req.body;
-        
-        // Charger les transferts existants
-        let allTransferts = {};
-        if (fs.existsSync(TRANSFERTS_PATH)) {
-            const content = await fsPromises.readFile(TRANSFERTS_PATH, 'utf8');
-            allTransferts = JSON.parse(content || '{}');
-        }
-        
-        // Ajouter la date comme clé
-        const date = transferts[0]?.date || new Date().toLocaleDateString('fr-FR');
-        
-        // Écraser les transferts existants pour cette date
-        allTransferts[date] = transferts;
-        
-        // Sauvegarder dans le fichier
-        await fsPromises.writeFile(TRANSFERTS_PATH, JSON.stringify(allTransferts, null, 2));
-        
-        res.json({ success: true, message: 'Transferts sauvegardés avec succès' });
+        await fs.promises.writeFile(TRANSFERTS_PATH, JSON.stringify(transferts, null, 2));
+        res.json({ success: true });
     } catch (error) {
         console.error('Erreur lors de la sauvegarde des transferts:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Erreur lors de la sauvegarde des transferts',
-            error: error.message 
-        });
+        res.status(500).json({ success: false, message: 'Erreur lors de la sauvegarde des transferts' });
     }
 });
 

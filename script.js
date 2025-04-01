@@ -1,6 +1,37 @@
 // Vérification de l'authentification
 let currentUser = null;
 
+// Variables globales
+let donneesImportees = {
+    matin: new Map(),
+    soir: new Map(),
+    transferts: []
+};
+
+// Mapping pour standardiser les noms des points de vente
+const MAPPING_POINTS_VENTE = {
+    'KEUR MASS': 'Keur Massar',
+    'KEUR MASSAR': 'Keur Massar',
+    'O.FOIRE': 'O.Foire',
+    'OUEST FOIRE': 'O.Foire',
+    'MBAO': 'Mbao',
+    'LINGUERE': 'Linguere',
+    'DAHRA': 'Dahra',
+    'TOUBA': 'Touba'
+};
+
+// Mapping pour standardiser les noms des produits
+const MAPPING_PRODUITS = {
+    'BOEUF': 'Boeuf',
+    'VEAU': 'Veau',
+    'POULET': 'Poulet',
+    'TETE DE MOUTON': 'Tete De Mouton',
+    'TABLETTE': 'Tablette',
+    'FOIE': 'Foie',
+    'YELL': 'Yell',
+    'AGNEAU': 'Agneau'
+};
+
 // Fonction pour mettre à jour la visibilité du bouton de vidage
 function updateViderBaseButtonVisibility() {
     const viderBaseBtn = document.getElementById('vider-base');
@@ -84,6 +115,124 @@ document.addEventListener('DOMContentLoaded', function() {
             initInventaire();
         });
     }
+
+    // Gestionnaire pour le bouton de confirmation d'import
+    document.getElementById('confirmImport').addEventListener('click', async function() {
+        try {
+            // Préparer les données pour l'envoi
+            const donneesAEnvoyer = {
+                matin: {},
+                soir: {},
+                transferts: []
+            };
+
+            // Traiter les données du matin
+            for (const [key, data] of donneesImportees.matin) {
+                donneesAEnvoyer.matin[key] = {
+                    date: data.date,
+                    "Point de Vente": data.pointVente,
+                    Produit: data.produit,
+                    Nombre: data.quantite.toString(),
+                    PU: data.prixUnitaire.toString(),
+                    Montant: data.total.toString(),
+                    Commentaire: data.commentaire || ''
+                };
+            }
+
+            // Traiter les données du soir
+            for (const [key, data] of donneesImportees.soir) {
+                donneesAEnvoyer.soir[key] = {
+                    date: data.date,
+                    "Point de Vente": data.pointVente,
+                    Produit: data.produit,
+                    Nombre: data.quantite.toString(),
+                    PU: data.prixUnitaire.toString(),
+                    Montant: data.total.toString(),
+                    Commentaire: data.commentaire || ''
+                };
+            }
+
+            // Traiter les transferts
+            donneesAEnvoyer.transferts = donneesImportees.transferts.map(transfert => ({
+                date: transfert.date,
+                pointVente: transfert.pointVente,
+                produit: transfert.produit,
+                impact: transfert.impact,
+                quantite: transfert.quantite,
+                prixUnitaire: transfert.prixUnitaire,
+                total: transfert.total,
+                commentaire: transfert.commentaire || ''
+            }));
+
+            console.log('Données à envoyer:', donneesAEnvoyer);
+
+            // Envoyer les données du matin
+            if (Object.keys(donneesAEnvoyer.matin).length > 0) {
+                console.log('Envoi des données du matin:', donneesAEnvoyer.matin);
+                const matinResponse = await fetch('http://localhost:3000/api/stock/matin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(donneesAEnvoyer.matin)
+                });
+                if (!matinResponse.ok) throw new Error('Erreur lors de l\'enregistrement du stock matin');
+            }
+
+            // Envoyer les données du soir
+            if (Object.keys(donneesAEnvoyer.soir).length > 0) {
+                console.log('Envoi des données du soir:', donneesAEnvoyer.soir);
+                const soirResponse = await fetch('http://localhost:3000/api/stock/soir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(donneesAEnvoyer.soir)
+                });
+                if (!soirResponse.ok) throw new Error('Erreur lors de l\'enregistrement du stock soir');
+            }
+
+            // Envoyer les transferts
+            if (donneesAEnvoyer.transferts.length > 0) {
+                console.log('Envoi des transferts:', donneesAEnvoyer.transferts);
+                const transfertsResponse = await fetch('http://localhost:3000/api/transferts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(donneesAEnvoyer.transferts)
+                });
+                if (!transfertsResponse.ok) throw new Error('Erreur lors de l\'enregistrement des transferts');
+            }
+
+            // Réinitialiser l'interface
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('csv-file').value = '';
+            donneesImportees = {
+                matin: new Map(),
+                soir: new Map(),
+                transferts: []
+            };
+
+            alert('Import réussi !');
+            
+            // Recharger les données
+            await loadStockData();
+            await loadTransferts();
+            
+        } catch (error) {
+            console.error('Erreur lors de l\'importation:', error);
+            alert('Erreur lors de l\'importation : ' + error.message);
+        }
+    });
+
+    // Gestionnaire pour le bouton d'annulation d'import
+    document.getElementById('cancelImport').addEventListener('click', function() {
+        document.getElementById('previewSection').style.display = 'none';
+        document.getElementById('csv-file').value = '';
+        donneesImportees = {
+            matin: new Map(),
+            soir: new Map(),
+            transferts: []
+        };
+    });
 });
 
 // Modification de la fonction checkAuth pour gérer l'affichage de l'onglet Stock inventaire
@@ -105,11 +254,14 @@ async function checkAuth() {
         // Afficher les informations de l'utilisateur
         document.getElementById('user-info').textContent = `Connecté en tant que ${currentUser.username}`;
         
+        // Liste des utilisateurs ayant accès aux fonctionnalités spéciales
+        const usersWithSpecialAccess = ['SALIOU', 'NADOU', 'OUSMANE', 'PAPI'];
+        
         // Gérer la visibilité des onglets spéciaux
         const importTabContainer = document.getElementById('import-tab-container');
         const stockInventaireItem = document.getElementById('stock-inventaire-item');
         
-        if (currentUser.username === 'SALIOU' || currentUser.isSuperAdmin) {
+        if (usersWithSpecialAccess.includes(currentUser.username) || currentUser.isSuperAdmin) {
             if (importTabContainer) importTabContainer.style.display = 'block';
             if (stockInventaireItem) stockInventaireItem.style.display = 'block';
         } else {
@@ -161,16 +313,25 @@ flatpickr("#date", {
     defaultDate: "today"
 });
 
-flatpickr("#date-debut", {
+// Configuration des dates pour la visualisation
+const dateDebutPicker = flatpickr("#date-debut", {
     locale: "fr",
     dateFormat: "d/m/Y",
-    defaultDate: "today"
+    defaultDate: "today",
+    onChange: function(selectedDates, dateStr) {
+        console.log('Date de début changée:', dateStr);
+        chargerVentes();
+    }
 });
 
-flatpickr("#date-fin", {
+const dateFinPicker = flatpickr("#date-fin", {
     locale: "fr",
     dateFormat: "d/m/Y",
-    defaultDate: "today"
+    defaultDate: "today",
+    onChange: function(selectedDates, dateStr) {
+        console.log('Date de fin changée:', dateStr);
+        chargerVentes();
+    }
 });
 
 // Base de données des produits et leurs prix
@@ -635,35 +796,21 @@ let allVentes = [];
 // Fonction pour charger les ventes avec pagination
 async function chargerVentes() {
     try {
-        let dateDebut = document.getElementById('date-debut').value;
-        let dateFin = document.getElementById('date-fin').value;
+        const dateDebut = document.getElementById('date-debut').value;
+        const dateFin = document.getElementById('date-fin').value;
         const pointVente = document.getElementById('point-vente-select').value;
 
-        // Si aucune date n'est spécifiée, utiliser le 1er du mois en cours
-        if (!dateDebut) {
-            const today = new Date();
-            const debutMois = new Date(today.getFullYear(), today.getMonth(), 1);
-            dateDebut = debutMois.toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
-            // Mettre à jour le champ de date
-            document.getElementById('date-debut').value = dateDebut;
-            console.log('Date de début par défaut:', dateDebut);
-        }
+        console.log('Dates sélectionnées:', { dateDebut, dateFin });
 
-        if (!dateFin) {
-            dateFin = new Date().toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
-        }
+        // Convertir les dates au format YYYY-MM-DD pour l'API
+        const formatDateForApi = (dateStr) => {
+            if (!dateStr) return '';
+            const [jour, mois, annee] = dateStr.split('/');
+            return `${annee}-${mois.padStart(2, '0')}-${jour.padStart(2, '0')}`;
+        };
 
-        // Convertir les dates au format YYYY-MM-DD
-        const debut = dateDebut.split('/').reverse().join('-');
-        const fin = dateFin.split('/').reverse().join('-');
+        const debut = formatDateForApi(dateDebut);
+        const fin = formatDateForApi(dateFin);
 
         console.log('Chargement des ventes avec les paramètres:', { 
             dateDebut, 
@@ -942,29 +1089,6 @@ function afficherApercu(donnees) {
     });
 }
 
-// Variables globales pour stocker les données importées
-let donneesImportees = [];
-
-// Gestion du formulaire d'import
-document.getElementById('import-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const fileInput = document.getElementById('file-import');
-    
-    if (!fileInput.files[0]) {
-        alert('Veuillez sélectionner un fichier');
-        return;
-    }
-    
-    try {
-        donneesImportees = await lireFichier(fileInput.files[0]);
-        afficherApercu(donneesImportees);
-    } catch (error) {
-        console.error('Erreur:', error);
-        alert(error.message || 'Erreur lors de l\'importation des données');
-    }
-});
-
 // Gestion de la sauvegarde
 document.getElementById('save-import').addEventListener('click', async function() {
     if (donneesImportees.length === 0) {
@@ -1132,7 +1256,8 @@ const PRIX_DEFAUT = {
 };
 
 const POINTS_VENTE_PHYSIQUES = [
-    'Keur Massar', 'Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba'
+    'Keur Massar', 'Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba',
+    'Abattage', 'Depot', 'Gros Client'
 ];
 
 // Variables globales pour stocker les données de stock
@@ -1150,28 +1275,56 @@ async function sauvegarderDonneesStock() {
 
     // Collecter les données du tableau
     const donnees = {};
+    const resume = [];
+    let totalGeneral = 0;
+
     document.querySelectorAll('#stock-table tbody tr').forEach(row => {
         const pointVente = row.querySelector('.point-vente-select').value;
         const produit = row.querySelector('.produit-select').value;
-        const quantite = row.querySelector('.quantite-input').value || '0';
-        const prixUnitaire = row.querySelector('.prix-unitaire-input').value || PRIX_DEFAUT[produit] || '0';
+        const quantite = parseFloat(row.querySelector('.quantite-input').value) || 0;
+        const prixUnitaire = parseFloat(row.querySelector('.prix-unitaire-input').value) || PRIX_DEFAUT[produit] || 0;
         const commentaire = row.querySelector('.commentaire-input').value || '';
-        const total = (parseFloat(quantite) * parseFloat(prixUnitaire)).toString();
+        const total = quantite * prixUnitaire;
 
-        const key = `${pointVente}-${produit}`;
-        donnees[key] = {
-            date: date,
-            typeStock: typeStock,
-            "Point de Vente": pointVente,
-            Produit: produit,
-            Nombre: quantite,
-            PU: prixUnitaire,
-            Montant: total,
-            Commentaire: commentaire
-        };
+        if (quantite > 0) {  // Ne sauvegarder que les lignes avec une quantité > 0
+            const key = `${pointVente}-${produit}`;
+            donnees[key] = {
+                date: date,
+                typeStock: typeStock,
+                "Point de Vente": pointVente,
+                Produit: produit,
+                Nombre: quantite.toString(),
+                PU: prixUnitaire.toString(),
+                Montant: total.toString(),
+                Commentaire: commentaire
+            };
+            
+            resume.push(`${pointVente} - ${produit}: ${quantite} unités à ${prixUnitaire.toLocaleString('fr-FR')} FCFA = ${total.toLocaleString('fr-FR')} FCFA`);
+            totalGeneral += total;
+        }
 
-        console.log('%cDonnées collectées pour ' + key + ':', 'color: #00aaff;', donnees[key]);
+        console.log('%cDonnées collectées pour ' + pointVente + ' - ' + produit + ':', 'color: #00aaff;', {
+            quantite,
+            prixUnitaire,
+            total,
+            commentaire
+        });
     });
+
+    if (Object.keys(donnees).length === 0) {
+        alert('Aucune donnée à sauvegarder. Veuillez saisir au moins une quantité.');
+        return;
+    }
+
+    // Demander confirmation avec résumé
+    const message = `Voulez-vous sauvegarder les données suivantes pour le stock ${typeStock} du ${date} ?\n\n` +
+                   `${resume.join('\n')}\n\n` +
+                   `Total général: ${totalGeneral.toLocaleString('fr-FR')} FCFA\n\n` +
+                   `Cette action écrasera les données existantes pour ce type de stock.`;
+
+    if (!confirm(message)) {
+        return;
+    }
 
     console.log('%cDonnées complètes à sauvegarder:', 'color: #00ff00; font-weight: bold;', donnees);
 
@@ -1189,13 +1342,20 @@ async function sauvegarderDonneesStock() {
         const result = await response.json();
         if (result.success) {
             console.log('%cDonnées sauvegardées avec succès', 'color: #00ff00; font-weight: bold;');
+            alert('Données sauvegardées avec succès');
+            
+            // Mettre à jour stockData après la sauvegarde
+            if (typeStock === 'matin') {
+                stockData.matin = new Map(Object.entries(donnees));
+            } else {
+                stockData.soir = new Map(Object.entries(donnees));
+            }
         } else {
-            console.error('%cErreur lors de la sauvegarde:', 'color: #ff0000; font-weight: bold;', result.error);
-            alert('Erreur lors de la sauvegarde des données');
+            throw new Error(result.error || 'Erreur lors de la sauvegarde');
         }
     } catch (error) {
         console.error('%cErreur lors de la sauvegarde:', 'color: #ff0000; font-weight: bold;', error);
-        alert('Erreur lors de la sauvegarde des données');
+        alert('Erreur lors de la sauvegarde des données: ' + error.message);
     }
 }
 
@@ -1403,6 +1563,161 @@ async function initInventaire() {
         }
     });
 
+    // Initialiser les écouteurs d'événements pour l'import CSV
+    console.log('Initialisation des écouteurs d\'import CSV...');
+    
+    // Écouteur pour le bouton d'import CSV
+    const importCsvBtn = document.getElementById('import-csv');
+    if (importCsvBtn) {
+        console.log('Bouton import-csv trouvé, ajout de l\'écouteur click');
+        importCsvBtn.addEventListener('click', function() {
+            console.log('Clic sur le bouton import-csv');
+            const fileInput = document.getElementById('csv-file');
+            if (fileInput) {
+                fileInput.click();
+            } else {
+                console.error('Élément csv-file non trouvé');
+            }
+        });
+    } else {
+        console.error('Bouton import-csv non trouvé');
+    }
+
+    // Écouteur pour l'input file
+    const csvFileInput = document.getElementById('csv-file');
+    if (csvFileInput) {
+        console.log('Input csv-file trouvé, ajout de l\'écouteur change');
+        csvFileInput.addEventListener('change', importerCSV);
+    } else {
+        console.error('Input csv-file non trouvé');
+    }
+
+    // Écouteurs pour les boutons de confirmation et d'annulation
+    const confirmImportBtn = document.getElementById('confirmImport');
+    const cancelImportBtn = document.getElementById('cancelImport');
+
+    if (confirmImportBtn) {
+        console.log('Bouton confirmImport trouvé, ajout de l\'écouteur click');
+        confirmImportBtn.disabled = true;
+        confirmImportBtn.addEventListener('click', async function() {
+            try {
+                // Préparer les données pour l'envoi
+                const donneesAEnvoyer = {
+                    matin: {},
+                    soir: {},
+                    transferts: []
+                };
+
+                // Traiter les données du matin
+                for (const [key, data] of donneesImportees.matin) {
+                    donneesAEnvoyer.matin[key] = {
+                        date: data.date,
+                        "Point de Vente": data.pointVente,
+                        Produit: data.produit,
+                        Nombre: data.quantite.toString(),
+                        PU: data.prixUnitaire.toString(),
+                        Montant: data.total.toString(),
+                        Commentaire: data.commentaire || ''
+                    };
+                }
+
+                // Traiter les données du soir
+                for (const [key, data] of donneesImportees.soir) {
+                    donneesAEnvoyer.soir[key] = {
+                        date: data.date,
+                        "Point de Vente": data.pointVente,
+                        Produit: data.produit,
+                        Nombre: data.quantite.toString(),
+                        PU: data.prixUnitaire.toString(),
+                        Montant: data.total.toString(),
+                        Commentaire: data.commentaire || ''
+                    };
+                }
+
+                // Traiter les transferts
+                donneesAEnvoyer.transferts = donneesImportees.transferts.map(transfert => ({
+                    date: transfert.date,
+                    pointVente: transfert.pointVente,
+                    produit: transfert.produit,
+                    impact: transfert.impact,
+                    quantite: transfert.quantite,
+                    prixUnitaire: transfert.prixUnitaire,
+                    total: transfert.total,
+                    commentaire: transfert.commentaire || ''
+                }));
+
+                console.log('Données à envoyer:', donneesAEnvoyer);
+
+                // Envoyer les données
+                if (Object.keys(donneesAEnvoyer.matin).length > 0) {
+                    const matinResponse = await fetch('http://localhost:3000/api/stock/matin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(donneesAEnvoyer.matin)
+                    });
+                    if (!matinResponse.ok) throw new Error('Erreur lors de l\'enregistrement du stock matin');
+                }
+
+                if (Object.keys(donneesAEnvoyer.soir).length > 0) {
+                    const soirResponse = await fetch('http://localhost:3000/api/stock/soir', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(donneesAEnvoyer.soir)
+                    });
+                    if (!soirResponse.ok) throw new Error('Erreur lors de l\'enregistrement du stock soir');
+                }
+
+                if (donneesAEnvoyer.transferts.length > 0) {
+                    const transfertsResponse = await fetch('http://localhost:3000/api/transferts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(donneesAEnvoyer.transferts)
+                    });
+                    if (!transfertsResponse.ok) throw new Error('Erreur lors de l\'enregistrement des transferts');
+                }
+
+                // Réinitialiser l'interface
+                document.getElementById('previewSection').style.display = 'none';
+                document.getElementById('csv-file').value = '';
+                donneesImportees = {
+                    matin: new Map(),
+                    soir: new Map(),
+                    transferts: []
+                };
+
+                alert('Import réussi !');
+                
+                // Recharger les données
+                await loadStockData();
+                await loadTransferts();
+                
+            } catch (error) {
+                console.error('Erreur lors de l\'importation:', error);
+                alert('Erreur lors de l\'importation : ' + error.message);
+            }
+        });
+    } else {
+        console.error('Bouton confirmImport non trouvé');
+    }
+
+    if (cancelImportBtn) {
+        console.log('Bouton cancelImport trouvé, ajout de l\'écouteur click');
+        cancelImportBtn.addEventListener('click', function() {
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('csv-file').value = '';
+            donneesImportees = {
+                matin: new Map(),
+                soir: new Map(),
+                transferts: []
+            };
+        });
+    } else {
+        console.error('Bouton cancelImport non trouvé');
+    }
+
     // Initialiser le sélecteur de type de stock
     const typeStockSelect = document.getElementById('type-stock');
     typeStockSelect.addEventListener('change', onTypeStockChange);
@@ -1412,13 +1727,58 @@ async function initInventaire() {
         const typeStockInitial = typeStockSelect.value;
         console.log('%cChargement initial des données pour le type:', 'color: #00aaff;', typeStockInitial);
         
-        // Charger le stock
-        const response = await fetch(`http://localhost:3000/api/stock/${typeStockInitial}`, {
-            method: 'GET',
-            credentials: 'include'
+        // Charger les données pour les deux types de stock (matin et soir)
+        const [matinResponse, soirResponse] = await Promise.all([
+            fetch('http://localhost:3000/api/stock/matin', {
+                method: 'GET',
+                credentials: 'include'
+            }),
+            fetch('http://localhost:3000/api/stock/soir', {
+                method: 'GET',
+                credentials: 'include'
+            })
+        ]);
+
+        const [matinData, soirData] = await Promise.all([
+            matinResponse.json(),
+            soirResponse.json()
+        ]);
+
+        console.log('%cDonnées matin chargées:', 'color: #00ff00;', matinData);
+        console.log('%cDonnées soir chargées:', 'color: #00ff00;', soirData);
+
+        // Convertir les données en Map pour un accès plus facile
+        stockData.matin = new Map();
+        stockData.soir = new Map();
+
+        // Traiter les données du matin
+        if (Array.isArray(matinData)) {
+            matinData.forEach(item => {
+                const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
+                stockData.matin.set(key, item);
+            });
+        } else {
+            Object.entries(matinData || {}).forEach(([key, value]) => {
+                stockData.matin.set(key, value);
+            });
+        }
+
+        // Traiter les données du soir
+        if (Array.isArray(soirData)) {
+            soirData.forEach(item => {
+                const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
+                stockData.soir.set(key, item);
+            });
+        } else {
+            Object.entries(soirData || {}).forEach(([key, value]) => {
+                stockData.soir.set(key, value);
+            });
+        }
+
+        console.log('%cDonnées stockées dans stockData:', 'color: #00ff00;', {
+            matin: Array.from(stockData.matin.entries()),
+            soir: Array.from(stockData.soir.entries())
         });
-        const donnees = await response.json();
-        console.log('%cDonnées initiales chargées:', 'color: #00ff00;', donnees);
         
         // Initialiser les tableaux
         initTableauStock();
@@ -1443,7 +1803,6 @@ async function onTypeStockChange() {
     const typeStock = document.getElementById('type-stock').value;
     console.log('%cNouveau type de stock:', 'color: #ff9900; font-weight: bold;', typeStock);
 
-    // Récupérer les données du nouveau type depuis le serveur
     try {
         console.log('%cRécupération des données depuis le serveur pour le type:', 'color: #00aaff;', typeStock);
         const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
@@ -1480,27 +1839,35 @@ async function onTypeStockChange() {
             PRODUITS.forEach(produit => {
                 const tr = document.createElement('tr');
                 
-                // Point de vente (non modifiable)
+                // Point de vente (modifiable)
                 const tdPointVente = document.createElement('td');
                 const selectPointVente = document.createElement('select');
-                selectPointVente.className = 'point-vente-select';
-                selectPointVente.disabled = true;
-                const optionPointVente = document.createElement('option');
-                optionPointVente.value = pointVente;
-                optionPointVente.textContent = pointVente;
-                selectPointVente.appendChild(optionPointVente);
+                selectPointVente.className = 'form-select form-select-sm point-vente-select';
+                POINTS_VENTE_PHYSIQUES.forEach(pv => {
+                    const option = document.createElement('option');
+                    option.value = pv;
+                    option.textContent = pv;
+                    if (pv === pointVente) {
+                        option.selected = true;
+                    }
+                    selectPointVente.appendChild(option);
+                });
                 tdPointVente.appendChild(selectPointVente);
                 tr.appendChild(tdPointVente);
 
-                // Produit (non modifiable)
+                // Produit (modifiable)
                 const tdProduit = document.createElement('td');
                 const selectProduit = document.createElement('select');
-                selectProduit.className = 'produit-select';
-                selectProduit.disabled = true;
-                const optionProduit = document.createElement('option');
-                optionProduit.value = produit;
-                optionProduit.textContent = produit;
-                selectProduit.appendChild(optionProduit);
+                selectProduit.className = 'form-select form-select-sm produit-select';
+                PRODUITS.forEach(prod => {
+                    const option = document.createElement('option');
+                    option.value = prod;
+                    option.textContent = prod;
+                    if (prod === produit) {
+                        option.selected = true;
+                    }
+                    selectProduit.appendChild(option);
+                });
                 tdProduit.appendChild(selectProduit);
                 tr.appendChild(tdProduit);
 
@@ -1508,8 +1875,9 @@ async function onTypeStockChange() {
                 const tdQuantite = document.createElement('td');
                 const inputQuantite = document.createElement('input');
                 inputQuantite.type = 'number';
-                inputQuantite.className = 'quantite-input';
+                inputQuantite.className = 'form-control form-control-sm quantite-input';
                 inputQuantite.min = '0';
+                inputQuantite.step = '0.1';
                 tdQuantite.appendChild(inputQuantite);
                 tr.appendChild(tdQuantite);
 
@@ -1517,27 +1885,39 @@ async function onTypeStockChange() {
                 const tdPrixUnitaire = document.createElement('td');
                 const inputPrixUnitaire = document.createElement('input');
                 inputPrixUnitaire.type = 'number';
-                inputPrixUnitaire.className = 'prix-unitaire-input';
+                inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
                 inputPrixUnitaire.min = '0';
+                inputPrixUnitaire.step = '100';
                 tdPrixUnitaire.appendChild(inputPrixUnitaire);
                 tr.appendChild(tdPrixUnitaire);
 
                 // Total
                 const tdTotal = document.createElement('td');
-                const inputTotal = document.createElement('input');
-                inputTotal.type = 'number';
-                inputTotal.className = 'total-input';
-                inputTotal.readOnly = true;
-                tdTotal.appendChild(inputTotal);
+                tdTotal.className = 'total-cell';
+                tdTotal.textContent = '0';
                 tr.appendChild(tdTotal);
 
                 // Commentaire
                 const tdCommentaire = document.createElement('td');
                 const inputCommentaire = document.createElement('input');
                 inputCommentaire.type = 'text';
-                inputCommentaire.className = 'commentaire-input';
+                inputCommentaire.className = 'form-control form-control-sm commentaire-input';
                 tdCommentaire.appendChild(inputCommentaire);
                 tr.appendChild(tdCommentaire);
+
+                // Actions
+                const tdActions = document.createElement('td');
+                tdActions.className = 'text-center';
+                const btnSupprimer = document.createElement('button');
+                btnSupprimer.className = 'btn btn-danger btn-sm';
+                btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
+                btnSupprimer.onclick = () => {
+                    if (confirm('Êtes-vous sûr de vouloir supprimer cette ligne ?')) {
+                        tr.remove();
+                    }
+                };
+                tdActions.appendChild(btnSupprimer);
+                tr.appendChild(tdActions);
 
                 // Restaurer les données sauvegardées si elles existent
                 const key = `${pointVente}-${produit}`;
@@ -1547,26 +1927,32 @@ async function onTypeStockChange() {
                     inputPrixUnitaire.value = donnees[key].PU || donnees[key].prixUnitaire || PRIX_DEFAUT[produit] || '0';
                     inputCommentaire.value = donnees[key].Commentaire || donnees[key].commentaire || '';
                     // Recalculer le total
-                    inputTotal.value = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value)).toString();
+                    const total = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value));
+                    tdTotal.textContent = total.toLocaleString('fr-FR');
                 } else {
                     console.log(`%cPas de données pour ${key}, utilisation des valeurs par défaut`, 'color: #ff9900;');
                     inputQuantite.value = '0';
                     inputPrixUnitaire.value = PRIX_DEFAUT[produit] || '0';
                     inputCommentaire.value = '';
-                    inputTotal.value = '0';
+                    tdTotal.textContent = '0';
                 }
 
                 // Ajouter les écouteurs d'événements pour le calcul automatique du total
-                inputQuantite.addEventListener('input', () => {
+                const calculateTotal = () => {
                     const quantite = parseFloat(inputQuantite.value) || 0;
                     const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
-                    inputTotal.value = (quantite * prixUnitaire).toString();
-                });
+                    const total = quantite * prixUnitaire;
+                    tdTotal.textContent = total.toLocaleString('fr-FR');
+                };
 
-                inputPrixUnitaire.addEventListener('input', () => {
-                    const quantite = parseFloat(inputQuantite.value) || 0;
-                    const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
-                    inputTotal.value = (quantite * prixUnitaire).toString();
+                inputQuantite.addEventListener('input', calculateTotal);
+                inputPrixUnitaire.addEventListener('input', calculateTotal);
+
+                // Gestionnaire pour la mise à jour du prix unitaire par défaut
+                selectProduit.addEventListener('change', function() {
+                    const nouveauProduit = this.value;
+                    inputPrixUnitaire.value = PRIX_DEFAUT[nouveauProduit] || '0';
+                    calculateTotal();
                 });
 
                 tbody.appendChild(tr);
@@ -1767,49 +2153,38 @@ document.getElementById('add-transfert-row').addEventListener('click', ajouterLi
 document.getElementById('save-transfert').addEventListener('click', async () => {
     try {
         const tbody = document.querySelector('#transfert-table tbody');
-        const rows = tbody.querySelectorAll('tr');
+        const rows = Array.from(tbody.querySelectorAll('tr:not([disabled])'));
         
-        const transferts = [];
-        
-        rows.forEach(row => {
-            const pointVente = row.querySelector('.point-vente-select').value;
-            const produit = row.querySelector('.produit-select').value;
-            const impact = parseInt(row.querySelector('.impact-select').value);
-            const quantite = parseFloat(row.querySelector('.quantite-input').value);
-            const prixUnitaire = parseFloat(row.querySelector('.prix-unitaire-input').value);
-            const commentaire = row.querySelector('.commentaire-input').value;
-            
-            if (pointVente && produit && !isNaN(quantite) && !isNaN(prixUnitaire)) {
-                transferts.push({
-                    date: document.getElementById('date-inventaire').value,
-                    pointVente,
-                    produit,
-                    impact,
-                    quantite,
-                    prixUnitaire,
-                    total: quantite * prixUnitaire * impact,
-                    commentaire
-                });
+        const transferts = rows.map(row => {
+            const pointVente = row.querySelector('select:first-of-type').value;
+            const produit = row.querySelector('select:nth-of-type(2)').value;
+            const impact = row.querySelector('select:nth-of-type(3)').value === '+' ? 1 : -1;
+            const quantite = parseFloat(row.querySelector('input[type="number"]:first-of-type').value) || 0;
+            const prixUnitaire = parseFloat(row.querySelector('input[type="number"]:last-of-type').value) || 0;
+            const total = quantite * prixUnitaire * impact;
+            const commentaire = row.querySelector('input[type="text"]').value || '';
+
+            if (!pointVente || !produit) {
+                throw new Error('Veuillez remplir tous les champs obligatoires');
             }
+
+            return {
+                date: document.getElementById('date-inventaire').value,
+                pointVente,
+                produit,
+                impact,
+                quantite,
+                prixUnitaire,
+                total,
+                commentaire
+            };
         });
-        
+
         if (transferts.length === 0) {
-            alert('Aucune donnée valide à sauvegarder');
+            alert('Aucun transfert à sauvegarder');
             return;
         }
 
-        // Afficher un résumé des transferts à sauvegarder
-        const resume = transferts.map(t => 
-            `${t.pointVente} - ${t.produit}: ${t.quantite} unités (${t.impact > 0 ? '+' : '-'}${t.total.toLocaleString('fr-FR')} FCFA)`
-        ).join('\n');
-
-        // Demander confirmation
-        if (!confirm(`Voulez-vous sauvegarder les transferts suivants ?\n\n${resume}\n\nCette action écrasera les transferts existants pour cette date.`)) {
-            return;
-        }
-        
-        console.log('%cSauvegarde des transferts:', 'color: #00aaff;', transferts);
-        
         const response = await fetch('http://localhost:3000/api/transferts', {
             method: 'POST',
             headers: {
@@ -1818,172 +2193,708 @@ document.getElementById('save-transfert').addEventListener('click', async () => 
             credentials: 'include',
             body: JSON.stringify(transferts)
         });
-        
-        const result = await response.json();
-        if (result.success) {
-            console.log('%cTransferts sauvegardés avec succès', 'color: #00ff00; font-weight: bold;');
-            alert('Transferts sauvegardés avec succès');
-            
-            // Recharger les transferts pour mettre à jour l'affichage
-            await chargerTransferts();
-        } else {
-            throw new Error(result.message || 'Erreur lors de la sauvegarde des transferts');
+
+        if (!response.ok) {
+            throw new Error('Erreur lors de la sauvegarde des transferts');
         }
+
+        alert('Transferts sauvegardés avec succès');
+        await chargerTransferts();
+
     } catch (error) {
-        console.error('%cErreur lors de la sauvegarde des transferts:', 'color: #ff0000; font-weight: bold;', error);
-        alert('Erreur lors de la sauvegarde des transferts');
+        console.error('Erreur lors de la sauvegarde des transferts:', error);
+        alert(error.message);
     }
 });
 
 // Fonction pour charger les transferts
 async function chargerTransferts() {
-    console.log('%c=== Chargement des transferts ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
-    const date = document.getElementById('date-inventaire').value;
     try {
+        console.log('Chargement des transferts...');
+        const response = await fetch('http://localhost:3000/api/transferts', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('Réponse reçue:', result);
+
+        // Vérifier si les transferts existent dans la réponse
+        const transferts = result.transferts || [];
+        console.log('Nombre de transferts:', transferts.length);
+
+        // Vider le tableau existant
+        const tbody = document.querySelector('#transfertTable tbody');
+        if (!tbody) {
+            console.error('Tableau des transferts non trouvé');
+            return;
+        }
+        tbody.innerHTML = '';
+
+        // Trier les transferts par date (du plus récent au plus ancien)
+        const transfertsTries = transferts.sort((a, b) => {
+            const dateA = new Date(a.date.split('/').reverse().join('-'));
+            const dateB = new Date(b.date.split('/').reverse().join('-'));
+            return dateB - dateA;
+        });
+
+        // Ajouter chaque transfert au tableau
+        transfertsTries.forEach(transfert => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <select class="form-select" disabled>
+                        <option value="${transfert.pointVente}">${transfert.pointVente}</option>
+                    </select>
+                </td>
+                <td>
+                    <select class="form-select" disabled>
+                        <option value="${transfert.produit}">${transfert.produit}</option>
+                    </select>
+                </td>
+                <td>
+                    <select class="form-select" disabled>
+                        <option value="${transfert.impact}">${transfert.impact > 0 ? '+' : '-'}</option>
+                    </select>
+                </td>
+                <td><input type="number" class="form-control" value="${transfert.quantite}" disabled></td>
+                <td><input type="number" class="form-control" value="${transfert.prixUnitaire}" disabled></td>
+                <td>${transfert.total.toLocaleString('fr-FR')}</td>
+                <td><input type="text" class="form-control" value="${transfert.commentaire || ''}" disabled></td>
+                <td>
+                    <button class="btn btn-danger btn-sm" disabled>
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        console.log('Transferts chargés avec succès');
+        
+    } catch (error) {
+        console.error('Erreur détaillée lors du chargement des transferts:', error);
+        const tbody = document.querySelector('#transfertTable tbody');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-danger">
+                        Erreur lors du chargement des transferts. Veuillez réessayer.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
+// Liste des utilisateurs autorisés à importer des données
+const AUTORISES_IMPORT = ['SALIOU', 'NADOU', 'OUSMANE', 'PAPI'];
+
+// Fonction pour vérifier si l'utilisateur est autorisé à importer
+function estAutoriseImport(username) {
+    return AUTORISES_IMPORT.includes(username.toUpperCase());
+}
+
+// Fonction pour détecter le séparateur du fichier CSV
+function detecterSeparateur(premiereLigne) {
+    const nbVirgules = (premiereLigne.match(/,/g) || []).length;
+    const nbPointsVirgules = (premiereLigne.match(/;/g) || []).length;
+    return nbVirgules > nbPointsVirgules ? ',' : ';';
+}
+
+// Fonction pour traiter les données CSV
+async function traiterDonneesCSV(csvData) {
+    const lignes = csvData.split('\n');
+    const separateur = detecterSeparateur(lignes[0]);
+    const enTetes = lignes[0].split(separateur);
+    
+    // Vérifier le format des en-têtes
+    const enTetesAttendus = ['Point Vente', 'Date', 'Stock', 'Produit', 'Impact', 'Quantite', 'PU', 'Total'];
+    if (!enTetesAttendus.every((enTete, index) => enTete === enTetes[index])) {
+        throw new Error('Format de fichier CSV invalide. Les en-têtes attendus sont: ' + enTetesAttendus.join(', '));
+    }
+
+    const donneesTraitees = {
+        matin: new Map(),
+        soir: new Map(),
+        transferts: []
+    };
+
+    // Traiter chaque ligne
+    for (let i = 1; i < lignes.length; i++) {
+        const ligne = lignes[i].trim();
+        if (!ligne) continue;
+
+        const colonnes = ligne.split(separateur);
+        if (colonnes.length !== 8) continue;
+
+        const [pointVente, date, typeStock, produit, impact, quantite, pu, total] = colonnes;
+        
+        // Convertir les valeurs vides en 0
+        const quantiteVal = quantite === '' ? '0' : quantite;
+        const puVal = pu === '' ? '0' : pu;
+        const totalVal = total === '' ? '0' : total;
+
+        // Déterminer le type de stock et l'impact
+        let stockType = 'matin';
+        let impactVal = 1;
+        
+        if (typeStock.toLowerCase().includes('soir')) {
+            stockType = 'soir';
+            impactVal = -1;
+        } else if (typeStock.toLowerCase().includes('transfert')) {
+            // Pour les transferts, on ajoute dans le tableau des transferts
+            donneesTraitees.transferts.push({
+                date: date,
+                pointVente: pointVente,
+                produit: produit,
+                impact: parseInt(impact),
+                quantite: parseFloat(quantiteVal),
+                prixUnitaire: parseFloat(puVal),
+                total: parseFloat(totalVal),
+                commentaire: ''
+            });
+            continue;
+        }
+
+        // Créer la clé unique pour le stock
+        const key = `${pointVente}-${produit}`;
+        
+        // Créer l'objet de données
+        const donnees = {
+            date: date,
+            typeStock: stockType,
+            "Point de Vente": pointVente,
+            "Produit": produit,
+            "Nombre": quantiteVal,
+            "PU": puVal,
+            "Montant": totalVal,
+            "Commentaire": ""
+        };
+
+        // Stocker dans la Map appropriée
+        donneesTraitees[stockType].set(key, donnees);
+    }
+
+    return donneesTraitees;
+}
+
+// Fonction pour standardiser un nom de point de vente
+function standardiserPointVente(nom) {
+    const nomUpperCase = nom.toUpperCase().trim();
+    return MAPPING_POINTS_VENTE[nomUpperCase] || nom;
+}
+
+// Fonction pour standardiser un nom de produit
+function standardiserProduit(nom) {
+    const nomUpperCase = nom.toUpperCase().trim();
+    return MAPPING_PRODUITS[nomUpperCase] || nom;
+}
+
+// Ajouter les écouteurs d'événements pour l'import CSV
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initialisation des écouteurs d\'événements...');
+    
+    // Écouteur pour le bouton d'import CSV
+    const importCsvBtn = document.getElementById('import-csv');
+    if (importCsvBtn) {
+        console.log('Bouton import-csv trouvé, ajout de l\'écouteur click');
+        importCsvBtn.addEventListener('click', function() {
+            console.log('Clic sur le bouton import-csv');
+            const fileInput = document.getElementById('csv-file');
+            if (fileInput) {
+                fileInput.click();
+            } else {
+                console.error('Élément csv-file non trouvé');
+            }
+        });
+    } else {
+        console.error('Bouton import-csv non trouvé');
+    }
+
+    // Écouteur pour l'input file
+    const csvFileInput = document.getElementById('csv-file');
+    if (csvFileInput) {
+        console.log('Input csv-file trouvé, ajout de l\'écouteur change');
+        csvFileInput.addEventListener('change', importerCSV);
+    } else {
+        console.error('Input csv-file non trouvé');
+    }
+
+    // Écouteurs pour les boutons de confirmation et d'annulation
+    const confirmImportBtn = document.getElementById('confirmImport');
+    const cancelImportBtn = document.getElementById('cancelImport');
+
+    if (confirmImportBtn) {
+        console.log('Bouton confirmImport trouvé, ajout de l\'écouteur click');
+        confirmImportBtn.disabled = true;
+    } else {
+        console.error('Bouton confirmImport non trouvé');
+    }
+
+    if (cancelImportBtn) {
+        console.log('Bouton cancelImport trouvé, ajout de l\'écouteur click');
+        cancelImportBtn.addEventListener('click', function() {
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('csv-file').value = '';
+            donneesImportees = {
+                matin: new Map(),
+                soir: new Map(),
+                transferts: []
+            };
+        });
+    } else {
+        console.error('Bouton cancelImport non trouvé');
+    }
+});
+
+// Fonction d'import CSV
+async function importerCSV(event) {
+    console.log('Début de l\'import CSV');
+    const file = event.target.files[0];
+    if (!file) {
+        console.log('Aucun fichier sélectionné');
+        return;
+    }
+    console.log('Fichier sélectionné:', file.name);
+
+    // Vérifier les permissions
+    if (!currentUser || !['SALIOU', 'NADOU', 'OUSMANE', 'PAPI'].includes(currentUser.username)) {
+        console.log('Utilisateur non autorisé:', currentUser?.username);
+        alert('Vous n\'avez pas les permissions nécessaires pour importer des données.');
+        event.target.value = '';
+        return;
+    }
+
+    try {
+        console.log('Lecture du fichier...');
+        const text = await file.text();
+        const lines = text.split('\n');
+        
+        const separateur = detecterSeparateur(lines[0]);
+        console.log('Séparateur détecté:', separateur);
+        
+        const headers = lines[0].split(separateur).map(h => h.trim());
+        console.log('En-têtes trouvés:', headers);
+        
+        // Vérifier les en-têtes requis
+        const requiredHeaders = ['Point Vente', 'Date', 'Stock', 'Produit', 'Impact', 'Quantite', 'PU', 'Total'];
+        const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+        if (missingHeaders.length > 0) {
+            throw new Error(`En-têtes manquants : ${missingHeaders.join(', ')}`);
+        }
+
+        // Réinitialiser les données importées
+        donneesImportees = {
+            matin: new Map(),
+            soir: new Map(),
+            transferts: []
+        };
+
+        // Traiter les lignes de données
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            const values = line.split(separateur).map(v => v.trim());
+            if (values.length !== headers.length) continue;
+
+            const data = {};
+            headers.forEach((header, index) => {
+                data[header] = values[index];
+            });
+
+            // Standardiser les noms
+            const pointVente = standardiserPointVente(data['Point Vente']);
+            const produit = standardiserProduit(data['Produit']);
+            
+            // Traiter les données selon le type de stock
+            const stockType = data.Stock.toLowerCase();
+            const quantite = parseFloat(data.Quantite) || 0;
+            const pu = parseFloat(data.PU) || 0;
+            const total = parseFloat(data.Total) || 0;
+
+            // Créer la clé unique pour le stockage
+            const key = `${pointVente}-${produit}`;
+
+            if (stockType.includes('matin')) {
+                donneesImportees.matin.set(key, {
+                    pointVente: pointVente,
+                    date: data.Date,
+                    produit: produit,
+                    quantite: quantite,
+                    prixUnitaire: pu,
+                    total: total
+                });
+            } else if (stockType.includes('soir')) {
+                donneesImportees.soir.set(key, {
+                    pointVente: pointVente,
+                    date: data.Date,
+                    produit: produit,
+                    quantite: quantite,
+                    prixUnitaire: pu,
+                    total: total
+                });
+            } else if (stockType.includes('transfert')) {
+                donneesImportees.transferts.push({
+                    pointVente: pointVente,
+                    date: data.Date,
+                    produit: produit,
+                    impact: parseInt(data.Impact),
+                    quantite: quantite,
+                    prixUnitaire: pu,
+                    total: total
+                });
+            }
+        }
+
+        console.log('Données importées:', donneesImportees);
+
+        // Afficher l'aperçu
+        const previewSection = document.getElementById('previewSection');
+        const previewTable = document.getElementById('previewTable');
+        
+        if (previewTable) {
+            console.log('Mise à jour de la table d\'aperçu');
+            previewTable.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Point de Vente</th>
+                        <th>Date</th>
+                        <th>Stock</th>
+                        <th>Produit</th>
+                        <th>Impact</th>
+                        <th>Quantité</th>
+                        <th>PU</th>
+                        <th>Total</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${[
+                        // Stock Matin (Impact +1)
+                        ...Array.from(donneesImportees.matin.entries()).map(([key, item]) => `
+                            <tr>
+                                <td>${item.pointVente}</td>
+                                <td>${item.date}</td>
+                                <td>Stock Matin</td>
+                                <td>${item.produit}</td>
+                                <td>+1</td>
+                                <td>${item.quantite}</td>
+                                <td>${item.prixUnitaire}</td>
+                                <td>${item.total}</td>
+                                <td>
+                                    <button class="btn btn-danger btn-sm" onclick="supprimerLigne('${key}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `),
+                        // Stock Soir (Impact -1)
+                        ...Array.from(donneesImportees.soir.entries()).map(([key, item]) => `
+                            <tr>
+                                <td>${item.pointVente}</td>
+                                <td>${item.date}</td>
+                                <td>Stock Soir</td>
+                                <td>${item.produit}</td>
+                                <td>-1</td>
+                                <td>${item.quantite}</td>
+                                <td>${item.prixUnitaire}</td>
+                                <td>${item.total}</td>
+                                <td>
+                                    <button class="btn btn-danger btn-sm" onclick="supprimerLigne('${key}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `),
+                        // Transferts (Impact selon la valeur importée)
+                        ...donneesImportees.transferts.map((item, index) => `
+                            <tr>
+                                <td>${item.pointVente}</td>
+                                <td>${item.date}</td>
+                                <td>Transfert</td>
+                                <td>${item.produit}</td>
+                                <td>${item.impact > 0 ? '+1' : '-1'}</td>
+                                <td>${item.quantite}</td>
+                                <td>${item.prixUnitaire}</td>
+                                <td>${item.total}</td>
+                                <td>
+                                    <button class="btn btn-danger btn-sm" onclick="supprimerLigne('transfert-${index}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `)
+                    ].join('')}
+                </tbody>
+            `;
+
+            // Afficher la section d'aperçu
+            if (previewSection) {
+                console.log('Affichage de la section d\'aperçu');
+                previewSection.style.display = 'block';
+            }
+
+            // Activer le bouton de confirmation
+            const confirmImport = document.getElementById('confirmImport');
+            if (confirmImport) {
+                console.log('Activation du bouton de confirmation');
+                confirmImport.disabled = false;
+            }
+        } else {
+            console.error('Table d\'aperçu non trouvée');
+        }
+
+    } catch (error) {
+        console.error('Erreur lors de l\'importation:', error);
+        alert('Erreur lors de l\'importation : ' + error.message);
+        event.target.value = '';
+    }
+}
+
+// Fonction pour mettre à jour le stock
+async function updateStock(produit, quantite, typeStock) {
+    try {
+        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                [produit]: {
+                    produit: produit,
+                    quantite: quantite,
+                    typeStock: typeStock
+                }
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du stock:', error);
+        throw error;
+    }
+}
+
+// Fonction pour charger les données de stock
+async function loadStockData() {
+    try {
+        // Charger les données pour les deux types de stock (matin et soir)
+        const [matinResponse, soirResponse] = await Promise.all([
+            fetch('http://localhost:3000/api/stock/matin', {
+                method: 'GET',
+                credentials: 'include'
+            }),
+            fetch('http://localhost:3000/api/stock/soir', {
+                method: 'GET',
+                credentials: 'include'
+            })
+        ]);
+
+        const [matinData, soirData] = await Promise.all([
+            matinResponse.json(),
+            soirResponse.json()
+        ]);
+
+        // Mettre à jour les données globales
+        stockData.matin = new Map();
+        stockData.soir = new Map();
+
+        // Traiter les données du matin
+        if (Array.isArray(matinData)) {
+            matinData.forEach(item => {
+                const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
+                stockData.matin.set(key, item);
+            });
+        } else {
+            Object.entries(matinData || {}).forEach(([key, value]) => {
+                stockData.matin.set(key, value);
+            });
+        }
+
+        // Traiter les données du soir
+        if (Array.isArray(soirData)) {
+            soirData.forEach(item => {
+                const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
+                stockData.soir.set(key, item);
+            });
+        } else {
+            Object.entries(soirData || {}).forEach(([key, value]) => {
+                stockData.soir.set(key, value);
+            });
+        }
+
+        // Mettre à jour l'affichage si nécessaire
+        initTableauStock();
+    } catch (error) {
+        console.error('Erreur lors du chargement des données de stock:', error);
+        throw error;
+    }
+}
+
+// Fonction pour charger les transferts
+async function loadTransferts() {
+    try {
+        const date = document.getElementById('date-inventaire')?.value;
+        if (!date) return;
+
         const response = await fetch(`http://localhost:3000/api/transferts?date=${date}`, {
             credentials: 'include'
         });
         const result = await response.json();
         
         if (result.success) {
-            console.log('%cTransferts chargés:', 'color: #00ff00;', result.transferts);
             // Vider le tableau existant
             const tbody = document.querySelector('#transfert-table tbody');
-            tbody.innerHTML = '';
-            
-            // Si des transferts existent pour cette date, les afficher
-            if (result.transferts && result.transferts.length > 0) {
-                result.transferts.forEach(transfert => {
-                    afficherTransfert(transfert);
-                });
-            } else {
-                // Si aucun transfert, ajouter une ligne vide
-                ajouterLigneTransfert();
+            if (tbody) {
+                tbody.innerHTML = '';
+                
+                // Si des transferts existent pour cette date, les afficher
+                if (result.transferts && result.transferts.length > 0) {
+                    result.transferts.forEach(transfert => {
+                        afficherTransfert(transfert);
+                    });
+                } else {
+                    // Si aucun transfert, ajouter une ligne vide
+                    ajouterLigneTransfert();
+                }
             }
         } else {
-            console.error('%cErreur lors du chargement des transferts:', 'color: #ff0000;', result.message);
-            ajouterLigneTransfert();
+            throw new Error(result.message || 'Erreur lors du chargement des transferts');
         }
     } catch (error) {
-        console.error('%cErreur lors du chargement des transferts:', 'color: #ff0000;', error);
-        ajouterLigneTransfert();
+        console.error('Erreur lors du chargement des transferts:', error);
+        throw error;
     }
 }
 
-// Fonction pour afficher un transfert existant
-function afficherTransfert(transfert) {
-    console.log('%cAffichage du transfert:', 'color: #00aaff;', transfert);
-    const tbody = document.querySelector('#transfert-table tbody');
-    const row = document.createElement('tr');
-    
-    // Point de vente
-    const tdPointVente = document.createElement('td');
-    const selectPointVente = document.createElement('select');
-    selectPointVente.className = 'form-select form-select-sm point-vente-select';
-    TOUS_POINTS_VENTE.forEach(pv => {
-        const option = document.createElement('option');
-        option.value = pv;
-        option.textContent = pv;
-        if (pv === transfert.pointVente) option.selected = true;
-        selectPointVente.appendChild(option);
-    });
-    tdPointVente.appendChild(selectPointVente);
-    
-    // Produit
-    const tdProduit = document.createElement('td');
-    const selectProduit = document.createElement('select');
-    selectProduit.className = 'form-select form-select-sm produit-select';
-    PRODUITS.forEach(prod => {
-        const option = document.createElement('option');
-        option.value = prod;
-        option.textContent = prod;
-        if (prod === transfert.produit) option.selected = true;
-        selectProduit.appendChild(option);
-    });
-    tdProduit.appendChild(selectProduit);
-    
-    // Impact (+/-)
-    const tdImpact = document.createElement('td');
-    const selectImpact = document.createElement('select');
-    selectImpact.className = 'form-select form-select-sm impact-select';
-    [
-        { value: '1', text: '+' },
-        { value: '-1', text: '-' }
-    ].forEach(({ value, text }) => {
-        const option = document.createElement('option');
-        option.value = value;
-        option.textContent = text;
-        if (parseInt(value) === transfert.impact) option.selected = true;
-        selectImpact.appendChild(option);
-    });
-    tdImpact.appendChild(selectImpact);
-    
-    // Quantité
-    const tdQuantite = document.createElement('td');
-    const inputQuantite = document.createElement('input');
-    inputQuantite.type = 'number';
-    inputQuantite.className = 'form-control form-control-sm quantite-input';
-    inputQuantite.step = '0.1';
-    inputQuantite.value = transfert.quantite;
-    tdQuantite.appendChild(inputQuantite);
-    
-    // Prix unitaire
-    const tdPrixUnitaire = document.createElement('td');
-    const inputPrixUnitaire = document.createElement('input');
-    inputPrixUnitaire.type = 'number';
-    inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
-    inputPrixUnitaire.step = '100';
-    inputPrixUnitaire.value = transfert.prixUnitaire;
-    tdPrixUnitaire.appendChild(inputPrixUnitaire);
-    
-    // Total
-    const tdTotal = document.createElement('td');
-    tdTotal.className = 'total-cell';
-    tdTotal.textContent = transfert.total.toLocaleString('fr-FR');
-    
-    // Commentaire
-    const tdCommentaire = document.createElement('td');
-    const inputCommentaire = document.createElement('input');
-    inputCommentaire.type = 'text';
-    inputCommentaire.className = 'form-control form-control-sm commentaire-input';
-    tdCommentaire.appendChild(inputCommentaire);
-    
-    // Actions
-    const tdActions = document.createElement('td');
-    const btnSupprimer = document.createElement('button');
-    btnSupprimer.className = 'btn btn-danger btn-sm';
-    btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
-    btnSupprimer.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (confirm('Êtes-vous sûr de vouloir supprimer cette ligne ?')) {
-            row.remove();
+// Gestionnaire pour le bouton d'ajout de ligne de transfert
+document.getElementById('ajouterLigne').addEventListener('click', function() {
+    const tbody = document.querySelector('#transfertTable tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>
+            <select class="form-select">
+                <option value="">Sélectionner...</option>
+                ${POINTS_VENTE.map(pv => `<option value="${pv}">${pv}</option>`).join('')}
+            </select>
+        </td>
+        <td>
+            <select class="form-select">
+                <option value="">Sélectionner...</option>
+                ${PRODUITS.map(prod => `<option value="${prod}">${prod}</option>`).join('')}
+            </select>
+        </td>
+        <td>
+            <select class="form-select">
+                <option value="+">+</option>
+                <option value="-">-</option>
+            </select>
+        </td>
+        <td><input type="number" class="form-control" value="0" step="0.1"></td>
+        <td><input type="number" class="form-control" value="0" step="100"></td>
+        <td>0</td>
+        <td><input type="text" class="form-control"></td>
+        <td>
+            <button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+
+    // Ajouter les écouteurs d'événements pour le calcul automatique
+    const row = tbody.appendChild(tr);
+    const quantiteInput = row.querySelector('input[type="number"]:first-of-type');
+    const prixInput = row.querySelector('input[type="number"]:last-of-type');
+    const impactSelect = row.querySelector('select:nth-of-type(3)');
+    const totalCell = row.querySelector('td:nth-of-type(6)');
+    const produitSelect = row.querySelector('select:nth-of-type(2)');
+
+    const calculateTotal = () => {
+        const quantite = parseFloat(quantiteInput.value) || 0;
+        const prix = parseFloat(prixInput.value) || 0;
+        const impact = impactSelect.value === '+' ? 1 : -1;
+        const total = quantite * prix * impact;
+        totalCell.textContent = total.toLocaleString('fr-FR');
+    };
+
+    // Mettre à jour le prix unitaire quand le produit change
+    produitSelect.addEventListener('change', function() {
+        const produit = this.value;
+        if (PRIX_DEFAUT[produit]) {
+            prixInput.value = PRIX_DEFAUT[produit];
+            calculateTotal();
         }
     });
-    tdActions.appendChild(btnSupprimer);
-    
-    // Ajouter les cellules à la ligne
-    row.append(tdPointVente, tdProduit, tdImpact, tdQuantite, tdPrixUnitaire, tdTotal, tdCommentaire, tdActions);
-    
-    // Gestionnaire pour le calcul automatique du total
-    const calculateTotal = () => {
-        const quantite = parseFloat(inputQuantite.value) || 0;
-        const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
-        const impact = parseInt(selectImpact.value) || 1;
-        const total = quantite * prixUnitaire * impact;
-        tdTotal.textContent = total.toLocaleString('fr-FR');
-    };
-    
-    // Gestionnaire pour la mise à jour du prix unitaire par défaut
-    selectProduit.addEventListener('change', function() {
-        const nouveauProduit = this.value;
-        inputPrixUnitaire.value = PRIX_DEFAUT[nouveauProduit] || '0';
-        calculateTotal();
-    });
-    
-    // Ajouter les écouteurs d'événements
-    inputQuantite.addEventListener('input', calculateTotal);
-    inputPrixUnitaire.addEventListener('input', calculateTotal);
-    selectImpact.addEventListener('change', calculateTotal);
-    
-    tbody.appendChild(row);
-} 
+
+    quantiteInput.addEventListener('input', calculateTotal);
+    prixInput.addEventListener('input', calculateTotal);
+    impactSelect.addEventListener('change', calculateTotal);
+});
+
+// Gestionnaire pour le bouton de sauvegarde des transferts
+document.getElementById('sauvegarderTransfert').addEventListener('click', async function() {
+    try {
+        const tbody = document.querySelector('#transfert-table tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr:not([disabled])'));
+        
+        const transferts = rows.map(row => {
+            const pointVente = row.querySelector('select:first-of-type').value;
+            const produit = row.querySelector('select:nth-of-type(2)').value;
+            const impact = row.querySelector('select:nth-of-type(3)').value === '+' ? 1 : -1;
+            const quantite = parseFloat(row.querySelector('input[type="number"]:first-of-type').value) || 0;
+            const prixUnitaire = parseFloat(row.querySelector('input[type="number"]:last-of-type').value) || 0;
+            const total = quantite * prixUnitaire * impact;
+            const commentaire = row.querySelector('input[type="text"]').value || '';
+
+            if (!pointVente || !produit) {
+                throw new Error('Veuillez remplir tous les champs obligatoires');
+            }
+
+            return {
+                date: document.getElementById('date-inventaire').value,
+                pointVente,
+                produit,
+                impact,
+                quantite,
+                prixUnitaire,
+                total,
+                commentaire
+            };
+        });
+
+        if (transferts.length === 0) {
+            alert('Aucun transfert à sauvegarder');
+            return;
+        }
+
+        const response = await fetch('http://localhost:3000/api/transferts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(transferts)
+        });
+
+        if (!response.ok) {
+            throw new Error('Erreur lors de la sauvegarde des transferts');
+        }
+
+        alert('Transferts sauvegardés avec succès');
+        await chargerTransferts();
+
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde des transferts:', error);
+        alert(error.message);
+    }
+});
