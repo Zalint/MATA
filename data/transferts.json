@@ -1,16 +1,6 @@
 [
   {
-    "date": "31-03-25",
-    "pointVente": "Abattage",
-    "produit": "Boeuf",
-    "impact": 1,
-    "quantite": 0,
-    "prixUnitaire": 3600,
-    "total": 0,
-    "commentaire": ""
-  },
-  {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "Abattage",
     "produit": "Boeuf",
     "impact": -1,
@@ -20,7 +10,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "O.Foire",
     "produit": "Boeuf",
     "impact": 1,
@@ -30,7 +20,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "Abattage",
     "produit": "Veau",
     "impact": -1,
@@ -40,7 +30,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "O.Foire",
     "produit": "Veau",
     "impact": 1,
@@ -50,7 +40,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "O.Foire",
     "produit": "Yell",
     "impact": 1,
@@ -60,7 +50,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "Abattage",
     "produit": "Boeuf",
     "impact": -1,
@@ -70,7 +60,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "Gros Client",
     "produit": "Boeuf",
     "impact": 1,
@@ -80,7 +70,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "Gros Client",
     "produit": "Foie",
     "impact": 1,
@@ -90,7 +80,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "Abattage",
     "produit": "Boeuf",
     "impact": -1,
@@ -100,7 +90,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "Gros Client",
     "produit": "Boeuf",
     "impact": 1,
@@ -110,7 +100,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "Abattage",
     "produit": "Agneau",
     "impact": -1,
@@ -120,7 +110,7 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "O.Foire",
     "produit": "Agneau",
     "impact": 1,
@@ -130,13 +120,23 @@
     "commentaire": ""
   },
   {
-    "date": "31-03-25",
+    "date": "01/04/2025",
     "pointVente": "Abattage",
     "produit": "Boeuf",
     "impact": -1,
     "quantite": 16.6,
     "prixUnitaire": 3600,
-    "total": -59760,
+    "total": -59760.00000000001,
+    "commentaire": ""
+  },
+  {
+    "date": "01/04/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 10,
+    "prixUnitaire": 3600,
+    "total": 36000,
     "commentaire": ""
   }
 ]
