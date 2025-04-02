@@ -124,7 +124,13 @@
 
                         <!-- Tableau des dernières ventes -->
                         <div class="mt-4">
-                            <h5>Dernières ventes enregistrées</h5>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5>Dernières ventes enregistrées</h5>
+                                <div class="text-muted">
+                                    <span id="total-ventes"></span>
+                                    <span id="derniere-mise-a-jour" class="ms-3"></span>
+                                </div>
+                            </div>
                             <div class="table-responsive">
                                 <table id="dernieres-ventes" class="table table-striped">
                                     <thead>
@@ -139,6 +145,7 @@
                                             <th>Prix Unitaire</th>
                                             <th>Nombre</th>
                                             <th>Montant</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody></tbody>

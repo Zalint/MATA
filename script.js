@@ -527,9 +527,22 @@ document.getElementById('vente-form').addEventListener('submit', async function(
         return;
     }
     
+    // Récupérer l'ID de la vente en cours de modification s'il existe
+    const venteEnCoursDeModification = document.querySelector('.produit-entry[data-vente-id]');
+    const venteId = venteEnCoursDeModification ? venteEnCoursDeModification.dataset.venteId : null;
+    const isUpdate = !!venteId;
+    
+    console.log('Vente en cours de modification:', { venteId, isUpdate });
+    
+    // Si c'est une mise à jour, on ne traite que la première entrée avec l'ID de vente
+    // Si c'est un nouvel enregistrement, on traite toutes les entrées
+    const entriesToProcess = isUpdate ? 
+        [document.querySelector('.produit-entry[data-vente-id]')] : 
+        document.querySelectorAll('.produit-entry');
+    
     const entries = [];
     
-    document.querySelectorAll('.produit-entry').forEach(entry => {
+    entriesToProcess.forEach(entry => {
         const categorie = entry.querySelector('.categorie-select').value;
         const produit = entry.querySelector('.produit-select').value;
         const quantite = entry.querySelector('.quantite').value;
@@ -541,6 +554,7 @@ document.getElementById('vente-form').addEventListener('submit', async function(
             const semaine = `S${Math.ceil(new Date(date.split('/').reverse().join('-')).getDate() / 7)}`;
             
             entries.push({
+                id: venteId,
                 mois,
                 date,
                 semaine,
@@ -560,35 +574,60 @@ document.getElementById('vente-form').addEventListener('submit', async function(
     }
     
     try {
-        const response = await fetch('http://localhost:3000/api/ventes', {
-            method: 'POST',
+        const url = isUpdate ? `http://localhost:3000/api/ventes/${venteId}` : 'http://localhost:3000/api/ventes';
+        const method = isUpdate ? 'PUT' : 'POST';
+        
+        console.log('Envoi de la requête:', { url, method, isUpdate, venteId });
+        console.log('Données envoyées:', isUpdate ? entries[0] : entries);
+        
+        const response = await fetch(url, {
+            method: method,
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(entries)
+            credentials: 'include',
+            body: JSON.stringify(isUpdate ? entries[0] : entries)
         });
         
         const data = await response.json();
         
         if (response.ok) {
-            alert('Ventes enregistrées avec succès');
+            alert(isUpdate ? 'Vente mise à jour avec succès' : 'Ventes enregistrées avec succès');
+            
+            // Sauvegarder le point de vente actuel
+            const pointVenteSelect = document.getElementById('point-vente');
+            const currentPointVente = pointVenteSelect.value;
+            
             // Réinitialiser le formulaire
             this.reset();
+            
             // Réinitialiser la date à aujourd'hui
             document.getElementById('date')._flatpickr.setDate(new Date());
+            
+            // Réappliquer le point de vente selon les droits de l'utilisateur
+            if (currentUser.pointVente !== "tous") {
+                pointVenteSelect.value = currentUser.pointVente;
+                pointVenteSelect.disabled = true;
+            } else if (currentPointVente) {
+                pointVenteSelect.value = currentPointVente;
+            }
+            
+            // Réinitialiser les produits
             document.getElementById('produits-container').innerHTML = '';
-            // Ajouter une nouvelle entrée vide
+            
+            // Ajouter une nouvelle entrée vide pour permettre de nouvelles saisies
             document.getElementById('produits-container').appendChild(creerNouvelleEntree());
+            
             calculerTotalGeneral();
             
-            // Afficher les dernières ventes
-            afficherDernieresVentes(data.dernieresVentes);
+            // Actualiser les dernières ventes
+            await chargerDernieresVentes(); // Toujours recharger les dernières ventes pour assurer des données cohérentes
         } else {
-            throw new Error('Erreur lors de l\'enregistrement des ventes');
+            throw new Error(data.message || (isUpdate ? 'Erreur lors de la mise à jour de la vente' : 'Erreur lors de l\'enregistrement des ventes'));
         }
     } catch (error) {
         console.error('Erreur:', error);
-        alert('Erreur lors de l\'enregistrement des ventes');
+        alert(error.message || (isUpdate ? 'Erreur lors de la mise à jour de la vente' : 'Erreur lors de l\'enregistrement des ventes'));
     }
 });
 
@@ -598,49 +637,192 @@ document.getElementById('ajouter-produit').addEventListener('click', function() 
     container.appendChild(creerNouvelleEntree());
 });
 
-// Fonction pour afficher les dernières ventes
+// Fonction pour vérifier si une date est aujourd'hui
+function isToday(dateStr) {
+    const today = new Date();
+    // Gérer le format DD-MM-YY
+    const [jour, mois, annee] = dateStr.split('-');
+    // Convertir l'année à 4 chiffres (20YY)
+    const fullYear = '20' + annee;
+    const date = new Date(fullYear, mois - 1, jour);
+    
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+}
+
 function afficherDernieresVentes(ventes) {
     const tbody = document.querySelector('#dernieres-ventes tbody');
     if (!tbody) return;
     
     tbody.innerHTML = '';
     
-    if (Array.isArray(ventes)) {
-        ventes.forEach(vente => {
-            // Filtrer selon les droits d'accès
-            if (currentUser.pointVente === "tous" || vente['Point de Vente'] === currentUser.pointVente) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${vente.Mois || vente.mois || ''}</td>
-                    <td>${vente.Date || vente.date || ''}</td>
-                    <td>${vente.Semaine || vente.semaine || ''}</td>
-                    <td>${vente['Point de Vente'] || vente.pointVente || ''}</td>
-                    <td>${vente.Preparation || vente.preparation || vente['Point de Vente'] || vente.pointVente || ''}</td>
-                    <td>${vente.Catégorie || vente.categorie || ''}</td>
-                    <td>${vente.Produit || vente.produit || ''}</td>
-                    <td>${vente.PU || vente.prixUnit || '0'}</td>
-                    <td>${vente.Nombre || vente.quantite || '0'}</td>
-                    <td>${vente.Montant || vente.total || '0'}</td>
-                `;
-                tbody.appendChild(tr);
-            }
-        });
+    if (!Array.isArray(ventes) || ventes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center">Aucune vente disponible</td></tr>';
+        return;
     }
+    
+    ventes.forEach(vente => {
+        console.log("Structure de la vente reçue:", vente);
+        
+        const tr = document.createElement('tr');
+        
+        // Extraire et nettoyer les valeurs
+        const mois = vente.Mois || '';
+        let date = vente.Date || '';
+        const semaine = vente.Semaine || '';
+        const pointVente = vente['Point de Vente'] || '';
+        const preparation = vente.Preparation || pointVente || '';
+        const categorie = vente.Catégorie || '';
+        const produit = vente.Produit || '';
+        
+        // Formater la date en DD-MM-YY si elle n'est pas déjà dans ce format
+        if (date && !date.match(/^\d{2}-\d{2}-\d{2}$/)) {
+            const [jour, mois, annee] = date.split('/');
+            if (jour && mois && annee) {
+                // Si la date est au format DD/MM/YYYY, la convertir en DD-MM-YY
+                date = `${jour.padStart(2, '0')}-${mois.padStart(2, '0')}-${annee.slice(-2)}`;
+            }
+        }
+        
+        // Gérer les valeurs numériques
+        let prixUnitaire = 0;
+        if (vente.PU) {
+            prixUnitaire = parseFloat(vente.PU.toString().replace(/[^\d.-]/g, '')) || 0;
+        }
+        
+        let nombre = 0;
+        if (vente.Nombre) {
+            nombre = parseFloat(vente.Nombre.toString().replace(/[^\d.-]/g, '')) || 0;
+        }
+        
+        // Calculer le montant
+        const montant = prixUnitaire * nombre;
+        
+        // Vérifier si la vente est d'aujourd'hui
+        const estAujourdhui = isToday(date);
+        console.log("Date de la vente:", date, "Est aujourd'hui:", estAujourdhui);
+        
+        tr.innerHTML = `
+            <td>${mois}</td>
+            <td>${date}</td>
+            <td>${semaine}</td>
+            <td>${pointVente}</td>
+            <td>${preparation}</td>
+            <td>${categorie}</td>
+            <td>${produit}</td>
+            <td>${prixUnitaire.toLocaleString('fr-FR')}</td>
+            <td>${nombre.toLocaleString('fr-FR')}</td>
+            <td>${montant.toLocaleString('fr-FR')}</td>
+            <td>
+                ${estAujourdhui ? `
+                <button class="btn btn-sm btn-danger supprimer-vente ms-2" 
+                    data-vente-id="${vente.id}"
+                    data-categorie="${categorie}"
+                    data-produit="${produit}"
+                    data-point-vente="${pointVente}"
+                    data-prix="${prixUnitaire}"
+                    data-quantite="${nombre}"
+                    data-montant="${montant}"
+                    data-date="${date}">
+                    Supprimer
+                </button>
+                ` : ''}
+            </td>
+        `;
+        
+        // Ajouter les gestionnaires d'événements pour les boutons
+        const supprimerBtn = tr.querySelector('.supprimer-vente');
+        
+        if (supprimerBtn) {
+            supprimerBtn.addEventListener('click', async function() {
+                const venteId = this.dataset.venteId;
+                const pointVente = this.dataset.pointVente;
+                const categorie = this.dataset.categorie;
+                const produit = this.dataset.produit;
+                const prix = parseFloat(this.dataset.prix).toLocaleString('fr-FR');
+                const quantite = parseFloat(this.dataset.quantite).toLocaleString('fr-FR');
+                const montant = parseFloat(this.dataset.montant).toLocaleString('fr-FR');
+                const date = this.dataset.date;
+                
+                const message = `Voulez-vous vraiment supprimer cette vente ?\n\n` +
+                              `Date: ${date}\n` +
+                              `Point de vente: ${pointVente}\n` +
+                              `Catégorie: ${categorie}\n` +
+                              `Produit: ${produit}\n` +
+                              `Prix unitaire: ${prix} FCFA\n` +
+                              `Quantité: ${quantite}\n` +
+                              `Montant total: ${montant} FCFA`;
+                
+                if (confirm(message)) {
+                    try {
+                        const response = await fetch(`http://localhost:3000/api/ventes/${venteId}?pointVente=${pointVente}`, {
+                            method: 'DELETE',
+                            credentials: 'include'
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            // Recharger les ventes après la suppression
+                            chargerDernieresVentes();
+                        } else {
+                            alert(data.message || 'Erreur lors de la suppression de la vente');
+                        }
+                    } catch (error) {
+                        console.error('Erreur lors de la suppression:', error);
+                        alert('Erreur lors de la suppression de la vente');
+                    }
+                }
+            });
+        }
+        
+        tbody.appendChild(tr);
+    });
 }
 
 // Fonction pour charger les dernières ventes
 async function chargerDernieresVentes() {
     try {
-        const response = await fetch('http://localhost:3000/api/dernieres-ventes');
+        console.log('Début du chargement des dernières ventes');
+        
+        const response = await fetch('http://localhost:3000/api/dernieres-ventes', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        
         const data = await response.json();
+        console.log('Structure complète des données reçues:', data);
         
         if (data.success && Array.isArray(data.dernieresVentes)) {
-            afficherDernieresVentes(data.dernieresVentes);
+            console.log('Premier élément des ventes:', data.dernieresVentes[0]);
+            
+            // Filtrer les ventes pour le point de vente de l'utilisateur
+            let ventesAffichees = data.dernieresVentes;
+            if (currentUser && currentUser.pointVente !== "tous") {
+                ventesAffichees = data.dernieresVentes.filter(vente => 
+                    vente['Point de Vente'] === currentUser.pointVente
+                );
+            }
+            
+            // Prendre les 20 dernières ventes
+            ventesAffichees = ventesAffichees.slice(-20);
+            
+            console.log('Données filtrées, affichage des ventes:', ventesAffichees.length, 'entrées');
+            afficherDernieresVentes(ventesAffichees);
         } else {
-            console.error('Format de données invalide:', data);
+            console.error('Format de données invalide pour les dernières ventes:', data);
+            const tbody = document.querySelector('#dernieres-ventes tbody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="text-center">Aucune donnée disponible</td></tr>';
         }
     } catch (error) {
         console.error('Erreur lors du chargement des dernières ventes:', error);
+        const tbody = document.querySelector('#dernieres-ventes tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="text-center text-danger">Erreur: ' + error.message + '</td></tr>';
     }
 }
 
@@ -806,7 +988,9 @@ async function chargerVentes() {
         const formatDateForApi = (dateStr) => {
             if (!dateStr) return '';
             const [jour, mois, annee] = dateStr.split('/');
-            return `${annee}-${mois.padStart(2, '0')}-${jour.padStart(2, '0')}`;
+            // Ajuster le mois pour qu'il soit correct (les mois commencent à 0 en JavaScript)
+            const date = new Date(annee, parseInt(mois) - 1, parseInt(jour));
+            return date.toISOString().split('T')[0];
         };
 
         const debut = formatDateForApi(dateDebut);
@@ -819,6 +1003,15 @@ async function chargerVentes() {
             fin, 
             pointVente 
         });
+
+        // Fonction pour comparer les dates en ignorant l'heure
+        const compareDates = (date1, date2) => {
+            const d1 = new Date(date1);
+            const d2 = new Date(date2);
+            return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth() &&
+                   d1.getDate() === d2.getDate();
+        };
 
         const response = await fetch(`http://localhost:3000/api/ventes?dateDebut=${debut}&dateFin=${fin}&pointVente=${pointVente}`, {
             credentials: 'include'
@@ -833,7 +1026,23 @@ async function chargerVentes() {
 
         if (data.success) {
             console.log('Nombre de ventes reçues:', data.ventes.length);
-            console.log('Dates des ventes reçues:', data.ventes.map(v => v.Date));
+            // Ajout d'un log détaillé pour vérifier les dates
+            console.log('Dates des ventes reçues:', data.ventes.map(v => ({
+                date: v.Date,
+                montant: v.Montant || v.total,
+                comparaison: new Date(v.Date) >= new Date(debut)
+            })));
+            
+            // Filtrer pour s'assurer d'inclure la date de début
+            allVentes = data.ventes.filter(vente => {
+                const venteDate = new Date(vente.Date);
+                const debutDate = new Date(debut);
+                const finDate = new Date(fin);
+                
+                // Comparer les dates en ignorant l'heure
+                return (compareDates(venteDate, debutDate) || venteDate > debutDate) && 
+                       (compareDates(venteDate, finDate) || venteDate < finDate);
+            });
             
             // Vérifier si les ventes sont un tableau
             if (!Array.isArray(data.ventes)) {
@@ -2269,824 +2478,124 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.error('Bouton ajouterLigne non trouvé');
     }
-});
-
-// Ajouter l'écouteur d'événements pour le bouton de sauvegarde des transferts
-document.getElementById('save-transfert').addEventListener('click', async () => {
-    try {
-        const tbody = document.querySelector('#transfert-table tbody');
-        const rows = Array.from(tbody.querySelectorAll('tr:not([disabled])'));
-        
-        const transferts = rows.map(row => {
-            const pointVenteSelect = row.querySelector('.point-vente-select');
-            const produitSelect = row.querySelector('.produit-select');
-            const impactSelect = row.querySelector('.impact-select');
-            const quantiteInput = row.querySelector('.quantite-input');
-            const prixUnitaireInput = row.querySelector('.prix-unitaire-input');
-            const commentaireInput = row.querySelector('.commentaire-input');
-
-            if (!pointVenteSelect || !produitSelect || !impactSelect || !quantiteInput || !prixUnitaireInput) {
-                throw new Error('Certains éléments sont manquants dans la ligne');
-            }
-
-            const pointVente = pointVenteSelect.value;
-            const produit = produitSelect.value;
-            const impact = impactSelect.value === '1' ? 1 : -1;
-            const quantite = parseFloat(quantiteInput.value) || 0;
-            const prixUnitaire = parseFloat(prixUnitaireInput.value) || 0;
-            const commentaire = commentaireInput ? commentaireInput.value : '';
-
-            return {
-                date: document.getElementById('date-inventaire').value,
-                pointVente,
-                produit,
-                impact,
-                quantite,
-                prixUnitaire,
-                total: quantite * prixUnitaire,
-                commentaire
-            };
-        });
-
-        if (transferts.length === 0) {
-            alert('Aucun transfert à sauvegarder');
-            return;
-        }
-
-        const response = await fetch('http://localhost:3000/api/transferts', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify(transferts)
-        });
-
-        if (!response.ok) {
-            throw new Error('Erreur lors de la sauvegarde des transferts');
-        }
-
-        alert('Transferts sauvegardés avec succès');
-        await chargerTransferts();
-
-    } catch (error) {
-        console.error('Erreur lors de la sauvegarde des transferts:', error);
-        alert(error.message);
-    }
-});
-
-// Fonction pour charger les transferts
-async function chargerTransferts() {
-    try {
-        console.log('Chargement des transferts...');
-        const response = await fetch('http://localhost:3000/api/transferts', {
-            credentials: 'include'
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Erreur HTTP: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log('Réponse reçue:', result);
-
-        // Vérifier si les transferts existent dans la réponse
-        const transferts = result.transferts || [];
-        console.log('Nombre de transferts:', transferts.length);
-
-        // Vider le tableau existant
-        const tbody = document.querySelector('#transfertTable tbody');
-        if (!tbody) {
-            console.error('Tableau des transferts non trouvé');
-            return;
-        }
-        tbody.innerHTML = '';
-
-        // Trier les transferts par date (du plus récent au plus ancien)
-        const transfertsTries = transferts.sort((a, b) => {
-            const dateA = new Date(a.date.split('/').reverse().join('-'));
-            const dateB = new Date(b.date.split('/').reverse().join('-'));
-            return dateB - dateA;
-        });
-
-        // Ajouter chaque transfert au tableau
-        transfertsTries.forEach((transfert, index) => {
-            const tr = document.createElement('tr');
-            tr.dataset.transfertId = transfert.id || index;
-            
-            // Créer le select pour Point de Vente
-            const selectPointVente = document.createElement('select');
-            selectPointVente.className = 'form-select form-select-sm point-vente-select';
-            TOUS_POINTS_VENTE.forEach(pv => {
-                const option = document.createElement('option');
-                option.value = pv;
-                option.textContent = pv;
-                option.selected = pv === transfert.pointVente;
-                selectPointVente.appendChild(option);
-            });
-
-            // Créer le select pour Produit
-            const selectProduit = document.createElement('select');
-            selectProduit.className = 'form-select form-select-sm produit-select';
-            PRODUITS.forEach(prod => {
-                const option = document.createElement('option');
-                option.value = prod;
-                option.textContent = prod;
-                option.selected = prod === transfert.produit;
-                selectProduit.appendChild(option);
-            });
-
-            // Créer le select pour Impact
-            const selectImpact = document.createElement('select');
-            selectImpact.className = 'form-select form-select-sm impact-select';
-            [
-                { value: '1', text: '+' },
-                { value: '-1', text: '-' }
-            ].forEach(({ value, text }) => {
-                const option = document.createElement('option');
-                option.value = value;
-                option.textContent = text;
-                option.selected = (value === '1' ? 1 : -1) === transfert.impact;
-                selectImpact.appendChild(option);
-            });
-
-            tr.innerHTML = `
-                <td></td>
-                <td></td>
-                <td></td>
-                <td>
-                    <input type="number" class="form-control form-control-sm quantite-input" value="${transfert.quantite}" step="0.1">
-                </td>
-                <td>
-                    <input type="number" class="form-control form-control-sm prix-unitaire-input" value="${transfert.prixUnitaire}">
-                </td>
-                <td class="total-cell">${transfert.total.toLocaleString('fr-FR')}</td>
-                <td>
-                    <input type="text" class="form-control form-control-sm commentaire-input" value="${transfert.commentaire || ''}">
-                </td>
-                <td>
-                    <button class="btn btn-danger btn-sm supprimer-transfert">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            `;
-
-            // Insérer les selects dans les cellules correspondantes
-            tr.cells[0].appendChild(selectPointVente);
-            tr.cells[1].appendChild(selectProduit);
-            tr.cells[2].appendChild(selectImpact);
-
-            // Fonction pour calculer le total
-            const calculateTotal = () => {
-                const quantite = parseFloat(tr.querySelector('.quantite-input').value) || 0;
-                const prixUnitaire = parseFloat(tr.querySelector('.prix-unitaire-input').value) || 0;
-                const impact = parseInt(tr.querySelector('.impact-select').value) || 1;
-                const total = quantite * prixUnitaire * impact;
-                tr.querySelector('.total-cell').textContent = total.toLocaleString('fr-FR');
-            };
-
-            // Ajouter les écouteurs d'événements pour le calcul automatique
-            tr.querySelector('.quantite-input').addEventListener('input', calculateTotal);
-            tr.querySelector('.prix-unitaire-input').addEventListener('input', calculateTotal);
-            tr.querySelector('.impact-select').addEventListener('change', calculateTotal);
-
-            // Ajouter l'écouteur d'événements pour le bouton de suppression
-            const btnSupprimer = tr.querySelector('.supprimer-transfert');
-            btnSupprimer.addEventListener('click', async (e) => {
-                e.preventDefault();
-                if (confirm('Êtes-vous sûr de vouloir supprimer ce transfert ?')) {
-                    try {
-                        tr.remove();
-                        calculerTotalGeneral();
-                    } catch (error) {
-                        console.error('Erreur lors de la suppression du transfert:', error);
-                        alert('Erreur lors de la suppression du transfert');
-                    }
-                }
-            });
-
-            tbody.appendChild(tr);
-        });
-
-        console.log('Transferts chargés avec succès');
-        
-    } catch (error) {
-        console.error('Erreur détaillée lors du chargement des transferts:', error);
-        const tbody = document.querySelector('#transfertTable tbody');
-        if (tbody) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="text-center text-danger">
-                        Erreur lors du chargement des transferts. Veuillez réessayer.
-                    </td>
-                </tr>
-            `;
-        }
-    }
-}
-
-// Liste des utilisateurs autorisés à importer des données
-const AUTORISES_IMPORT = ['SALIOU', 'NADOU', 'OUSMANE', 'PAPI'];
-
-// Fonction pour vérifier si l'utilisateur est autorisé à importer
-function estAutoriseImport(username) {
-    return AUTORISES_IMPORT.includes(username.toUpperCase());
-}
-
-// Fonction pour détecter le séparateur du fichier CSV
-function detecterSeparateur(premiereLigne) {
-    const nbVirgules = (premiereLigne.match(/,/g) || []).length;
-    const nbPointsVirgules = (premiereLigne.match(/;/g) || []).length;
-    return nbVirgules > nbPointsVirgules ? ',' : ';';
-}
-
-// Fonction pour traiter les données CSV
-async function traiterDonneesCSV(csvData) {
-    const lignes = csvData.split('\n');
-    const separateur = detecterSeparateur(lignes[0]);
-    const enTetes = lignes[0].split(separateur);
     
-    // Vérifier le format des en-têtes
-    const enTetesAttendus = ['Point Vente', 'Date', 'Stock', 'Produit', 'Impact', 'Quantite', 'PU', 'Total'];
-    if (!enTetesAttendus.every((enTete, index) => enTete === enTetes[index])) {
-        throw new Error('Format de fichier CSV invalide. Les en-têtes attendus sont: ' + enTetesAttendus.join(', '));
-    }
-
-    const donneesTraitees = {
-        matin: new Map(),
-        soir: new Map(),
-        transferts: []
-    };
-
-    // Traiter chaque ligne
-    for (let i = 1; i < lignes.length; i++) {
-        const ligne = lignes[i].trim();
-        if (!ligne) continue;
-
-        const colonnes = ligne.split(separateur);
-        if (colonnes.length !== 8) continue;
-
-        const [pointVente, date, typeStock, produit, impact, quantite, pu, total] = colonnes;
-        
-        // Convertir les valeurs vides en 0
-        const quantiteVal = quantite === '' ? '0' : quantite;
-        const puVal = pu === '' ? '0' : pu;
-        const totalVal = total === '' ? '0' : total;
-
-        // Déterminer le type de stock et l'impact
-        let stockType = 'matin';
-        let impactVal = 1;
-        
-        if (typeStock.toLowerCase().includes('soir')) {
-            stockType = 'soir';
-            impactVal = -1;
-        } else if (typeStock.toLowerCase().includes('transfert')) {
-            // Pour les transferts, on ajoute dans le tableau des transferts
-            donneesTraitees.transferts.push({
-                date: date,
-                pointVente: pointVente,
-                produit: produit,
-                impact: parseInt(impact),
-                quantite: parseFloat(quantiteVal),
-                prixUnitaire: parseFloat(puVal),
-                total: parseFloat(totalVal),
-                commentaire: ''
-            });
-            continue;
-        }
-
-        // Créer la clé unique pour le stock
-        const key = `${pointVente}-${produit}`;
-        
-        // Créer l'objet de données
-        const donnees = {
-            date: date,
-            typeStock: stockType,
-            "Point de Vente": pointVente,
-            "Produit": produit,
-            "Nombre": quantiteVal,
-            "PU": puVal,
-            "Montant": totalVal,
-            "Commentaire": ""
-        };
-
-        // Stocker dans la Map appropriée
-        donneesTraitees[stockType].set(key, donnees);
-    }
-
-    return donneesTraitees;
-}
-
-// Fonction pour standardiser un nom de point de vente
-function standardiserPointVente(nom) {
-    const nomUpperCase = nom.toUpperCase().trim();
-    return MAPPING_POINTS_VENTE[nomUpperCase] || nom;
-}
-
-// Fonction pour standardiser un nom de produit
-function standardiserProduit(nom) {
-    const nomUpperCase = nom.toUpperCase().trim();
-    return MAPPING_PRODUITS[nomUpperCase] || nom;
-}
-
-// Ajouter les écouteurs d'événements pour l'import CSV
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Initialisation des écouteurs d\'événements...');
-    
-    // Écouteur pour le bouton d'import CSV
-    const importCsvBtn = document.getElementById('import-csv');
-    if (importCsvBtn) {
-        console.log('Bouton import-csv trouvé, ajout de l\'écouteur click');
-        importCsvBtn.addEventListener('click', function() {
-            console.log('Clic sur le bouton import-csv');
-            const fileInput = document.getElementById('csv-file');
-            if (fileInput) {
-                fileInput.click();
-            } else {
-                console.error('Élément csv-file non trouvé');
-            }
-        });
-    } else {
-        console.error('Bouton import-csv non trouvé');
-    }
-
-    // Écouteur pour l'input file
-    const csvFileInput = document.getElementById('csv-file');
-    if (csvFileInput) {
-        console.log('Input csv-file trouvé, ajout de l\'écouteur change');
-        csvFileInput.addEventListener('change', importerCSV);
-    } else {
-        console.error('Input csv-file non trouvé');
-    }
-
-    // Écouteurs pour les boutons de confirmation et d'annulation
-    const confirmImportBtn = document.getElementById('confirmImport');
-    const cancelImportBtn = document.getElementById('cancelImport');
-
-    if (confirmImportBtn) {
-        console.log('Bouton confirmImport trouvé, ajout de l\'écouteur click');
-        confirmImportBtn.disabled = true;
-    } else {
-        console.error('Bouton confirmImport non trouvé');
-    }
-
-    if (cancelImportBtn) {
-        console.log('Bouton cancelImport trouvé, ajout de l\'écouteur click');
-        cancelImportBtn.addEventListener('click', function() {
-            document.getElementById('previewSection').style.display = 'none';
-            document.getElementById('csv-file').value = '';
-            donneesImportees = {
-                matin: new Map(),
-                soir: new Map(),
-                transferts: []
-            };
-        });
-    } else {
-        console.error('Bouton cancelImport non trouvé');
-    }
-});
-
-// Fonction d'import CSV
-async function importerCSV(event) {
-    console.log('Début de l\'import CSV');
-    const file = event.target.files[0];
-    if (!file) {
-        console.log('Aucun fichier sélectionné');
-        return;
-    }
-    console.log('Fichier sélectionné:', file.name);
-
-    // Vérifier les permissions
-    if (!currentUser || !['SALIOU', 'NADOU', 'OUSMANE', 'PAPI'].includes(currentUser.username)) {
-        console.log('Utilisateur non autorisé:', currentUser?.username);
-        alert('Vous n\'avez pas les permissions nécessaires pour importer des données.');
-        event.target.value = '';
-        return;
-    }
-
-    try {
-        console.log('Lecture du fichier...');
-        const text = await file.text();
-        const lines = text.split('\n');
-        
-        const separateur = detecterSeparateur(lines[0]);
-        console.log('Séparateur détecté:', separateur);
-        
-        const headers = lines[0].split(separateur).map(h => h.trim());
-        console.log('En-têtes trouvés:', headers);
-        
-        // Vérifier les en-têtes requis
-        const requiredHeaders = ['Point Vente', 'Date', 'Stock', 'Produit', 'Impact', 'Quantite', 'PU', 'Total'];
-        const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-        if (missingHeaders.length > 0) {
-            throw new Error(`En-têtes manquants : ${missingHeaders.join(', ')}`);
-        }
-
-        // Réinitialiser les données importées
-        donneesImportees = {
-            matin: new Map(),
-            soir: new Map(),
-            transferts: []
-        };
-
-        // Traiter les lignes de données
-        for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-
-            const values = line.split(separateur).map(v => v.trim());
-            if (values.length !== headers.length) continue;
-
-            const data = {};
-            headers.forEach((header, index) => {
-                data[header] = values[index];
-            });
-
-            // Standardiser les noms
-            const pointVente = standardiserPointVente(data['Point Vente']);
-            const produit = standardiserProduit(data['Produit']);
-            
-            // Traiter les données selon le type de stock
-            const stockType = data.Stock.toLowerCase();
-            const quantite = parseFloat(data.Quantite) || 0;
-            const pu = parseFloat(data.PU) || 0;
-            const total = parseFloat(data.Total) || 0;
-
-            // Créer la clé unique pour le stockage
-            const key = `${pointVente}-${produit}`;
-
-            if (stockType.includes('matin')) {
-                donneesImportees.matin.set(key, {
-                    pointVente: pointVente,
-                    date: data.Date,
-                    produit: produit,
-                    quantite: quantite,
-                    prixUnitaire: pu,
-                    total: total
-                });
-            } else if (stockType.includes('soir')) {
-                donneesImportees.soir.set(key, {
-                    pointVente: pointVente,
-                    date: data.Date,
-                    produit: produit,
-                    quantite: quantite,
-                    prixUnitaire: pu,
-                    total: total
-                });
-            } else if (stockType.includes('transfert')) {
-                donneesImportees.transferts.push({
-                    pointVente: pointVente,
-                    date: data.Date,
-                    produit: produit,
-                    impact: parseInt(data.Impact),
-                    quantite: quantite,
-                    prixUnitaire: pu,
-                    total: total
-                });
-            }
-        }
-
-        console.log('Données importées:', donneesImportees);
-
-        // Afficher l'aperçu
-        const previewSection = document.getElementById('previewSection');
-        const previewTable = document.getElementById('previewTable');
-        
-        if (previewTable) {
-            console.log('Mise à jour de la table d\'aperçu');
-            previewTable.innerHTML = `
-                <thead>
-                    <tr>
-                        <th>Point de Vente</th>
-                        <th>Date</th>
-                        <th>Stock</th>
-                        <th>Produit</th>
-                        <th>Impact</th>
-                        <th>Quantité</th>
-                        <th>PU</th>
-                        <th>Total</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${[
-                        // Stock Matin (Impact +1)
-                        ...Array.from(donneesImportees.matin.entries()).map(([key, item]) => `
-                            <tr>
-                                <td>${item.pointVente}</td>
-                                <td>${item.date}</td>
-                                <td>Stock Matin</td>
-                                <td>${item.produit}</td>
-                                <td>+1</td>
-                                <td>${item.quantite}</td>
-                                <td>${item.prixUnitaire}</td>
-                                <td>${item.total}</td>
-                                <td>
-                                    <button class="btn btn-danger btn-sm" onclick="supprimerLigne('${key}')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        `),
-                        // Stock Soir (Impact -1)
-                        ...Array.from(donneesImportees.soir.entries()).map(([key, item]) => `
-                            <tr>
-                                <td>${item.pointVente}</td>
-                                <td>${item.date}</td>
-                                <td>Stock Soir</td>
-                                <td>${item.produit}</td>
-                                <td>-1</td>
-                                <td>${item.quantite}</td>
-                                <td>${item.prixUnitaire}</td>
-                                <td>${item.total}</td>
-                                <td>
-                                    <button class="btn btn-danger btn-sm" onclick="supprimerLigne('${key}')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        `),
-                        // Transferts (Impact selon la valeur importée)
-                        ...donneesImportees.transferts.map((item, index) => `
-                            <tr>
-                                <td>${item.pointVente}</td>
-                                <td>${item.date}</td>
-                                <td>Transfert</td>
-                                <td>${item.produit}</td>
-                                <td>${item.impact > 0 ? '+1' : '-1'}</td>
-                                <td>${item.quantite}</td>
-                                <td>${item.prixUnitaire}</td>
-                                <td>${item.total}</td>
-                                <td>
-                                    <button class="btn btn-danger btn-sm" onclick="supprimerLigne('transfert-${index}')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        `)
-                    ].join('')}
-                </tbody>
-            `;
-
-            // Afficher la section d'aperçu
-            if (previewSection) {
-                console.log('Affichage de la section d\'aperçu');
-                previewSection.style.display = 'block';
-            }
-
-            // Activer le bouton de confirmation
-            const confirmImport = document.getElementById('confirmImport');
-            if (confirmImport) {
-                console.log('Activation du bouton de confirmation');
-                confirmImport.disabled = false;
-            }
-        } else {
-            console.error('Table d\'aperçu non trouvée');
-        }
-
-    } catch (error) {
-        console.error('Erreur lors de l\'importation:', error);
-        alert('Erreur lors de l\'importation : ' + error.message);
-        event.target.value = '';
-    }
-}
-
-// Fonction pour mettre à jour le stock
-async function updateStock(produit, quantite, typeStock) {
-    try {
-        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                [produit]: {
-                    produit: produit,
-                    quantite: quantite,
-                    typeStock: typeStock
-                }
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Erreur HTTP: ${response.status}`);
-        }
-        
-        return await response.json();
-    } catch (error) {
-        console.error('Erreur lors de la mise à jour du stock:', error);
-        throw error;
-    }
-}
-
-// Fonction pour charger les données de stock
-async function loadStockData() {
-    try {
-        // Charger les données pour les deux types de stock (matin et soir)
-        const [matinResponse, soirResponse] = await Promise.all([
-            fetch('http://localhost:3000/api/stock/matin', {
-                method: 'GET',
-                credentials: 'include'
-            }),
-            fetch('http://localhost:3000/api/stock/soir', {
-                method: 'GET',
-                credentials: 'include'
-            })
-        ]);
-
-        const [matinData, soirData] = await Promise.all([
-            matinResponse.json(),
-            soirResponse.json()
-        ]);
-
-        // Mettre à jour les données globales
-        stockData.matin = new Map();
-        stockData.soir = new Map();
-
-        // Traiter les données du matin
-        if (Array.isArray(matinData)) {
-            matinData.forEach(item => {
-                const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
-                stockData.matin.set(key, item);
-            });
-        } else {
-            Object.entries(matinData || {}).forEach(([key, value]) => {
-                stockData.matin.set(key, value);
-            });
-        }
-
-        // Traiter les données du soir
-        if (Array.isArray(soirData)) {
-            soirData.forEach(item => {
-                const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
-                stockData.soir.set(key, item);
-            });
-        } else {
-            Object.entries(soirData || {}).forEach(([key, value]) => {
-                stockData.soir.set(key, value);
-            });
-        }
-
-        // Mettre à jour l'affichage si nécessaire
-        initTableauStock();
-    } catch (error) {
-        console.error('Erreur lors du chargement des données de stock:', error);
-        throw error;
-    }
-}
-
-// Fonction pour charger les transferts
-async function loadTransferts() {
-    try {
-        const date = document.getElementById('date-inventaire')?.value;
-        if (!date) return;
-
-        const response = await fetch(`http://localhost:3000/api/transferts?date=${date}`, {
-            credentials: 'include'
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            // Vider le tableau existant
-            const tbody = document.querySelector('#transfert-table tbody');
-            if (tbody) {
-                tbody.innerHTML = '';
+    // Initialiser le bouton de sauvegarde des transferts
+    const btnSaveTransfert = document.getElementById('save-transfert');
+    if (btnSaveTransfert) {
+        console.log('Bouton save-transfert trouvé, ajout de l\'écouteur click');
+        btnSaveTransfert.addEventListener('click', async () => {
+            try {
+                const tbody = document.querySelector('#transfert-table tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr:not([disabled])'));
                 
-                // Si des transferts existent pour cette date, les afficher
-                if (result.transferts && result.transferts.length > 0) {
-                    result.transferts.forEach(transfert => {
-                        afficherTransfert(transfert);
-                    });
-                } else {
-                    // Si aucun transfert, ajouter une ligne vide
-                    ajouterLigneTransfert();
-                }
-            }
-        } else {
-            throw new Error(result.message || 'Erreur lors du chargement des transferts');
-        }
-    } catch (error) {
-        console.error('Erreur lors du chargement des transferts:', error);
-        throw error;
-    }
-}
+                const transferts = rows.map(row => {
+                    const pointVenteSelect = row.querySelector('.point-vente-select');
+                    const produitSelect = row.querySelector('.produit-select');
+                    const impactSelect = row.querySelector('.impact-select');
+                    const quantiteInput = row.querySelector('.quantite-input');
+                    const prixUnitaireInput = row.querySelector('.prix-unitaire-input');
+                    const commentaireInput = row.querySelector('.commentaire-input');
 
-// Gestionnaire pour le bouton d'ajout de ligne de transfert
-document.addEventListener('DOMContentLoaded', function() {
-    const btnAjouterLigne = document.getElementById('ajouterLigne');
-    if (btnAjouterLigne) {
-        btnAjouterLigne.addEventListener('click', ajouterLigneTransfert);
-    }
-});
+                    if (!pointVenteSelect || !produitSelect || !impactSelect || !quantiteInput || !prixUnitaireInput) {
+                        throw new Error('Certains éléments sont manquants dans la ligne');
+                    }
 
-// Gestionnaire pour le bouton de sauvegarde des transferts
-document.getElementById('sauvegarderTransfert').addEventListener('click', async function() {
-    try {
-        console.log('Clic sur le bouton sauvegarder transfert');
-        
-        // Vérifier l'existence de la date
-        const dateInput = document.getElementById('date-inventaire');
-        if (!dateInput) {
-            throw new Error('Élément date-inventaire non trouvé');
-        }
-        const date = dateInput.value;
-        if (!date) {
-            throw new Error('Veuillez sélectionner une date');
-        }
-        console.log('Date sélectionnée:', date);
+                    const pointVente = pointVenteSelect.value;
+                    const produit = produitSelect.value;
+                    const impact = impactSelect.value === '1' ? 1 : -1;
+                    const quantite = parseFloat(quantiteInput.value) || 0;
+                    const prixUnitaire = parseFloat(prixUnitaireInput.value) || 0;
+                    const commentaire = commentaireInput ? commentaireInput.value : '';
 
-        // Vérifier l'existence de la table
-        const tbody = document.querySelector('#transfertTable tbody');
-        if (!tbody) {
-            throw new Error('Table des transferts non trouvée');
-        }
-        console.log('Table des transferts trouvée');
-        
-        const rows = Array.from(tbody.querySelectorAll('tr:not([disabled])'));
-        console.log(`Nombre de lignes trouvées : ${rows.length}`);
-        
-        if (rows.length === 0) {
-            throw new Error('Aucune ligne de transfert à sauvegarder');
-        }
-        
-        const transferts = rows.map((row, index) => {
-            // Récupérer tous les éléments nécessaires avec des sélecteurs plus précis
-            const pointVenteSelect = row.querySelector('.point-vente-select');
-            const produitSelect = row.querySelector('.produit-select');
-            const impactSelect = row.querySelector('.impact-select');
-            const quantiteInput = row.querySelector('.quantite-input');
-            const prixUnitaireInput = row.querySelector('.prix-unitaire-input');
-            const commentaireInput = row.querySelector('.commentaire-input');
-
-            // Vérifier l'existence de tous les éléments
-            if (!pointVenteSelect || !produitSelect || !impactSelect || !quantiteInput || !prixUnitaireInput) {
-                console.error('Éléments manquants dans la ligne', index + 1, {
-                    pointVenteSelect,
-                    produitSelect,
-                    impactSelect,
-                    quantiteInput,
-                    prixUnitaireInput
+                    return {
+                        date: document.getElementById('date-inventaire').value,
+                        pointVente,
+                        produit,
+                        impact,
+                        quantite,
+                        prixUnitaire,
+                        total: quantite * prixUnitaire,
+                        commentaire
+                    };
                 });
-                throw new Error(`Ligne ${index + 1}: Certains éléments sont manquants`);
+
+                if (transferts.length === 0) {
+                    alert('Aucun transfert à sauvegarder');
+                    return;
+                }
+
+                const response = await fetch('http://localhost:3000/api/transferts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(transferts)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Erreur lors de la sauvegarde des transferts');
+                }
+
+                alert('Transferts sauvegardés avec succès');
+                await chargerTransferts();
+
+            } catch (error) {
+                console.error('Erreur lors de la sauvegarde des transferts:', error);
+                alert(error.message);
             }
-
-            // Récupérer les valeurs
-            const pointVente = pointVenteSelect.value;
-            const produit = produitSelect.value;
-            const impact = impactSelect.value === '1' ? 1 : -1;
-            const quantite = parseFloat(quantiteInput.value) || 0;
-            const prixUnitaire = parseFloat(prixUnitaireInput.value) || 0;
-            const commentaire = commentaireInput ? commentaireInput.value : '';
-
-            // Vérifier les valeurs obligatoires
-            if (!pointVente || !produit) {
-                throw new Error(`Ligne ${index + 1}: Veuillez sélectionner un point de vente et un produit`);
-            }
-
-            if (quantite <= 0) {
-                throw new Error(`Ligne ${index + 1}: La quantité doit être supérieure à 0`);
-            }
-
-            if (prixUnitaire <= 0) {
-                throw new Error(`Ligne ${index + 1}: Le prix unitaire doit être supérieur à 0`);
-            }
-
-            const total = quantite * prixUnitaire * impact;
-
-            return {
-                date,
-                pointVente,
-                produit,
-                impact,
-                quantite,
-                prixUnitaire,
-                total,
-                commentaire
-            };
         });
-
-        console.log('Données à envoyer:', transferts);
-
-        const response = await fetch('http://localhost:3000/api/transferts', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify(transferts)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Erreur lors de la sauvegarde des transferts');
-        }
-
-        alert('Transferts sauvegardés avec succès');
-        await chargerTransferts();
-
-    } catch (error) {
-        console.error('Erreur lors de la sauvegarde des transferts:', error);
-        alert(error.message);
+    } else {
+        console.error('Bouton save-transfert non trouvé');
     }
 });
+
+// Supprimer l'ancien event listener qui causait l'erreur
+// document.getElementById('save-transfert').addEventListener('click', async () => { ... });
+
+// Vérifier l'authentification au chargement de la page
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        console.log('Vérification de l\'authentification au chargement de la page');
+        const response = await fetch('http://localhost:3000/api/check-session', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Non authentifié');
+        }
+        
+        const data = await response.json();
+        console.log('Données de session reçues:', data);
+        
+        if (data.success && data.user) {
+            currentUser = data.user;
+            console.log('Utilisateur authentifié:', currentUser);
+            
+            // Charger les dernières ventes après l'authentification
+            await chargerDernieresVentes();
+            
+            // Initialiser le rafraîchissement automatique
+            initialiserRafraichissementAutomatique();
+        } else {
+            console.error('Session invalide');
+            window.location.href = 'login.html';
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification de l\'authentification:', error);
+        window.location.href = 'login.html';
+    }
+});
+
+// Ne pas charger les ventes immédiatement, attendre l'authentification
+// chargerDernieresVentes();
+
+// Ajout d'une fonction pour mettre à jour régulièrement les dernières ventes
+function initialiserRafraichissementAutomatique() {
+    // Rafraîchir les dernières ventes toutes les 60 secondes
+    setInterval(chargerDernieresVentes, 60000);
+    console.log('Rafraîchissement automatique des dernières ventes configuré');
+    
+    // Charger les ventes immédiatement
+    chargerDernieresVentes();
+}

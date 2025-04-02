@@ -15,7 +15,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname))); // Servir les fichiers statiques (HTML, CSS, JS)
@@ -24,13 +27,12 @@ app.use(express.static(path.join(__dirname))); // Servir les fichiers statiques 
 app.use(session({
     secret: 'votre_secret_key',
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true,
     cookie: {
-        secure: false, // Mettre à true si vous utilisez HTTPS
+        secure: false,
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000, // 24 heures
-        sameSite: 'lax',
-        path: '/'
+        maxAge: 24 * 60 * 60 * 1000,
+        sameSite: 'lax'
     }
 }));
 
@@ -226,10 +228,24 @@ app.post('/api/ventes', checkAuth, (req, res) => {
         }
     });
     
+    // Lire le fichier existant pour obtenir le dernier ID
+    let lastId = 0;
+    if (fs.existsSync(csvFilePath)) {
+        const fileContent = fs.readFileSync(csvFilePath, 'utf-8');
+        const lines = fileContent.split('\n').filter(line => line.trim());
+        if (lines.length > 1) { // Si le fichier contient des données
+            const lastLine = lines[lines.length - 1];
+            const lastIdStr = lastLine.split(';')[0];
+            lastId = parseInt(lastIdStr) || 0;
+        }
+    }
+    
     // Créer le contenu CSV
     let csvContent = '';
     entries.forEach(entry => {
+        lastId++; // Incrémenter l'ID pour chaque nouvelle entrée
         const ligne = [
+            lastId,
             entry.mois,
             entry.date,
             entry.semaine,
@@ -258,6 +274,7 @@ app.post('/api/ventes', checkAuth, (req, res) => {
         }))
         .on('data', (row) => {
             const normalizedRow = {
+                id: row.ID,
                 Mois: row.Mois,
                 Date: row.Date,
                 Semaine: row.Semaine,
@@ -272,14 +289,8 @@ app.post('/api/ventes', checkAuth, (req, res) => {
             results.push(normalizedRow);
         })
         .on('end', () => {
-            // Retourner les entrées de la dernière date
-            const derniereDate = entries[0].date;
-            const dernieresVentes = results.filter(row => row.Date === derniereDate);
-            res.json({ 
-                success: true, 
-                message: 'Ventes enregistrées avec succès',
-                dernieresVentes: dernieresVentes
-            });
+            const dernieresVentes = results.slice(-10);
+            res.json({ success: true, dernieresVentes });
         })
         .on('error', (error) => {
             console.error('Erreur lors de la lecture du CSV:', error);
@@ -288,6 +299,113 @@ app.post('/api/ventes', checkAuth, (req, res) => {
                 message: 'Erreur lors de la lecture des ventes' 
             });
         });
+});
+
+// Route pour mettre à jour une vente
+app.put('/api/ventes/:id', checkAuth, async (req, res) => {
+    try {
+        const venteId = req.params.id;
+        const updatedVente = req.body;
+        
+        // Vérifier si le point de vente est actif
+        if (!pointsVente[updatedVente.pointVente]?.active) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Le point de vente ${updatedVente.pointVente} est désactivé` 
+            });
+        }
+
+        // Lire tout le fichier CSV
+        const ventes = [];
+        let venteIndex = -1;
+
+        await new Promise((resolve, reject) => {
+            fs.createReadStream(csvFilePath)
+                .pipe(parse({ 
+                    delimiter: ';', 
+                    columns: true, 
+                    skip_empty_lines: true,
+                    relaxColumnCount: true
+                }))
+                .on('data', (row) => {
+                    if (row.ID === venteId) {
+                        venteIndex = ventes.length;
+                    }
+                    ventes.push(row);
+                })
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        if (venteIndex === -1) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Vente non trouvée' 
+            });
+        }
+
+        // Mettre à jour la vente
+        ventes[venteIndex] = {
+            ID: venteId,
+            Mois: updatedVente.mois,
+            Date: updatedVente.date,
+            Semaine: updatedVente.semaine,
+            'Point de Vente': updatedVente.pointVente,
+            Preparation: updatedVente.preparation || updatedVente.pointVente,
+            Catégorie: updatedVente.categorie,
+            Produit: updatedVente.produit,
+            PU: updatedVente.prixUnit,
+            Nombre: updatedVente.quantite,
+            Montant: updatedVente.total
+        };
+
+        // Réécrire le fichier CSV
+        const csvContent = ventes.map(vente => {
+            return [
+                vente.ID,
+                vente.Mois,
+                vente.Date,
+                vente.Semaine,
+                vente['Point de Vente'],
+                vente.Preparation,
+                vente.Catégorie,
+                vente.Produit,
+                vente.PU,
+                vente.Nombre,
+                vente.Montant
+            ].join(';');
+        }).join('\n') + '\n';
+
+        fs.writeFileSync(csvFilePath, csvContent);
+
+        // Retourner les 10 dernières ventes pour mise à jour de l'affichage
+        const dernieresVentes = ventes.slice(-10).map(vente => ({
+            id: vente.ID,
+            Mois: vente.Mois,
+            Date: vente.Date,
+            Semaine: vente.Semaine,
+            'Point de Vente': vente['Point de Vente'],
+            Preparation: vente.Preparation,
+            Catégorie: vente.Catégorie,
+            Produit: vente.Produit,
+            PU: vente.PU,
+            Nombre: vente.Nombre,
+            Montant: vente.Montant
+        }));
+
+        res.json({ 
+            success: true, 
+            message: 'Vente mise à jour avec succès',
+            dernieresVentes 
+        });
+
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour de la vente:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la mise à jour de la vente' 
+        });
+    }
 });
 
 // Route pour obtenir les ventes avec filtres
@@ -408,6 +526,8 @@ app.get('/api/ventes', checkAuth, (req, res) => {
 // Route pour récupérer les dernières ventes
 app.get('/api/dernieres-ventes', checkAuth, (req, res) => {
     const results = [];
+    let lineCount = 0;
+    
     fs.createReadStream(csvFilePath)
         .pipe(parse({ 
             delimiter: ';', 
@@ -416,8 +536,10 @@ app.get('/api/dernieres-ventes', checkAuth, (req, res) => {
             relaxColumnCount: true // Permet des différences dans le nombre de colonnes
         }))
         .on('data', (row) => {
+            lineCount++;
             // Normaliser les données
             const normalizedRow = {
+                id: lineCount, // Ajouter l'ID basé sur le numéro de ligne
                 Mois: row.Mois,
                 Date: row.Date,
                 Semaine: row.Semaine,
@@ -600,7 +722,7 @@ app.post('/api/vider-base', (req, res) => {
         }
 
         // Écrire uniquement l'en-tête dans le fichier CSV
-        const headers = 'Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant\n';
+        const headers = 'ID;Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant\n';
         fs.writeFileSync('ventes.csv', headers);
         
         res.json({ success: true, message: 'Base de données vidée avec succès' });
@@ -684,6 +806,112 @@ app.get('/api/transferts', checkAuth, async (req, res) => {
         });
     }
 });
+
+// Route pour supprimer une vente
+app.delete('/api/ventes/:id', checkAuth, async (req, res) => {
+    try {
+        const venteId = req.params.id;
+        const pointVente = req.query.pointVente;
+
+        console.log(`Tentative de suppression de la vente ID: ${venteId}, Point de vente: ${pointVente}`);
+
+        // Vérifier si l'utilisateur a accès au point de vente
+        if (req.session.user.pointVente !== "tous" && req.session.user.pointVente !== pointVente) {
+            return res.status(403).json({ 
+                success: false, 
+                message: "Accès non autorisé à ce point de vente" 
+            });
+        }
+
+        // Lire le fichier CSV
+        const fileContent = await fsPromises.readFile(csvFilePath, 'utf-8');
+        const lines = fileContent.split('\n');
+        
+        // Conserver l'en-tête
+        const header = lines[0];
+        let found = false;
+        
+        // Filtrer les lignes pour supprimer celle avec l'ID correspondant
+        const newLines = [header];
+        
+        for (let i = 1; i < lines.length; i++) {
+            // Vérifier si c'est la ligne à supprimer
+            if (i === parseInt(venteId)) {
+                found = true;
+                console.log(`Ligne ${i} (ID: ${venteId}) supprimée`);
+                continue;
+            }
+            
+            // Conserver les lignes non vides
+            if (lines[i].trim()) {
+                newLines.push(lines[i]);
+            }
+        }
+
+        if (!found) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Vente non trouvée" 
+            });
+        }
+
+        // Écrire le fichier mis à jour
+        await fsPromises.writeFile(csvFilePath, newLines.join('\n'));
+
+        console.log(`Vente ID: ${venteId} supprimée avec succès`);
+        
+        res.json({ 
+            success: true, 
+            message: "Vente supprimée avec succès" 
+        });
+    } catch (error) {
+        console.error('Erreur lors de la suppression de la vente:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Erreur lors de la suppression de la vente: " + error.message 
+        });
+    }
+});
+
+// Fonction d'aide pour traiter les lignes CSV et attribuer des IDs uniques aux ventes
+async function loadVentesWithIds() {
+  try {
+    const fileContent = await fsPromises.readFile(csvFilePath, 'utf-8');
+    const lines = fileContent.split('\n');
+    
+    // Ignorer l'en-tête et les lignes vides
+    const dataLines = lines.slice(1).filter(line => line.trim());
+    
+    // Convertir chaque ligne en objet avec un ID correspondant à sa position
+    const ventes = dataLines.map((line, index) => {
+      const columns = line.split(';');
+      
+      // S'assurer que toutes les colonnes existent
+      while (columns.length < 10) {
+        columns.push('');
+      }
+      
+      return {
+        id: index + 1, // L'ID correspond à la position (ligne 1 = ID 1)
+        Mois: columns[0],
+        Date: columns[1],
+        Semaine: columns[2],
+        'Point de Vente': columns[3],
+        Preparation: columns[4],
+        Catégorie: columns[5],
+        Produit: columns[6],
+        PU: columns[7],
+        Nombre: columns[8] || '0',
+        Montant: columns[9] || '0'
+      };
+    });
+    
+    return ventes;
+  } catch (error) {
+    console.error('Erreur lors du chargement des ventes:', error);
+    throw error;
+  }
+}
 
 // Démarrer le serveur
 app.listen(PORT, () => {
