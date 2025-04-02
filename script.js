@@ -832,14 +832,21 @@ chargerDernieresVentes();
 // Variables pour les graphiques
 let ventesParMoisChart = null;
 let ventesParProduitChart = null;
+let ventesParCategorieChart = null;
 
 // Fonction pour créer le graphique des ventes par mois
 function creerGraphiqueVentesParMois(donnees) {
+    console.log('Création du graphique par mois avec les données:', donnees);
     const ctx = document.getElementById('ventesParMoisChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error('Canvas ventesParMoisChart non trouvé');
+        return;
+    }
+    console.log('Canvas ventesParMoisChart trouvé');
 
     // Détruire le graphique existant s'il existe
     if (ventesParMoisChart) {
+        console.log('Destruction du graphique existant');
         ventesParMoisChart.destroy();
     }
 
@@ -852,6 +859,7 @@ function creerGraphiqueVentesParMois(donnees) {
         }
         ventesParDate[date] += parseFloat(vente.Montant || vente.total || 0);
     });
+    console.log('Ventes regroupées par date:', ventesParDate);
 
     // Convertir en tableaux et trier par date
     const dates = Object.keys(ventesParDate).sort((a, b) => {
@@ -892,11 +900,17 @@ function creerGraphiqueVentesParMois(donnees) {
 
 // Fonction pour créer le graphique des ventes par produit
 function creerGraphiqueVentesParProduit(donnees) {
+    console.log('Création du graphique par produit avec les données:', donnees);
     const ctx = document.getElementById('ventesParProduitChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error('Canvas ventesParProduitChart non trouvé');
+        return;
+    }
+    console.log('Canvas ventesParProduitChart trouvé');
 
     // Détruire le graphique existant s'il existe
     if (ventesParProduitChart) {
+        console.log('Destruction du graphique existant');
         ventesParProduitChart.destroy();
     }
 
@@ -978,6 +992,12 @@ let allVentes = [];
 // Fonction pour charger les ventes avec pagination
 async function chargerVentes() {
     try {
+        // S'assurer que la section de visualisation est visible
+        const visualisationSection = document.getElementById('visualisation-section');
+        if (visualisationSection) {
+            visualisationSection.style.display = 'block';
+        }
+
         const dateDebut = document.getElementById('date-debut').value;
         const dateFin = document.getElementById('date-fin').value;
         const pointVente = document.getElementById('point-vente-select').value;
@@ -1026,69 +1046,26 @@ async function chargerVentes() {
 
         if (data.success) {
             console.log('Nombre de ventes reçues:', data.ventes.length);
-            // Ajout d'un log détaillé pour vérifier les dates
-            console.log('Dates des ventes reçues:', data.ventes.map(v => ({
-                date: v.Date,
-                montant: v.Montant || v.total,
-                comparaison: new Date(v.Date) >= new Date(debut)
-            })));
             
-            // Filtrer pour s'assurer d'inclure la date de début
-            allVentes = data.ventes.filter(vente => {
-                const venteDate = new Date(vente.Date);
-                const debutDate = new Date(debut);
-                const finDate = new Date(fin);
-                
-                // Comparer les dates en ignorant l'heure
-                return (compareDates(venteDate, debutDate) || venteDate > debutDate) && 
-                       (compareDates(venteDate, finDate) || venteDate < finDate);
-            });
-            
-            // Vérifier si les ventes sont un tableau
-            if (!Array.isArray(data.ventes)) {
-                console.error('Les ventes ne sont pas un tableau:', data.ventes);
-                return;
-            }
+            // Formater les données
+            const ventesFormatees = formaterDonneesVentes(data.ventes);
             
             // Stocker toutes les ventes
-            allVentes = data.ventes;
+            allVentes = ventesFormatees;
             
-            // Vérifier si le tableau est vide
-            if (allVentes.length === 0) {
-                console.log('Aucune vente trouvée pour la période sélectionnée');
-                const tbody = document.querySelector('#tableau-ventes tbody');
-                if (tbody) {
-                    tbody.innerHTML = '<tr><td colspan="10" class="text-center">Aucune vente trouvée pour la période sélectionnée</td></tr>';
-                }
-                // Réinitialiser le montant total si l'élément existe
-                const montantTotalElement = document.getElementById('montant-total');
-                if (montantTotalElement) {
-                    montantTotalElement.textContent = '0 FCFA';
-                }
-                return;
-            }
-            
-            // Calculer le montant total des ventes
-            const montantTotal = allVentes.reduce((total, vente) => {
-                return total + parseFloat(vente.Montant || vente.total || 0);
-            }, 0);
-            
-            // Afficher le montant total si l'élément existe
-            const montantTotalElement = document.getElementById('montant-total');
-            if (montantTotalElement) {
-                montantTotalElement.textContent = `${montantTotal.toLocaleString('fr-FR')} FCFA`;
-            }
-            
-            // Mettre à jour les graphiques
-            creerGraphiqueVentesParMois(data.ventes);
-            creerGraphiqueVentesParProduit(data.ventes);
-            creerGraphiqueVentesParCategorie(data.ventes);
-
             // Afficher la première page
             afficherPageVentes(1);
             
             // Mettre à jour les informations de pagination
             updatePaginationInfo();
+
+            // Attendre un court instant pour s'assurer que les canvas sont rendus
+            setTimeout(() => {
+                // Mettre à jour les graphiques
+                creerGraphiqueVentesParMois(ventesFormatees);
+                creerGraphiqueVentesParProduit(ventesFormatees);
+                creerGraphiqueVentesParCategorie(ventesFormatees);
+            }, 100);
         } else {
             throw new Error(data.message || 'Erreur lors du chargement des ventes');
         }
@@ -1353,12 +1330,18 @@ document.getElementById('save-import').addEventListener('click', async function(
 
 // Fonction pour créer le graphique des ventes par catégorie
 function creerGraphiqueVentesParCategorie(ventes) {
+    console.log('Création du graphique par catégorie avec les données:', ventes);
     const ctx = document.getElementById('ventesParCategorieChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error('Canvas ventesParCategorieChart non trouvé');
+        return;
+    }
+    console.log('Canvas ventesParCategorieChart trouvé');
 
     // Détruire le graphique existant s'il existe
-    if (window.ventesParCategorieChart instanceof Chart) {
-        window.ventesParCategorieChart.destroy();
+    if (ventesParCategorieChart) {
+        console.log('Destruction du graphique existant');
+        ventesParCategorieChart.destroy();
     }
 
     // Grouper les ventes par catégorie
@@ -1389,7 +1372,7 @@ function creerGraphiqueVentesParCategorie(ventes) {
     const pourcentages = montants.map(montant => ((montant / totalVentes) * 100).toFixed(1));
 
     // Créer le nouveau graphique
-    window.ventesParCategorieChart = new Chart(ctx, {
+    ventesParCategorieChart = new Chart(ctx, {
         type: 'pie',
         data: {
             labels: labels.map((label, index) => `${label} (${pourcentages[index]}%)`),
@@ -1401,34 +1384,20 @@ function creerGraphiqueVentesParCategorie(ventes) {
                     'rgba(255, 206, 86, 0.8)',  // Jaune pour Volaille
                     'rgba(75, 192, 192, 0.8)'   // Vert pour Pack
                 ],
-                borderColor: [
-                    'rgba(255, 99, 132, 1)',
-                    'rgba(54, 162, 235, 1)',
-                    'rgba(255, 206, 86, 1)',
-                    'rgba(75, 192, 192, 1)'
-                ],
                 borderWidth: 1
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    position: 'right',
-                    labels: {
-                        padding: 20,
-                        font: {
-                            size: 14
-                        }
-                    }
+                    position: 'right'
                 },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
                             const value = context.raw;
-                            const percentage = ((value / totalVentes) * 100).toFixed(1);
-                            return `${value.toLocaleString('fr-FR')} FCFA (${percentage}%)`;
+                            return value.toLocaleString('fr-FR') + ' FCFA';
                         }
                     }
                 }
@@ -2105,6 +2074,10 @@ async function initInventaire() {
     document.getElementById('save-stock').addEventListener('click', sauvegarderDonneesStock);
     
     console.log('%c=== Initialisation terminée ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+
+    // Charger les transferts initiaux
+    await chargerTransferts();
+    console.log('Chargement initial des transferts effectué');
 }
 
 // Fonction séparée pour gérer le changement de type de stock
@@ -2480,12 +2453,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Initialiser le bouton de sauvegarde des transferts
-    const btnSaveTransfert = document.getElementById('save-transfert');
+    const btnSaveTransfert = document.getElementById('sauvegarderTransfert');
     if (btnSaveTransfert) {
-        console.log('Bouton save-transfert trouvé, ajout de l\'écouteur click');
+        console.log('Bouton sauvegarderTransfert trouvé, ajout de l\'écouteur click');
         btnSaveTransfert.addEventListener('click', async () => {
             try {
-                const tbody = document.querySelector('#transfert-table tbody');
+                const tbody = document.querySelector('#transfertTable tbody');
                 const rows = Array.from(tbody.querySelectorAll('tr:not([disabled])'));
                 
                 const transferts = rows.map(row => {
@@ -2497,56 +2470,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     const commentaireInput = row.querySelector('.commentaire-input');
 
                     if (!pointVenteSelect || !produitSelect || !impactSelect || !quantiteInput || !prixUnitaireInput) {
-                        throw new Error('Certains éléments sont manquants dans la ligne');
+                        throw new Error('Certains champs sont manquants');
                     }
-
-                    const pointVente = pointVenteSelect.value;
-                    const produit = produitSelect.value;
-                    const impact = impactSelect.value === '1' ? 1 : -1;
-                    const quantite = parseFloat(quantiteInput.value) || 0;
-                    const prixUnitaire = parseFloat(prixUnitaireInput.value) || 0;
-                    const commentaire = commentaireInput ? commentaireInput.value : '';
 
                     return {
                         date: document.getElementById('date-inventaire').value,
-                        pointVente,
-                        produit,
-                        impact,
-                        quantite,
-                        prixUnitaire,
-                        total: quantite * prixUnitaire,
-                        commentaire
+                        pointVente: pointVenteSelect.value,
+                        produit: produitSelect.value,
+                        impact: parseInt(impactSelect.value),
+                        quantite: parseFloat(quantiteInput.value),
+                        prixUnitaire: parseFloat(prixUnitaireInput.value),
+                        commentaire: commentaireInput ? commentaireInput.value : ''
                     };
                 });
 
-                if (transferts.length === 0) {
-                    alert('Aucun transfert à sauvegarder');
-                    return;
-                }
-
-                const response = await fetch('http://localhost:3000/api/transferts', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify(transferts)
-                });
-
-                if (!response.ok) {
-                    throw new Error('Erreur lors de la sauvegarde des transferts');
-                }
-
+                await transfertsManager.saveTransferts(transferts);
                 alert('Transferts sauvegardés avec succès');
-                await chargerTransferts();
-
+                chargerTransferts(); // Recharger les transferts
             } catch (error) {
                 console.error('Erreur lors de la sauvegarde des transferts:', error);
-                alert(error.message);
+                alert('Erreur lors de la sauvegarde des transferts: ' + error.message);
             }
         });
     } else {
-        console.error('Bouton save-transfert non trouvé');
+        console.error('Bouton sauvegarderTransfert non trouvé');
     }
 });
 
@@ -2598,4 +2545,327 @@ function initialiserRafraichissementAutomatique() {
     
     // Charger les ventes immédiatement
     chargerDernieresVentes();
+}
+
+// Fonction pour importer un fichier CSV
+async function importerCSV(event) {
+    try {
+        console.log('Début de l\'importation CSV');
+        const file = event.target.files[0];
+        if (!file) {
+            console.error('Aucun fichier sélectionné');
+            return;
+        }
+
+        // Afficher un message de chargement
+        document.getElementById('previewSection').style.display = 'block';
+        document.querySelector('#previewTable tbody').innerHTML = '<tr><td colspan="7" class="text-center">Chargement en cours...</td></tr>';
+
+        const data = await lireFichier(file);
+        console.log('Données lues:', data);
+
+        // Préparer les données pour l'affichage
+        const previewData = [];
+        for (const row of data) {
+            if (row.length >= 8) { // Vérifier qu'il y a assez de colonnes
+                const [pointVente, date, stock, produit, impact, quantite, pu, total] = row;
+                
+                // Standardiser le nom du point de vente
+                const standardPointVente = MAPPING_POINTS_VENTE[pointVente.toUpperCase()] || pointVente;
+                
+                // Standardiser le nom du produit
+                const standardProduit = MAPPING_PRODUITS[produit.toUpperCase()] || produit;
+
+                // Vérifier que les valeurs numériques sont valides
+                const quantiteNum = parseFloat(quantite);
+                const puNum = parseFloat(pu);
+                
+                if (!isNaN(quantiteNum) && !isNaN(puNum)) {
+                    previewData.push({
+                        pointVente: standardPointVente,
+                        date,
+                        stock,
+                        produit: standardProduit,
+                        impact: impact === '+' ? 1 : -1,
+                        quantite: quantiteNum,
+                        prixUnitaire: puNum,
+                        total: quantiteNum * puNum
+                    });
+                }
+            }
+        }
+
+        // Afficher l'aperçu
+        const tbody = document.querySelector('#previewTable tbody');
+        tbody.innerHTML = '';
+        
+        if (previewData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Aucune donnée valide trouvée dans le fichier</td></tr>';
+            return;
+        }
+
+        previewData.forEach((row, index) => {
+            const tr = document.createElement('tr');
+            tr.dataset.index = index;
+            tr.innerHTML = `
+                <td>${row.pointVente}</td>
+                <td>${row.date}</td>
+                <td>${row.produit}</td>
+                <td>${row.stock === 'Stock Matin' ? row.quantite : ''}</td>
+                <td>${row.stock === 'Stock Soir' ? row.quantite : ''}</td>
+                <td>${row.impact === 1 ? '+' : '-'}${row.quantite}</td>
+                <td>
+                    <button class="btn btn-danger btn-sm delete-row">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+
+            // Ajouter l'écouteur d'événements pour le bouton de suppression
+            const deleteBtn = tr.querySelector('.delete-row');
+            deleteBtn.addEventListener('click', function() {
+                if (confirm('Voulez-vous vraiment supprimer cette ligne ?')) {
+                    previewData.splice(index, 1);
+                    tr.remove();
+                    // Mettre à jour les indices des lignes restantes
+                    tbody.querySelectorAll('tr').forEach((row, newIndex) => {
+                        row.dataset.index = newIndex;
+                    });
+                }
+            });
+        });
+
+        // Stocker les données pour l'import
+        window.donneesImportees = previewData;
+        
+        // Activer le bouton de confirmation
+        document.getElementById('confirmImport').disabled = false;
+
+    } catch (error) {
+        console.error('Erreur lors de l\'importation:', error);
+        const tbody = document.querySelector('#previewTable tbody');
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Erreur: ${error.message}</td></tr>`;
+        document.getElementById('confirmImport').disabled = true;
+    }
+}
+
+// Fonction pour charger les transferts
+async function chargerTransferts() {
+    try {
+        console.log('Chargement des transferts...');
+        const date = document.getElementById('date-inventaire').value;
+        
+        // Charger le fichier transferts.json
+        const response = await fetch('data/transferts.json');
+        if (!response.ok) {
+            throw new Error('Erreur lors du chargement du fichier transferts.json');
+        }
+        
+        const transferts = await response.json();
+        console.log('Transferts chargés depuis le fichier:', transferts);
+        
+        // Filtrer les transferts par date
+        const transfertsFiltres = transferts.filter(t => t.date === date);
+        console.log('Transferts filtrés par date:', transfertsFiltres);
+
+        // Vider le tableau des transferts
+        const tbody = document.querySelector('#transfertTable tbody');
+        if (!tbody) {
+            console.error('Table des transferts non trouvée');
+            return;
+        }
+        
+        tbody.innerHTML = '';
+        
+        // Ajouter une ligne vide pour permettre l'ajout de nouveaux transferts
+        //ajouterLigneTransfert();
+        
+        // Afficher les transferts existants
+        if (Array.isArray(transfertsFiltres) && transfertsFiltres.length > 0) {
+            transfertsFiltres.forEach((transfert, index) => {
+                const row = document.createElement('tr');
+                row.dataset.index = index; // Ajouter l'index pour la suppression
+                
+                // Point de vente
+                const tdPointVente = document.createElement('td');
+                const selectPointVente = document.createElement('select');
+                selectPointVente.className = 'form-select form-select-sm point-vente-select';
+                TOUS_POINTS_VENTE.forEach(pv => {
+                    const option = document.createElement('option');
+                    option.value = pv;
+                    option.textContent = pv;
+                    if (pv === transfert.pointVente) {
+                        option.selected = true;
+                    }
+                    selectPointVente.appendChild(option);
+                });
+                tdPointVente.appendChild(selectPointVente);
+                
+                // Produit
+                const tdProduit = document.createElement('td');
+                const selectProduit = document.createElement('select');
+                selectProduit.className = 'form-select form-select-sm produit-select';
+                PRODUITS.forEach(prod => {
+                    const option = document.createElement('option');
+                    option.value = prod;
+                    option.textContent = prod;
+                    if (prod === transfert.produit) {
+                        option.selected = true;
+                    }
+                    selectProduit.appendChild(option);
+                });
+                tdProduit.appendChild(selectProduit);
+                
+                // Impact
+                const tdImpact = document.createElement('td');
+                const selectImpact = document.createElement('select');
+                selectImpact.className = 'form-select form-select-sm impact-select';
+                [
+                    { value: '1', text: '+' },
+                    { value: '-1', text: '-' }
+                ].forEach(({ value, text }) => {
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = text;
+                    if (value === transfert.impact.toString()) {
+                        option.selected = true;
+                    }
+                    selectImpact.appendChild(option);
+                });
+                tdImpact.appendChild(selectImpact);
+                
+                // Quantité
+                const tdQuantite = document.createElement('td');
+                const inputQuantite = document.createElement('input');
+                inputQuantite.type = 'number';
+                inputQuantite.className = 'form-control form-control-sm quantite-input';
+                inputQuantite.value = transfert.quantite;
+                tdQuantite.appendChild(inputQuantite);
+                
+                // Prix unitaire
+                const tdPrixUnitaire = document.createElement('td');
+                const inputPrixUnitaire = document.createElement('input');
+                inputPrixUnitaire.type = 'number';
+                inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
+                inputPrixUnitaire.value = transfert.prixUnitaire;
+                tdPrixUnitaire.appendChild(inputPrixUnitaire);
+                
+                // Total
+                const tdTotal = document.createElement('td');
+                tdTotal.className = 'total-cell';
+                tdTotal.textContent = transfert.total.toLocaleString('fr-FR');
+                
+                // Commentaire
+                const tdCommentaire = document.createElement('td');
+                const inputCommentaire = document.createElement('input');
+                inputCommentaire.type = 'text';
+                inputCommentaire.className = 'form-control form-control-sm commentaire-input';
+                inputCommentaire.value = transfert.commentaire || '';
+                tdCommentaire.appendChild(inputCommentaire);
+                
+                // Actions
+                const tdActions = document.createElement('td');
+                const btnSupprimer = document.createElement('button');
+                btnSupprimer.className = 'btn btn-danger btn-sm';
+                btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
+                btnSupprimer.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    if (confirm('Voulez-vous vraiment supprimer ce transfert ?')) {
+                        try {
+                            // Supprimer le transfert via l'API
+                            const response = await fetch(`http://localhost:3000/api/transferts`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                credentials: 'include',
+                                body: JSON.stringify({
+                                    date: transfert.date,
+                                    pointVente: transfert.pointVente,
+                                    produit: transfert.produit,
+                                    impact: transfert.impact,
+                                    quantite: transfert.quantite,
+                                    prixUnitaire: transfert.prixUnitaire
+                                })
+                            });
+                            
+                            if (response.ok) {
+                                row.remove();
+                                console.log('Transfert supprimé avec succès');
+                            } else {
+                                throw new Error('Erreur lors de la suppression du transfert');
+                            }
+                        } catch (error) {
+                            console.error('Erreur lors de la suppression:', error);
+                            alert('Erreur lors de la suppression : ' + error.message);
+                        }
+                    }
+                });
+                tdActions.appendChild(btnSupprimer);
+                
+                // Ajouter les cellules à la ligne
+                row.append(tdPointVente, tdProduit, tdImpact, tdQuantite, tdPrixUnitaire, tdTotal, tdCommentaire, tdActions);
+                
+                // Ajouter les écouteurs d'événements pour le calcul automatique du total
+                const calculateTotal = () => {
+                    const quantite = parseFloat(inputQuantite.value) || 0;
+                    const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
+                    const impact = parseInt(selectImpact.value) || 1;
+                    const total = quantite * prixUnitaire * impact;
+                    tdTotal.textContent = total.toLocaleString('fr-FR');
+                };
+                
+                inputQuantite.addEventListener('input', calculateTotal);
+                inputPrixUnitaire.addEventListener('input', calculateTotal);
+                selectImpact.addEventListener('change', calculateTotal);
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+          if (transfertsFiltres.length === 0) {
+            console.log('Aucun transfert trouvé pour cette date, ajout d\'une ligne vide');
+           ajouterLigneTransfert();
+       
+         }
+
+        console.log('Transferts chargés avec succès');
+    } catch (error) {
+        console.error('Erreur lors du chargement des transferts:', error);
+        const tbody = document.querySelector('#transfertTable tbody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Erreur lors du chargement des transferts</td></tr>';
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+    // Vérifier si l'onglet Stock inventaire est actif
+    const stockInventaireTab = document.getElementById('stock-inventaire-tab');
+    const stockInventaireSection = document.getElementById('stock-inventaire-section');
+    
+    if (stockInventaireTab && stockInventaireTab.classList.contains('active')) {
+        console.log('Onglet Stock inventaire actif au chargement, initialisation...');
+        hideAllSections();
+        stockInventaireSection.style.display = 'block';
+        await initInventaire();
+    }
+
+    // ... code existant ...
+});
+
+// Fonction pour formater les données des ventes
+function formaterDonneesVentes(ventes) {
+    if (!Array.isArray(ventes)) {
+        console.error('Les ventes ne sont pas un tableau:', ventes);
+        return [];
+    }
+
+    return ventes.map(vente => ({
+        Date: vente.Date || vente.date,
+        Montant: parseFloat(vente.Montant || vente.total || 0),
+        Produit: vente.Produit || vente.produit,
+        Catégorie: vente.Catégorie || vente.categorie
+    }));
 }

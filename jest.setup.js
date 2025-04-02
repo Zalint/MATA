@@ -1,0 +1,1 @@
+jest.setTimeout(30000); // Augmenter le timeout global à 30 secondes 

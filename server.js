@@ -453,8 +453,10 @@ app.get('/api/ventes', checkAuth, (req, res) => {
                     console.log('Date de début convertie:', debut);
                     
                     ventesFiltrees = ventesFiltrees.filter(vente => {
-                        const [jourVente, moisVente, anneeVente] = vente.Date.split('/');
+                        const [jourVente, moisVente, anneeVente] = vente.Date.split('-');
                         // S'assurer que l'année est au format 4 chiffres
+                        console.log('Date structure');
+                        console.log(vente.Date);
                         const annee = anneeVente.length === 2 ? '20' + anneeVente : anneeVente;
                         const dateVente = new Date(annee, moisVente - 1, jourVente);
                         console.log('Comparaison:', {
@@ -472,7 +474,9 @@ app.get('/api/ventes', checkAuth, (req, res) => {
                     console.log('Date de fin convertie:', fin);
                     
                     ventesFiltrees = ventesFiltrees.filter(vente => {
-                        const [jourVente, moisVente, anneeVente] = vente.Date.split('/');
+                        const [jourVente, moisVente, anneeVente] = vente.Date.split('-');
+                        console.log('Date structure');
+                        console.log(vente.Date);
                         // S'assurer que l'année est au format 4 chiffres
                         const annee = anneeVente.length === 2 ? '20' + anneeVente : anneeVente;
                         const dateVente = new Date(annee, moisVente - 1, jourVente);
@@ -498,8 +502,8 @@ app.get('/api/ventes', checkAuth, (req, res) => {
                 
                 // Trier par date décroissante
                 ventesFiltrees.sort((a, b) => {
-                    const [jourA, moisA, anneeA] = a.Date.split('/');
-                    const [jourB, moisB, anneeB] = b.Date.split('/');
+                    const [jourA, moisA, anneeA] = a.Date.split('-');
+                    const [jourB, moisB, anneeB] = b.Date.split('-');
                     // S'assurer que les années sont au format 4 chiffres
                     const anneeA4 = anneeA.length === 2 ? '20' + anneeA : anneeA;
                     const anneeB4 = anneeB.length === 2 ? '20' + anneeB : anneeB;
@@ -807,6 +811,64 @@ app.get('/api/transferts', checkAuth, async (req, res) => {
     }
 });
 
+// Route pour supprimer un transfert
+app.delete('/api/transferts', checkAuth, async (req, res) => {
+    try {
+        const transfertData = req.body;
+        console.log('Données de suppression du transfert reçues:', transfertData);
+        
+        // Vérifier que toutes les données nécessaires sont présentes
+        if (!transfertData.date || !transfertData.pointVente || !transfertData.produit) {
+            return res.status(400).json({
+                success: false,
+                message: 'Données insuffisantes pour identifier le transfert à supprimer'
+            });
+        }
+
+        // Charger les transferts existants
+        let transferts = [];
+        if (fs.existsSync(TRANSFERTS_PATH)) {
+            const content = await fsPromises.readFile(TRANSFERTS_PATH, 'utf8');
+            transferts = JSON.parse(content || '[]');
+        }
+
+        // Rechercher l'index du transfert à supprimer
+        const indexToRemove = transferts.findIndex(t => 
+            t.date === transfertData.date && 
+            t.pointVente === transfertData.pointVente && 
+            t.produit === transfertData.produit &&
+            t.impact === transfertData.impact &&
+            t.quantite === transfertData.quantite &&
+            t.prixUnitaire === transfertData.prixUnitaire
+        );
+
+        if (indexToRemove === -1) {
+            return res.status(404).json({
+                success: false,
+                message: 'Transfert non trouvé'
+            });
+        }
+
+        // Supprimer le transfert
+        transferts.splice(indexToRemove, 1);
+
+        // Sauvegarder les transferts mis à jour
+        await fsPromises.writeFile(TRANSFERTS_PATH, JSON.stringify(transferts, null, 2));
+
+        res.json({
+            success: true,
+            message: 'Transfert supprimé avec succès'
+        });
+    } catch (error) {
+        console.error('Erreur lors de la suppression du transfert:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la suppression du transfert',
+            error: error.message
+        });
+    }
+});
+
 // Route pour supprimer une vente
 app.delete('/api/ventes/:id', checkAuth, async (req, res) => {
     try {
@@ -835,16 +897,18 @@ app.delete('/api/ventes/:id', checkAuth, async (req, res) => {
         const newLines = [header];
         
         for (let i = 1; i < lines.length; i++) {
-            // Vérifier si c'est la ligne à supprimer
-            if (i === parseInt(venteId)) {
-                found = true;
-                console.log(`Ligne ${i} (ID: ${venteId}) supprimée`);
-                continue;
-            }
+            const line = lines[i].trim();
+            if (!line) continue;
             
-            // Conserver les lignes non vides
-            if (lines[i].trim()) {
-                newLines.push(lines[i]);
+            // Extraire l'ID de la ligne
+            const lineId = line.split(';')[0];
+            
+            // Si ce n'est pas la ligne à supprimer, la conserver
+            if (lineId !== venteId) {
+                newLines.push(line);
+            } else {
+                found = true;
+                console.log(`Ligne avec ID ${venteId} supprimée`);
             }
         }
 

@@ -1,6 +1,6 @@
 {
   "Keur Massar-Boeuf": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "Keur Massar",
     "Produit": "Boeuf",
@@ -9,18 +9,8 @@
     "Montant": "114840",
     "Commentaire": ""
   },
-  "Keur Massar-Veau": {
-    "date": "01/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "Keur Massar",
-    "Produit": "Veau",
-    "Nombre": "5",
-    "PU": "3800",
-    "Montant": "19000",
-    "Commentaire": ""
-  },
   "Keur Massar-Poulet": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "Keur Massar",
     "Produit": "Poulet",
@@ -30,7 +20,7 @@
     "Commentaire": ""
   },
   "Keur Massar-Tete De Mouton": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "Keur Massar",
     "Produit": "Tete De Mouton",
@@ -40,7 +30,7 @@
     "Commentaire": ""
   },
   "Keur Massar-Foie": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "Keur Massar",
     "Produit": "Foie",
@@ -50,7 +40,7 @@
     "Commentaire": ""
   },
   "Keur Massar-Yell": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "Keur Massar",
     "Produit": "Yell",
@@ -60,7 +50,7 @@
     "Commentaire": ""
   },
   "O.Foire-Boeuf": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "O.Foire",
     "Produit": "Boeuf",
@@ -70,7 +60,7 @@
     "Commentaire": ""
   },
   "O.Foire-Veau": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "O.Foire",
     "Produit": "Veau",
@@ -80,7 +70,7 @@
     "Commentaire": ""
   },
   "O.Foire-Poulet": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "O.Foire",
     "Produit": "Poulet",
@@ -90,7 +80,7 @@
     "Commentaire": ""
   },
   "O.Foire-Foie": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "O.Foire",
     "Produit": "Foie",
@@ -100,7 +90,7 @@
     "Commentaire": ""
   },
   "O.Foire-Yell": {
-    "date": "01/04/2025",
+    "date": "02/04/2025",
     "typeStock": "matin",
     "Point de Vente": "O.Foire",
     "Produit": "Yell",

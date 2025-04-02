@@ -77,14 +77,16 @@ body {
     margin-top: 1rem;
 }
 
-#stock-table, #transfert-table {
-    font-size: 0.9rem;
+#stock-table, #transfertTable {
+    width: 100%;
+    margin-bottom: 1rem;
 }
 
-#stock-table input, #transfert-table input,
-#stock-table select, #transfert-table select {
-    font-size: 0.9rem;
-    padding: 0.25rem 0.5rem;
+#stock-table input, #transfertTable input,
+#stock-table select, #transfertTable select {
+    width: 100%;
+    padding: 0.25rem;
+    font-size: 0.875rem;
 }
 
 .total-cell {
