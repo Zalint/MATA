@@ -1,12 +1,12 @@
 [
   {
-    "date": "02/04/2025",
+    "date": "03/04/2025",
     "pointVente": "Mbao",
-    "produit": "Poulet",
+    "produit": "Foie",
     "impact": 1,
-    "quantite": 100,
-    "prixUnitaire": 3500,
-    "total": 350000,
+    "quantite": 10,
+    "prixUnitaire": 4000,
+    "total": 40000,
     "commentaire": ""
   }
 ]

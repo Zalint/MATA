@@ -64,9 +64,9 @@ const checkSuperAdmin = (req, res, next) => {
 // Chemin du fichier CSV
 const csvFilePath = path.join(__dirname, 'ventes.csv');
 
-// Créer le fichier CSV s'il n'existe pas
+// Créer le fichier CSV avec les en-têtes seulement s'il n'existe pas
 if (!fs.existsSync(csvFilePath)) {
-    const headers = 'Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant\n';
+    const headers = 'ID;Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant\n';
     fs.writeFileSync(csvFilePath, headers);
 }
 
@@ -257,11 +257,12 @@ app.post('/api/ventes', checkAuth, (req, res) => {
             entry.quantite,
             entry.total
         ];
-        csvContent += ligne.join(';') + '\n';
+        // S'assurer qu'il y a une nouvelle ligne avant et après chaque entrée
+        csvContent += (csvContent ? '\n' : '') + ligne.join(';');
     });
     
-    // Ajouter les nouvelles entrées au fichier CSV
-    fs.appendFileSync(csvFilePath, csvContent);
+    // Ajouter les nouvelles entrées au fichier CSV avec une nouvelle ligne à la fin
+    fs.appendFileSync(csvFilePath, '\n' + csvContent + '\n');
     
     // Retourner les dernières ventes
     const results = [];
@@ -359,8 +360,9 @@ app.put('/api/ventes/:id', checkAuth, async (req, res) => {
             Montant: updatedVente.total
         };
 
-        // Réécrire le fichier CSV
-        const csvContent = ventes.map(vente => {
+        // Réécrire le fichier CSV avec les en-têtes
+        const headers = 'ID;Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant';
+        const csvContent = headers + '\n' + ventes.map(vente => {
             return [
                 vente.ID,
                 vente.Mois,
@@ -453,7 +455,17 @@ app.get('/api/ventes', checkAuth, (req, res) => {
                     console.log('Date de début convertie:', debut);
                     
                     ventesFiltrees = ventesFiltrees.filter(vente => {
-                        const [jourVente, moisVente, anneeVente] = vente.Date.split('-');
+                        // Gérer les deux formats de date (avec "/" et "-")
+                        let jourVente, moisVente, anneeVente;
+                        if (vente.Date.includes('/')) {
+                            [jourVente, moisVente, anneeVente] = vente.Date.split('/');
+                        } else if (vente.Date.includes('-')) {
+                            [jourVente, moisVente, anneeVente] = vente.Date.split('-');
+                        } else {
+                            console.error(`Format de date invalide pour la vente: ${vente.Date}`);
+                            return false;
+                        }
+
                         // S'assurer que l'année est au format 4 chiffres
                         console.log('Date structure');
                         console.log(vente.Date);
@@ -474,10 +486,20 @@ app.get('/api/ventes', checkAuth, (req, res) => {
                     console.log('Date de fin convertie:', fin);
                     
                     ventesFiltrees = ventesFiltrees.filter(vente => {
-                        const [jourVente, moisVente, anneeVente] = vente.Date.split('-');
+                        // Gérer les deux formats de date (avec "/" et "-")
+                        let jourVente, moisVente, anneeVente;
+                        if (vente.Date.includes('/')) {
+                            [jourVente, moisVente, anneeVente] = vente.Date.split('/');
+                        } else if (vente.Date.includes('-')) {
+                            [jourVente, moisVente, anneeVente] = vente.Date.split('-');
+                        } else {
+                            console.error(`Format de date invalide pour la vente: ${vente.Date}`);
+                            return false;
+                        }
+
+                        // S'assurer que l'année est au format 4 chiffres
                         console.log('Date structure');
                         console.log(vente.Date);
-                        // S'assurer que l'année est au format 4 chiffres
                         const annee = anneeVente.length === 2 ? '20' + anneeVente : anneeVente;
                         const dateVente = new Date(annee, moisVente - 1, jourVente);
                         console.log('Comparaison:', {
@@ -502,8 +524,27 @@ app.get('/api/ventes', checkAuth, (req, res) => {
                 
                 // Trier par date décroissante
                 ventesFiltrees.sort((a, b) => {
-                    const [jourA, moisA, anneeA] = a.Date.split('-');
-                    const [jourB, moisB, anneeB] = b.Date.split('-');
+                    // Gérer les deux formats de date (avec "/" et "-")
+                    let jourA, moisA, anneeA, jourB, moisB, anneeB;
+                    
+                    if (a.Date.includes('/')) {
+                        [jourA, moisA, anneeA] = a.Date.split('/');
+                    } else if (a.Date.includes('-')) {
+                        [jourA, moisA, anneeA] = a.Date.split('-');
+                    } else {
+                        console.error(`Format de date invalide pour la vente A: ${a.Date}`);
+                        return 0;
+                    }
+
+                    if (b.Date.includes('/')) {
+                        [jourB, moisB, anneeB] = b.Date.split('/');
+                    } else if (b.Date.includes('-')) {
+                        [jourB, moisB, anneeB] = b.Date.split('-');
+                    } else {
+                        console.error(`Format de date invalide pour la vente B: ${b.Date}`);
+                        return 0;
+                    }
+
                     // S'assurer que les années sont au format 4 chiffres
                     const anneeA4 = anneeA.length === 2 ? '20' + anneeA : anneeA;
                     const anneeB4 = anneeB.length === 2 ? '20' + anneeB : anneeB;
