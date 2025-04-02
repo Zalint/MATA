@@ -863,9 +863,11 @@ function creerGraphiqueVentesParMois(donnees) {
 
     // Convertir en tableaux et trier par date
     const dates = Object.keys(ventesParDate).sort((a, b) => {
-        const [jourA, moisA, anneeA] = a.split('/');
-        const [jourB, moisB, anneeB] = b.split('/');
-        return new Date(anneeA, moisA - 1, jourA) - new Date(anneeB, moisB - 1, jourB);
+        const [jourA, moisA, anneeA] = a.includes('/') ? a.split('/') : a.split('-');
+        const [jourB, moisB, anneeB] = b.includes('/') ? b.split('/') : b.split('-');
+        const anneeA4 = anneeA.length === 2 ? '20' + anneeA : anneeA;
+        const anneeB4 = anneeB.length === 2 ? '20' + anneeB : anneeB;
+        return new Date(anneeA4, moisA - 1, jourA) - new Date(anneeB4, moisB - 1, jourB);
     });
 
     const montants = dates.map(date => ventesParDate[date]);
