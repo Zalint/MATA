@@ -84,6 +84,45 @@ const STOCK_MATIN_PATH = path.join(__dirname, 'data', 'stock-matin.json');
 const STOCK_SOIR_PATH = path.join(__dirname, 'data', 'stock-soir.json');
 const TRANSFERTS_PATH = path.join(__dirname, 'data', 'transferts.json');
 
+// Fonction pour obtenir le chemin du fichier en fonction de la date
+function getPathByDate(baseFile, date) {
+    // Vérifier si une date est fournie
+    if (!date) {
+        return baseFile; // Retourne le chemin par défaut si pas de date
+    }
+    
+    // Convertir la date au format YYYY-MM-DD pour le système de fichiers
+    let formattedDate;
+    if (date.includes('/')) {
+        // Format DD/MM/YYYY
+        const [day, month, year] = date.split('/');
+        formattedDate = `${year}-${month}-${day}`;
+    } else if (date.includes('-')) {
+        // Format DD-MM-YY
+        const [day, month, year] = date.split('-');
+        // Convertir l'année à 2 chiffres en 4 chiffres
+        const fullYear = year.length === 2 ? `20${year}` : year;
+        formattedDate = `${fullYear}-${month}-${day}`;
+    } else {
+        // Format non reconnu, utiliser la date telle quelle
+        formattedDate = date;
+    }
+    
+    // Extraire le répertoire et le nom de fichier de base
+    const dir = path.dirname(baseFile);
+    const fileName = path.basename(baseFile);
+    
+    // Créer le chemin pour la date spécifique
+    const dateDir = path.join(dir, 'by-date', formattedDate);
+    
+    // S'assurer que le répertoire existe
+    if (!fs.existsSync(dateDir)) {
+        fs.mkdirSync(dateDir, { recursive: true });
+    }
+    
+    return path.join(dateDir, fileName);
+}
+
 // Route pour la connexion
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
@@ -781,7 +820,23 @@ app.post('/api/vider-base', (req, res) => {
 app.get('/api/stock/:type', async (req, res) => {
     try {
         const type = req.params.type;
-        const filePath = type === 'matin' ? STOCK_MATIN_PATH : STOCK_SOIR_PATH;
+        const date = req.query.date;
+        const baseFilePath = type === 'matin' ? STOCK_MATIN_PATH : STOCK_SOIR_PATH;
+        
+        // Obtenir le chemin du fichier spécifique à la date
+        const filePath = getPathByDate(baseFilePath, date);
+        
+        // Vérifier si le fichier existe
+        if (!fs.existsSync(filePath)) {
+            // Si le fichier spécifique à la date n'existe pas, vérifier le fichier par défaut
+            if (date && fs.existsSync(baseFilePath)) {
+                // Retourner les données du fichier par défaut comme fallback
+                const defaultData = await fsPromises.readFile(baseFilePath, 'utf8');
+                return res.json(JSON.parse(defaultData));
+            }
+            // Si aucun fichier n'existe, retourner un objet vide
+            return res.json({});
+        }
         
         const data = await fsPromises.readFile(filePath, 'utf8');
         res.json(JSON.parse(data));
@@ -795,9 +850,26 @@ app.get('/api/stock/:type', async (req, res) => {
 app.post('/api/stock/:type', async (req, res) => {
     try {
         const type = req.params.type;
-        const filePath = type === 'matin' ? STOCK_MATIN_PATH : STOCK_SOIR_PATH;
+        const date = req.body && Object.values(req.body)[0] ? Object.values(req.body)[0].date : null;
         
+        if (!date) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'La date est requise pour sauvegarder les données de stock' 
+            });
+        }
+        
+        const baseFilePath = type === 'matin' ? STOCK_MATIN_PATH : STOCK_SOIR_PATH;
+        
+        // Obtenir le chemin du fichier spécifique à la date
+        const filePath = getPathByDate(baseFilePath, date);
+        
+        // Sauvegarder les données dans le fichier spécifique à la date
         await fsPromises.writeFile(filePath, JSON.stringify(req.body, null, 2));
+        
+        // Conserver également une copie dans le fichier principal pour la compatibilité
+        await fsPromises.writeFile(baseFilePath, JSON.stringify(req.body, null, 2));
+        
         res.json({ success: true });
     } catch (error) {
         console.error('Erreur lors de la sauvegarde des données:', error);
@@ -809,7 +881,60 @@ app.post('/api/stock/:type', async (req, res) => {
 app.post('/api/transferts', async (req, res) => {
     try {
         const transferts = req.body;
-        await fs.promises.writeFile(TRANSFERTS_PATH, JSON.stringify(transferts, null, 2));
+        
+        // Vérifier si des transferts sont fournis
+        if (!Array.isArray(transferts) || transferts.length === 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Aucun transfert à sauvegarder' 
+            });
+        }
+        
+        // Grouper les transferts par date
+        const transfertsByDate = {};
+        
+        transferts.forEach(transfert => {
+            if (!transfert.date) {
+                throw new Error('Date manquante pour un transfert');
+            }
+            
+            if (!transfertsByDate[transfert.date]) {
+                transfertsByDate[transfert.date] = [];
+            }
+            
+            transfertsByDate[transfert.date].push(transfert);
+        });
+        
+        // Sauvegarder chaque groupe de transferts dans un fichier spécifique à sa date
+        for (const [date, dateTransferts] of Object.entries(transfertsByDate)) {
+            const filePath = getPathByDate(TRANSFERTS_PATH, date);
+            
+            // Remplacer complètement les transferts existants pour cette date
+            await fs.promises.writeFile(filePath, JSON.stringify(dateTransferts, null, 2));
+            console.log(`Transferts sauvegardés pour la date ${date}: ${dateTransferts.length} transferts`);
+        }
+        
+        // Mettre à jour le fichier principal avec tous les transferts
+        // Lire tous les transferts de toutes les dates
+        let allTransferts = [];
+        
+        // Parcourir tous les fichiers de transferts spécifiques à une date
+        const dateDirs = await fsPromises.readdir(path.join(__dirname, 'data', 'by-date'), { withFileTypes: true });
+        for (const dateDir of dateDirs) {
+            if (dateDir.isDirectory()) {
+                const datePath = path.join(__dirname, 'data', 'by-date', dateDir.name, 'transferts.json');
+                if (fs.existsSync(datePath)) {
+                    const content = await fsPromises.readFile(datePath, 'utf8');
+                    const dateTransferts = JSON.parse(content || '[]');
+                    allTransferts = [...allTransferts, ...dateTransferts];
+                }
+            }
+        }
+        
+        // Sauvegarder dans le fichier principal
+        await fs.promises.writeFile(TRANSFERTS_PATH, JSON.stringify(allTransferts, null, 2));
+        console.log(`Fichier principal de transferts mis à jour: ${allTransferts.length} transferts au total`);
+        
         res.json({ success: true });
     } catch (error) {
         console.error('Erreur lors de la sauvegarde des transferts:', error);
@@ -822,25 +947,38 @@ app.get('/api/transferts', checkAuth, async (req, res) => {
     try {
         const { date } = req.query;
         
-        // Charger les transferts
-        let transferts = {};
-        if (fs.existsSync(TRANSFERTS_PATH)) {
-            const content = await fsPromises.readFile(TRANSFERTS_PATH, 'utf8');
-            transferts = JSON.parse(content || '{}');
-        }
-        
-        // Si une date est spécifiée, retourner uniquement les transferts de cette date
         if (date) {
-            res.json({ 
-                success: true, 
-                transferts: transferts[date] || [] 
-            });
+            // Obtenir le chemin du fichier spécifique à la date
+            const filePath = getPathByDate(TRANSFERTS_PATH, date);
+            
+            // Vérifier si le fichier spécifique existe
+            if (fs.existsSync(filePath)) {
+                const content = await fsPromises.readFile(filePath, 'utf8');
+                const transferts = JSON.parse(content || '[]');
+                return res.json({ success: true, transferts });
+            }
+            
+            // Si le fichier spécifique n'existe pas, chercher dans le fichier principal
+            if (fs.existsSync(TRANSFERTS_PATH)) {
+                const content = await fsPromises.readFile(TRANSFERTS_PATH, 'utf8');
+                const allTransferts = JSON.parse(content || '[]');
+                // Filtrer les transferts par date
+                const transferts = allTransferts.filter(t => t.date === date);
+                return res.json({ success: true, transferts });
+            }
+            
+            // Si aucun fichier n'existe, retourner un tableau vide
+            return res.json({ success: true, transferts: [] });
         } else {
-            // Sinon retourner tous les transferts
-            res.json({ 
-                success: true, 
-                transferts: transferts 
-            });
+            // Retourner tous les transferts depuis le fichier principal
+            if (fs.existsSync(TRANSFERTS_PATH)) {
+                const content = await fsPromises.readFile(TRANSFERTS_PATH, 'utf8');
+                const transferts = JSON.parse(content || '[]');
+                return res.json({ success: true, transferts });
+            }
+            
+            // Si le fichier n'existe pas, retourner un tableau vide
+            return res.json({ success: true, transferts: [] });
         }
     } catch (error) {
         console.error('Erreur lors de la récupération des transferts:', error);
@@ -866,35 +1004,70 @@ app.delete('/api/transferts', checkAuth, async (req, res) => {
             });
         }
 
-        // Charger les transferts existants
-        let transferts = [];
+        // Obtenir le chemin du fichier spécifique à la date
+        const dateFilePath = getPathByDate(TRANSFERTS_PATH, transfertData.date);
+        
+        // Tableau pour stocker les transferts mis à jour
+        let dateTransferts = [];
+        let indexToRemove = -1;
+        
+        // Mise à jour du fichier spécifique à la date s'il existe
+        if (fs.existsSync(dateFilePath)) {
+            const content = await fsPromises.readFile(dateFilePath, 'utf8');
+            dateTransferts = JSON.parse(content || '[]');
+            
+            // Rechercher l'index du transfert à supprimer
+            indexToRemove = dateTransferts.findIndex(t => 
+                t.pointVente === transfertData.pointVente && 
+                t.produit === transfertData.produit &&
+                t.impact === transfertData.impact &&
+                parseFloat(t.quantite) === parseFloat(transfertData.quantite) &&
+                parseFloat(t.prixUnitaire) === parseFloat(transfertData.prixUnitaire)
+            );
+            
+            if (indexToRemove !== -1) {
+                // Supprimer le transfert
+                dateTransferts.splice(indexToRemove, 1);
+                
+                // Sauvegarder les transferts mis à jour
+                await fsPromises.writeFile(dateFilePath, JSON.stringify(dateTransferts, null, 2));
+            }
+        }
+        
+        // Mettre également à jour le fichier principal
+        let allTransferts = [];
         if (fs.existsSync(TRANSFERTS_PATH)) {
             const content = await fsPromises.readFile(TRANSFERTS_PATH, 'utf8');
-            transferts = JSON.parse(content || '[]');
-        }
-
-        // Rechercher l'index du transfert à supprimer
-        const indexToRemove = transferts.findIndex(t => 
-            t.date === transfertData.date && 
-            t.pointVente === transfertData.pointVente && 
-            t.produit === transfertData.produit &&
-            t.impact === transfertData.impact &&
-            t.quantite === transfertData.quantite &&
-            t.prixUnitaire === transfertData.prixUnitaire
-        );
-
-        if (indexToRemove === -1) {
+            allTransferts = JSON.parse(content || '[]');
+            
+            // Rechercher l'index du transfert à supprimer
+            indexToRemove = allTransferts.findIndex(t => 
+                t.date === transfertData.date &&
+                t.pointVente === transfertData.pointVente && 
+                t.produit === transfertData.produit &&
+                t.impact === transfertData.impact &&
+                parseFloat(t.quantite) === parseFloat(transfertData.quantite) &&
+                parseFloat(t.prixUnitaire) === parseFloat(transfertData.prixUnitaire)
+            );
+            
+            if (indexToRemove !== -1) {
+                // Supprimer le transfert
+                allTransferts.splice(indexToRemove, 1);
+                
+                // Sauvegarder les transferts mis à jour
+                await fsPromises.writeFile(TRANSFERTS_PATH, JSON.stringify(allTransferts, null, 2));
+            } else {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Transfert non trouvé'
+                });
+            }
+        } else {
             return res.status(404).json({
                 success: false,
-                message: 'Transfert non trouvé'
+                message: 'Aucun transfert trouvé'
             });
         }
-
-        // Supprimer le transfert
-        transferts.splice(indexToRemove, 1);
-
-        // Sauvegarder les transferts mis à jour
-        await fsPromises.writeFile(TRANSFERTS_PATH, JSON.stringify(transferts, null, 2));
 
         res.json({
             success: true,

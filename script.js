@@ -430,10 +430,96 @@ document.querySelectorAll('.quantite, .prix-unit').forEach(input => {
 });
 
 function calculerTotalGeneral() {
-    const totalGeneral = Array.from(document.querySelectorAll('.total'))
+    // Récupérer la date sélectionnée
+    const dateSelectionnee = document.getElementById('date').value;
+    
+    // Fonction pour extraire uniquement les composants jour/mois/année d'une date
+    // sans tenir compte du fuseau horaire
+    function normaliserDate(dateStr) {
+        if (!dateStr) return '';
+        
+        let jour, mois, annee;
+        
+        // Format DD/MM/YYYY
+        if (dateStr.includes('/')) {
+            [jour, mois, annee] = dateStr.split('/');
+            // Si l'année est à 4 chiffres, ne garder que les 2 derniers
+            if (annee.length === 4) {
+                annee = annee.slice(-2);
+            }
+        } 
+        // Format DD-MM-YY
+        else if (dateStr.includes('-')) {
+            [jour, mois, annee] = dateStr.split('-');
+        }
+        // Format non reconnu
+        else {
+            return dateStr;
+        }
+        
+        // Normaliser au format JJ-MM-AA avec padding de zéros si nécessaire
+        return `${jour.padStart(2, '0')}-${mois.padStart(2, '0')}-${annee.padStart(2, '0')}`;
+    }
+    
+    // Normaliser la date sélectionnée une seule fois pour éviter de recalculer à chaque itération
+    const dateNormalisee = normaliserDate(dateSelectionnee);
+    
+    // 1. Calculer le total des lignes en cours de saisie plus efficacement
+    const totalSaisie = Array.from(document.querySelectorAll('.total'))
         .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
-    document.getElementById('total-general').textContent = `${totalGeneral.toFixed(2)} FCFA`;
+    
+    // 2. Calculer le total des dernières ventes affichées pour la date sélectionnée
+    // On utilise une approche plus directe pour améliorer les performances
+    let totalDernieresVentes = 0;
+    const rows = document.querySelectorAll('#dernieres-ventes tbody tr');
+    
+    // Avant de parcourir les lignes, mettre à jour l'interface pour indiquer le calcul en cours
+    document.getElementById('total-general').textContent = 'Calcul en cours...';
+    
+    // Utiliser un tableau pour stocker les montants à additionner
+    const montantsCorrespondants = [];
+    
+    // Traiter les lignes par lots pour éviter de bloquer l'interface utilisateur
+    setTimeout(() => {
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const dateVente = normaliserDate(row.querySelector('td:nth-child(2)').textContent.trim());
+            
+            // N'ajouter le montant que si la date correspond à la date sélectionnée
+            if (dateVente === dateNormalisee) {
+                const montantText = row.querySelector('td:nth-child(10)').textContent.trim();
+                const montant = parseFloat(montantText.replace(/\s/g, '').replace(/,/g, '.')) || 0;
+                montantsCorrespondants.push(montant);
+            }
+        }
+        
+        // Calculer la somme des montants correspondants
+        totalDernieresVentes = montantsCorrespondants.reduce((sum, montant) => sum + montant, 0);
+        
+        // 3. Calculer le total général
+        const totalGeneral = totalSaisie + totalDernieresVentes;
+        
+        // 4. Afficher le total avec le format français
+        document.getElementById('total-general').textContent = `${totalGeneral.toLocaleString('fr-FR')} FCFA`;
+    }, 0);
+    
+    // En attendant le calcul asynchrone, retourner le total de saisie uniquement
+    return totalSaisie;
 }
+
+// Ajouter un événement pour recalculer le total général quand la date change
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('date');
+    if (dateInput) {
+        dateInput.addEventListener('change', function() {
+            // Recalculer le total général quand la date change
+            setTimeout(calculerTotalGeneral, 0);
+        });
+        
+        // Calculer le total général au chargement de la page
+        setTimeout(calculerTotalGeneral, 100);
+    }
+});
 
 // Fonction pour créer une nouvelle entrée de produit
 function creerNouvelleEntree() {
@@ -618,10 +704,11 @@ document.getElementById('vente-form').addEventListener('submit', async function(
             // Ajouter une nouvelle entrée vide pour permettre de nouvelles saisies
             document.getElementById('produits-container').appendChild(creerNouvelleEntree());
             
-            calculerTotalGeneral();
-            
             // Actualiser les dernières ventes
-            await chargerDernieresVentes(); // Toujours recharger les dernières ventes pour assurer des données cohérentes
+            // La fonction chargerDernieresVentes() va maintenant aussi recalculer le total général
+            await chargerDernieresVentes();
+            
+            // Note: nous ne calculons plus le total ici car chargerDernieresVentes le fait déjà
         } else {
             throw new Error(data.message || (isUpdate ? 'Erreur lors de la mise à jour de la vente' : 'Erreur lors de l\'enregistrement des ventes'));
         }
@@ -814,6 +901,9 @@ async function chargerDernieresVentes() {
             
             console.log('Données filtrées, affichage des ventes:', ventesAffichees.length, 'entrées');
             afficherDernieresVentes(ventesAffichees);
+            
+            // Recalculer le total général après avoir chargé les ventes
+            calculerTotalGeneral();
         } else {
             console.error('Format de données invalide pour les dernières ventes:', data);
             const tbody = document.querySelector('#dernieres-ventes tbody');
@@ -1054,6 +1144,17 @@ async function chargerVentes() {
             
             // Stocker toutes les ventes
             allVentes = ventesFormatees;
+            
+            // Calculer le montant total des ventes
+            const montantTotal = ventesFormatees.reduce((total, vente) => {
+                return total + (parseFloat(vente.Montant) || 0);
+            }, 0);
+            
+            // Afficher le montant total
+            const montantTotalElement = document.getElementById('montant-total');
+            if (montantTotalElement) {
+                montantTotalElement.textContent = `${montantTotal.toLocaleString('fr-FR')} FCFA`;
+            }
             
             // Afficher la première page
             afficherPageVentes(1);
@@ -1850,6 +1951,8 @@ async function initInventaire() {
         onChange: function(selectedDates, dateStr) {
             // Recharger les transferts quand la date change
             chargerTransferts();
+            // Recharger les données de stock quand la date change
+            chargerStock(dateStr);
         }
     });
 
@@ -1882,120 +1985,11 @@ async function initInventaire() {
         console.error('Input csv-file non trouvé');
     }
 
-    // Écouteur pour le bouton de sauvegarde des transferts
+    // Nous ne configurons pas l'écouteur pour le bouton sauvegarderTransfert ici car 
+    // il est déjà configuré dans l'event listener DOMContentLoaded plus bas dans le code (ligne ~2574)
+    // Cela évite la double sauvegarde des transferts qui provoquait l'erreur
     const sauvegarderTransfertBtn = document.getElementById('sauvegarderTransfert');
-    if (sauvegarderTransfertBtn) {
-        console.log('Bouton sauvegarderTransfert trouvé, ajout de l\'écouteur click');
-        sauvegarderTransfertBtn.addEventListener('click', async function() {
-            try {
-                console.log('Clic sur le bouton sauvegarder transfert');
-                
-                // Vérifier l'existence de la date
-                const dateInput = document.getElementById('date-inventaire');
-                if (!dateInput) {
-                    throw new Error('Élément date-inventaire non trouvé');
-                }
-                const date = dateInput.value;
-                if (!date) {
-                    throw new Error('Veuillez sélectionner une date');
-                }
-                console.log('Date sélectionnée:', date);
-
-                // Vérifier l'existence de la table
-                const tbody = document.querySelector('#transfertTable tbody');
-                if (!tbody) {
-                    throw new Error('Table des transferts non trouvée');
-                }
-                console.log('Table des transferts trouvée');
-                
-                const rows = Array.from(tbody.querySelectorAll('tr:not([disabled])'));
-                console.log(`Nombre de lignes trouvées : ${rows.length}`);
-                
-                if (rows.length === 0) {
-                    throw new Error('Aucune ligne de transfert à sauvegarder');
-                }
-                
-                const transferts = rows.map((row, index) => {
-                    // Récupérer tous les éléments nécessaires avec des sélecteurs plus précis
-                    const pointVenteSelect = row.querySelector('.point-vente-select');
-                    const produitSelect = row.querySelector('.produit-select');
-                    const impactSelect = row.querySelector('.impact-select');
-                    const quantiteInput = row.querySelector('.quantite-input');
-                    const prixUnitaireInput = row.querySelector('.prix-unitaire-input');
-                    const commentaireInput = row.querySelector('.commentaire-input');
-
-                    // Vérifier l'existence de tous les éléments
-                    if (!pointVenteSelect || !produitSelect || !impactSelect || !quantiteInput || !prixUnitaireInput) {
-                        console.error('Éléments manquants dans la ligne', index + 1, {
-                            pointVenteSelect,
-                            produitSelect,
-                            impactSelect,
-                            quantiteInput,
-                            prixUnitaireInput
-                        });
-                        throw new Error(`Ligne ${index + 1}: Certains éléments sont manquants`);
-                    }
-
-                    // Récupérer les valeurs
-                    const pointVente = pointVenteSelect.value;
-                    const produit = produitSelect.value;
-                    const impact = impactSelect.value === '1' ? 1 : -1;
-                    const quantite = parseFloat(quantiteInput.value) || 0;
-                    const prixUnitaire = parseFloat(prixUnitaireInput.value) || 0;
-                    const commentaire = commentaireInput ? commentaireInput.value : '';
-
-                    // Vérifier les valeurs obligatoires
-                    if (!pointVente || !produit) {
-                        throw new Error(`Ligne ${index + 1}: Veuillez sélectionner un point de vente et un produit`);
-                    }
-
-                    if (quantite <= 0) {
-                        throw new Error(`Ligne ${index + 1}: La quantité doit être supérieure à 0`);
-                    }
-
-                    if (prixUnitaire <= 0) {
-                        throw new Error(`Ligne ${index + 1}: Le prix unitaire doit être supérieur à 0`);
-                    }
-
-                    const total = quantite * prixUnitaire * impact;
-
-                    return {
-                        date,
-                        pointVente,
-                        produit,
-                        impact,
-                        quantite,
-                        prixUnitaire,
-                        total,
-                        commentaire
-                    };
-                });
-
-                console.log('Données à envoyer:', transferts);
-
-                const response = await fetch('http://localhost:3000/api/transferts', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify(transferts)
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Erreur lors de la sauvegarde des transferts');
-                }
-
-                alert('Transferts sauvegardés avec succès');
-                await chargerTransferts();
-
-            } catch (error) {
-                console.error('Erreur lors de la sauvegarde des transferts:', error);
-                alert(error.message);
-            }
-        });
-    } else {
+    if (!sauvegarderTransfertBtn) {
         console.error('Bouton sauvegarderTransfert non trouvé');
     }
 
@@ -2006,15 +2000,17 @@ async function initInventaire() {
     // Charger les données initiales
     try {
         const typeStockInitial = typeStockSelect.value;
+        const dateInitiale = document.getElementById('date-inventaire').value;
         console.log('%cChargement initial des données pour le type:', 'color: #00aaff;', typeStockInitial);
+        console.log('%cDate initiale:', 'color: #00aaff;', dateInitiale);
         
         // Charger les données pour les deux types de stock (matin et soir)
         const [matinResponse, soirResponse] = await Promise.all([
-            fetch('http://localhost:3000/api/stock/matin', {
+            fetch(`http://localhost:3000/api/stock/matin?date=${dateInitiale}`, {
                 method: 'GET',
                 credentials: 'include'
             }),
-            fetch('http://localhost:3000/api/stock/soir', {
+            fetch(`http://localhost:3000/api/stock/soir?date=${dateInitiale}`, {
                 method: 'GET',
                 credentials: 'include'
             })
@@ -2086,11 +2082,13 @@ async function initInventaire() {
 async function onTypeStockChange() {
     console.log('%c=== Changement de type de stock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
     const typeStock = document.getElementById('type-stock').value;
+    const dateSelectionnee = document.getElementById('date-inventaire').value;
     console.log('%cNouveau type de stock:', 'color: #ff9900; font-weight: bold;', typeStock);
+    console.log('%cDate sélectionnée:', 'color: #ff9900; font-weight: bold;', dateSelectionnee);
 
     try {
         console.log('%cRécupération des données depuis le serveur pour le type:', 'color: #00aaff;', typeStock);
-        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
+        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}?date=${dateSelectionnee}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -2281,17 +2279,34 @@ const transfertsManager = {
     },
 
     // Sauvegarder les transferts
-    async saveTransferts() {
+    async saveTransferts(transfertsFromForm) {
         try {
-            const donnees = this.transferts.map(t => ({
+            // Vérifier si des transferts sont fournis
+            if (!Array.isArray(transfertsFromForm) || transfertsFromForm.length === 0) {
+                throw new Error('Aucun transfert à sauvegarder');
+            }
+            
+            // Filtrer les transferts valides (quantité > 0)
+            const transfertsValides = transfertsFromForm.filter(t => {
+                return t.quantite > 0 && t.prixUnitaire > 0;
+            });
+            
+            // Vérifier qu'il reste des transferts valides après filtrage
+            if (transfertsValides.length === 0) {
+                throw new Error('Aucun transfert valide à sauvegarder. Vérifiez que les quantités sont supérieures à 0.');
+            }
+            
+            console.log(`Transferts à sauvegarder: ${transfertsValides.length} sur ${transfertsFromForm.length} fournis`);
+            
+            const donnees = transfertsValides.map(t => ({
                 date: t.date,
                 pointVente: t.pointVente,
                 produit: t.produit,
                 impact: t.impact,
                 quantite: t.quantite,
                 prixUnitaire: t.prixUnitaire,
-                total: t.total,
-                commentaire: t.commentaire
+                total: t.quantite * t.prixUnitaire * t.impact,
+                commentaire: t.commentaire || ''
             }));
 
             const response = await fetch('http://localhost:3000/api/transferts', {
@@ -2303,6 +2318,11 @@ const transfertsManager = {
                 body: JSON.stringify(donnees)
             });
 
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Erreur lors de la sauvegarde des transferts');
+            }
+            
             const result = await response.json();
             if (result.success) {
                 console.log('%cTransferts sauvegardés avec succès', 'color: #00ff00; font-weight: bold;');
@@ -2659,16 +2679,23 @@ async function chargerTransferts() {
         const date = document.getElementById('date-inventaire').value;
         
         // Charger le fichier transferts.json
-        const response = await fetch('data/transferts.json');
-        if (!response.ok) {
-            throw new Error('Erreur lors du chargement du fichier transferts.json');
+        let transferts = [];
+        try {
+            const response = await fetch('data/transferts.json');
+            if (!response.ok) {
+                console.warn('Fichier transferts.json non trouvé ou accès impossible');
+                transferts = [];
+            } else {
+                transferts = await response.json();
+                console.log('Transferts chargés depuis le fichier:', transferts);
+            }
+        } catch (fetchError) {
+            console.warn('Erreur lors du chargement du fichier transferts.json:', fetchError);
+            transferts = [];
         }
         
-        const transferts = await response.json();
-        console.log('Transferts chargés depuis le fichier:', transferts);
-        
         // Filtrer les transferts par date
-        const transfertsFiltres = transferts.filter(t => t.date === date);
+        const transfertsFiltres = Array.isArray(transferts) ? transferts.filter(t => t.date === date) : [];
         console.log('Transferts filtrés par date:', transfertsFiltres);
 
         // Vider le tableau des transferts
@@ -2679,9 +2706,6 @@ async function chargerTransferts() {
         }
         
         tbody.innerHTML = '';
-        
-        // Ajouter une ligne vide pour permettre l'ajout de nouveaux transferts
-        //ajouterLigneTransfert();
         
         // Afficher les transferts existants
         if (Array.isArray(transfertsFiltres) && transfertsFiltres.length > 0) {
@@ -2824,20 +2848,57 @@ async function chargerTransferts() {
                 
                 tbody.appendChild(row);
             });
-        }
-        
-          if (transfertsFiltres.length === 0) {
+        } else {
             console.log('Aucun transfert trouvé pour cette date, ajout d\'une ligne vide');
-           ajouterLigneTransfert();
-       
-         }
+            ajouterLigneTransfert();
+        }
+          
+        // Toujours ajouter un bouton pour créer une nouvelle ligne
+        const tfoot = document.querySelector('#transfertTable tfoot');
+        if (tfoot) {
+            tfoot.innerHTML = `
+              <tr>
+                <td colspan="8" class="text-center">
+                  <button id="ajouterLigne" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Ajouter une ligne
+                  </button>
+                </td>
+              </tr>
+            `;
+            
+            // Réattacher l'événement au bouton
+            document.getElementById('ajouterLigne').addEventListener('click', function() {
+                ajouterLigneTransfert();
+            });
+        }
 
         console.log('Transferts chargés avec succès');
     } catch (error) {
         console.error('Erreur lors du chargement des transferts:', error);
         const tbody = document.querySelector('#transfertTable tbody');
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Erreur lors du chargement des transferts</td></tr>';
+            // Ajouter un message d'erreur plus convivial
+            tbody.innerHTML = '';
+            ajouterLigneTransfert();
+            
+            // Ajouter le bouton d'ajout également en cas d'erreur
+            const tfoot = document.querySelector('#transfertTable tfoot');
+            if (tfoot) {
+                tfoot.innerHTML = `
+                  <tr>
+                    <td colspan="8" class="text-center">
+                      <button id="ajouterLigne" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Ajouter une ligne
+                      </button>
+                    </td>
+                  </tr>
+                `;
+                
+                // Réattacher l'événement au bouton
+                document.getElementById('ajouterLigne').addEventListener('click', function() {
+                    ajouterLigneTransfert();
+                });
+            }
         }
     }
 }
@@ -2870,4 +2931,155 @@ function formaterDonneesVentes(ventes) {
         Produit: vente.Produit || vente.produit,
         Catégorie: vente.Catégorie || vente.categorie
     }));
+}
+
+// Fonction pour charger les données de stock d'une date spécifique
+async function chargerStock(date) {
+    try {
+        console.log('%cChargement des données de stock pour la date:', 'color: #00aaff;', date);
+        
+        // Charger les données pour les deux types de stock (matin et soir)
+        const [matinResponse, soirResponse] = await Promise.all([
+            fetch(`http://localhost:3000/api/stock/matin?date=${date}`, {
+                method: 'GET',
+                credentials: 'include'
+            }),
+            fetch(`http://localhost:3000/api/stock/soir?date=${date}`, {
+                method: 'GET',
+                credentials: 'include'
+            })
+        ]);
+
+        const [matinData, soirData] = await Promise.all([
+            matinResponse.json(),
+            soirResponse.json()
+        ]);
+
+        console.log('%cDonnées matin chargées pour date ' + date + ':', 'color: #00ff00;', matinData);
+        console.log('%cDonnées soir chargées pour date ' + date + ':', 'color: #00ff00;', soirData);
+
+        // Vérifier si les données reçues sont vides
+        const matinEmpty = !matinData || (Array.isArray(matinData) && matinData.length === 0) || Object.keys(matinData).length === 0;
+        const soirEmpty = !soirData || (Array.isArray(soirData) && soirData.length === 0) || Object.keys(soirData).length === 0;
+        
+        console.log('%cDonnées vides? Matin:', 'color: #ff9900;', matinEmpty, 'Soir:', soirEmpty);
+
+        // Convertir les données en Map pour un accès plus facile
+        stockData.matin = new Map();
+        stockData.soir = new Map();
+
+        // Initialiser avec des valeurs par défaut si les données sont vides
+        if (matinEmpty || soirEmpty) {
+            console.log('%cInitialisation des données de stock par défaut (à zéro)', 'color: #ff9900;');
+            
+            // Pour chaque combinaison de point de vente et produit, créer une entrée avec des valeurs à zéro
+            POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
+                PRODUITS.forEach(produit => {
+                    const key = `${pointVente}-${produit}`;
+                    
+                    if (matinEmpty) {
+                        stockData.matin.set(key, {
+                            date: date,
+                            typeStock: 'matin',
+                            "Point de Vente": pointVente,
+                            Produit: produit,
+                            Nombre: '0',
+                            PU: PRIX_DEFAUT[produit] || '0',
+                            Montant: '0',
+                            Commentaire: ''
+                        });
+                    }
+                    
+                    if (soirEmpty) {
+                        stockData.soir.set(key, {
+                            date: date,
+                            typeStock: 'soir',
+                            "Point de Vente": pointVente,
+                            Produit: produit,
+                            Nombre: '0',
+                            PU: PRIX_DEFAUT[produit] || '0',
+                            Montant: '0',
+                            Commentaire: ''
+                        });
+                    }
+                });
+            });
+        }
+
+        // Traiter les données du matin si elles ne sont pas vides
+        if (!matinEmpty) {
+            if (Array.isArray(matinData)) {
+                matinData.forEach(item => {
+                    const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
+                    stockData.matin.set(key, item);
+                });
+            } else {
+                Object.entries(matinData || {}).forEach(([key, value]) => {
+                    stockData.matin.set(key, value);
+                });
+            }
+        }
+
+        // Traiter les données du soir si elles ne sont pas vides
+        if (!soirEmpty) {
+            if (Array.isArray(soirData)) {
+                soirData.forEach(item => {
+                    const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
+                    stockData.soir.set(key, item);
+                });
+            } else {
+                Object.entries(soirData || {}).forEach(([key, value]) => {
+                    stockData.soir.set(key, value);
+                });
+            }
+        }
+
+        console.log('%cDonnées stockées dans stockData pour date ' + date + ':', 'color: #00ff00;', {
+            matin: Array.from(stockData.matin.entries()),
+            soir: Array.from(stockData.soir.entries())
+        });
+        
+        // Mettre à jour l'affichage selon le type de stock actuellement sélectionné
+        const typeStock = document.getElementById('type-stock').value;
+        onTypeStockChange();
+        
+    } catch (error) {
+        console.error('%cErreur lors du chargement des données de stock:', 'color: #ff0000;', error);
+        
+        // En cas d'erreur, initialiser quand même avec des valeurs par défaut
+        stockData.matin = new Map();
+        stockData.soir = new Map();
+        
+        // Pour chaque combinaison de point de vente et produit, créer une entrée avec des valeurs à zéro
+        POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
+            PRODUITS.forEach(produit => {
+                const key = `${pointVente}-${produit}`;
+                
+                stockData.matin.set(key, {
+                    date: date,
+                    typeStock: 'matin',
+                    "Point de Vente": pointVente,
+                    Produit: produit,
+                    Nombre: '0',
+                    PU: PRIX_DEFAUT[produit] || '0',
+                    Montant: '0',
+                    Commentaire: ''
+                });
+                
+                stockData.soir.set(key, {
+                    date: date,
+                    typeStock: 'soir',
+                    "Point de Vente": pointVente,
+                    Produit: produit,
+                    Nombre: '0',
+                    PU: PRIX_DEFAUT[produit] || '0',
+                    Montant: '0',
+                    Commentaire: ''
+                });
+            });
+        });
+        
+        // Mettre à jour l'affichage
+        onTypeStockChange();
+    }
 }
