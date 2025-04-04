@@ -52,6 +52,7 @@ function hideAllSections() {
     document.getElementById('visualisation-section').style.display = 'none';
     document.getElementById('import-section').style.display = 'none';
     document.getElementById('stock-inventaire-section').style.display = 'none';
+    document.getElementById('copier-stock-section').style.display = 'none';
 }
 
 // Gestion des onglets
@@ -60,11 +61,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const visualisationTab = document.getElementById('visualisation-tab');
     const importTab = document.getElementById('import-tab');
     const stockInventaireTab = document.getElementById('stock-inventaire-tab');
+    const copierStockTab = document.getElementById('copier-stock-tab');
     
     const saisieSection = document.getElementById('saisie-section');
     const visualisationSection = document.getElementById('visualisation-section');
     const importSection = document.getElementById('import-section');
     const stockInventaireSection = document.getElementById('stock-inventaire-section');
+    const copierStockSection = document.getElementById('copier-stock-section');
 
     // Fonction pour désactiver tous les onglets
     function deactivateAllTabs() {
@@ -72,6 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
         visualisationTab.classList.remove('active');
         importTab.classList.remove('active');
         if (stockInventaireTab) stockInventaireTab.classList.remove('active');
+        if (copierStockTab) copierStockTab.classList.remove('active');
     }
 
     if (saisieTab) {
@@ -113,6 +117,16 @@ document.addEventListener('DOMContentLoaded', function() {
             deactivateAllTabs();
             this.classList.add('active');
             initInventaire();
+        });
+    }
+
+    if (copierStockTab) {
+        copierStockTab.addEventListener('click', function(e) {
+            e.preventDefault();
+            hideAllSections();
+            copierStockSection.style.display = 'block';
+            copierStockTab.classList.add('active');
+            initCopierStock();
         });
     }
 
@@ -260,13 +274,16 @@ async function checkAuth() {
         // Gérer la visibilité des onglets spéciaux
         const importTabContainer = document.getElementById('import-tab-container');
         const stockInventaireItem = document.getElementById('stock-inventaire-item');
+        const copierStockItem = document.getElementById('copier-stock-item');
         
         if (usersWithSpecialAccess.includes(currentUser.username) || currentUser.isSuperAdmin) {
             if (importTabContainer) importTabContainer.style.display = 'block';
             if (stockInventaireItem) stockInventaireItem.style.display = 'block';
+            if (copierStockItem) copierStockItem.style.display = 'block';
         } else {
             if (importTabContainer) importTabContainer.style.display = 'none';
             if (stockInventaireItem) stockInventaireItem.style.display = 'none';
+            if (copierStockItem) copierStockItem.style.display = 'none';
         }
 
         // Mettre à jour la visibilité du bouton de vidage
@@ -1817,16 +1834,8 @@ function initTableauTransfert() {
 
 // Modification de la fonction showUserInterface pour afficher l'onglet Stock inventaire
 function showUserInterface(userData) {
-    document.getElementById('login-section').style.display = 'none';
-    document.getElementById('main-content').style.display = 'block';
-    
-    // Afficher l'onglet Stock inventaire uniquement pour les utilisateurs avec accès à tous les points de vente
-    const stockInventaireItem = document.querySelector('.stock-inventaire-item');
-    if (userData.pointVente === 'tous') {
-        stockInventaireItem.style.display = 'block';
-    } else {
-        stockInventaireItem.style.display = 'none';
-    }
+    // Utiliser la nouvelle fonction
+    afficherOngletsSuivantDroits(userData);
 }
 
 // Fonction pour initialiser la page d'inventaire
@@ -1955,6 +1964,24 @@ async function initInventaire() {
             chargerStock(dateStr);
         }
     });
+
+    // Initialiser le datepicker pour la date source
+    const sourceDateInput = document.getElementById('source-date');
+    if (sourceDateInput) {
+        flatpickr(sourceDateInput, {
+            dateFormat: "d/m/Y",
+            defaultDate: "today"
+        });
+    }
+
+    // Initialiser le bouton de copie de stock
+    const copyStockBtn = document.getElementById('copy-stock');
+    if (copyStockBtn) {
+        console.log('Bouton copy-stock trouvé, ajout de l\'écouteur click');
+        copyStockBtn.addEventListener('click', copierStock);
+    } else {
+        console.error('Bouton copy-stock non trouvé');
+    }
 
     // Initialiser les écouteurs d'événements pour l'import CSV
     console.log('Initialisation des écouteurs d\'import CSV...');
@@ -2853,8 +2880,8 @@ async function chargerTransferts() {
             ajouterLigneTransfert();
         }
           
-        // Toujours ajouter un bouton pour créer une nouvelle ligne
-        const tfoot = document.querySelector('#transfertTable tfoot');
+        // Suppression du code qui ajoute un deuxième bouton dans le tfoot
+        /* const tfoot = document.querySelector('#transfertTable tfoot');
         if (tfoot) {
             tfoot.innerHTML = `
               <tr>
@@ -2870,7 +2897,7 @@ async function chargerTransferts() {
             document.getElementById('ajouterLigne').addEventListener('click', function() {
                 ajouterLigneTransfert();
             });
-        }
+        } */
 
         console.log('Transferts chargés avec succès');
     } catch (error) {
@@ -2907,15 +2934,49 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Vérifier si l'onglet Stock inventaire est actif
     const stockInventaireTab = document.getElementById('stock-inventaire-tab');
     const stockInventaireSection = document.getElementById('stock-inventaire-section');
+    const copierStockTab = document.getElementById('copier-stock-tab');
+    const copierStockSection = document.getElementById('copier-stock-section');
+    const copierStockItem = document.getElementById('copier-stock-item');
+    
+    // Forcer l'affichage de l'onglet Copier Stock pour tous les utilisateurs
+    if (copierStockItem) {
+        copierStockItem.style.display = 'none'; // Par défaut, masquer l'onglet
+    }
+    
+    // Vérifier si l'utilisateur a les droits pour voir l'onglet 'Copier Stock'
+    try {
+        const response = await fetch('/api/user-info', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const userData = await response.json();
+            if (userData.success && userData.user) {
+                // Liste des utilisateurs autorisés à voir l'onglet Copier Stock
+                const usersAutorisesCopiage = ['SALIOU', 'PAPI', 'NADOU', 'OUSMANE'];
+                if (usersAutorisesCopiage.includes(userData.user.username.toUpperCase())) {
+                    if (copierStockItem) {
+                        copierStockItem.style.display = 'block';
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification des droits utilisateur:', error);
+    }
     
     if (stockInventaireTab && stockInventaireTab.classList.contains('active')) {
         console.log('Onglet Stock inventaire actif au chargement, initialisation...');
         hideAllSections();
         stockInventaireSection.style.display = 'block';
         await initInventaire();
+    } else if (copierStockTab && copierStockTab.classList.contains('active')) {
+        console.log('Onglet Copier Stock actif au chargement, initialisation...');
+        hideAllSections();
+        copierStockSection.style.display = 'block';
+        initCopierStock();
     }
-
-    // ... code existant ...
 });
 
 // Fonction pour formater les données des ventes
@@ -2935,151 +2996,224 @@ function formaterDonneesVentes(ventes) {
 
 // Fonction pour charger les données de stock d'une date spécifique
 async function chargerStock(date) {
+    console.log('%c=== Chargement des données de stock pour la date ' + date + ' ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+    const typeStock = document.getElementById('type-stock').value;
     try {
-        console.log('%cChargement des données de stock pour la date:', 'color: #00aaff;', date);
+        console.log('%cRécupération des données depuis le serveur pour le type:', 'color: #00aaff;', typeStock);
+        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}?date=${date}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
         
-        // Charger les données pour les deux types de stock (matin et soir)
-        const [matinResponse, soirResponse] = await Promise.all([
-            fetch(`http://localhost:3000/api/stock/matin?date=${date}`, {
-                method: 'GET',
-                credentials: 'include'
-            }),
-            fetch(`http://localhost:3000/api/stock/soir?date=${date}`, {
-                method: 'GET',
-                credentials: 'include'
-            })
-        ]);
+        const donnees = await response.json();
+        console.log('%cDonnées récupérées:', 'color: #00ff00;', donnees);
 
-        const [matinData, soirData] = await Promise.all([
-            matinResponse.json(),
-            soirResponse.json()
-        ]);
+        // Vider le tableau AVANT de procéder à l'initialisation
+        const tbody = document.querySelector('#stock-table tbody');
+        tbody.innerHTML = '';
+        console.log('%cTableau vidé avant initialisation des nouvelles lignes', 'color: #ff0000;');
 
-        console.log('%cDonnées matin chargées pour date ' + date + ':', 'color: #00ff00;', matinData);
-        console.log('%cDonnées soir chargées pour date ' + date + ':', 'color: #00ff00;', soirData);
+        // Mise à jour de stockData
+        if (typeStock === 'matin') {
+            stockData.matin = new Map(Object.entries(donnees));
+        } else {
+            stockData.soir = new Map(Object.entries(donnees));
+        }
 
-        // Vérifier si les données reçues sont vides
-        const matinEmpty = !matinData || (Array.isArray(matinData) && matinData.length === 0) || Object.keys(matinData).length === 0;
-        const soirEmpty = !soirData || (Array.isArray(soirData) && soirData.length === 0) || Object.keys(soirData).length === 0;
+        // Déterminer si aucune donnée n'est disponible
+        const matinEmpty = !donnees || Object.keys(donnees).length === 0;
+        console.log('%cStock matin vide?', 'color: #ff9900;', matinEmpty);
+
+        if (matinEmpty) {
+            console.log('%cAucune donnée de stock disponible pour cette date, initialisation des valeurs par défaut', 'color: #ff9900;');
+            initTableauStock();
+        } else {
+            console.log('%cDonnées de stock disponibles, peuplement du tableau avec les valeurs existantes', 'color: #00ff00;');
+            onTypeStockChange();
+        }
+    } catch (error) {
+        console.error('%cErreur lors du chargement des données:', 'color: #ff0000; font-weight: bold;', error);
+        alert('Erreur lors du chargement des données du stock: ' + error.message);
+    }
+}
+
+// Fonction pour copier les données de stock d'une autre date
+async function copierStock() {
+    const sourceTypeStock = document.getElementById('source-type-stock').value;
+    const sourceDate = document.getElementById('source-date').value;
+    const targetTypeStock = document.getElementById('destination-type-stock').value;
+    const targetDate = document.getElementById('destination-date').value;
+
+    if (!sourceDate) {
+        alert('Veuillez sélectionner une date source.');
+        return;
+    }
+
+    if (!targetDate) {
+        alert('Veuillez sélectionner une date de destination.');
+        return;
+    }
+
+    if (sourceDate === targetDate && sourceTypeStock === targetTypeStock) {
+        alert('La source et la destination sont identiques. Veuillez sélectionner une date ou un type de stock différent.');
+        return;
+    }
+
+    console.log('%cCopie de stock demandée:', 'color: #00aaff; font-weight: bold;', {
+        sourceTypeStock,
+        sourceDate,
+        targetTypeStock,
+        targetDate
+    });
+
+    try {
+        // Charger les données sources
+        const response = await fetch(`http://localhost:3000/api/stock/${sourceTypeStock}?date=${sourceDate}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erreur lors de la récupération des données (${response.status}): ${response.statusText}`);
+        }
+
+        const sourceData = await response.json();
+        console.log('%cDonnées sources chargées:', 'color: #00ff00;', sourceData);
+
+        if (!sourceData || (Array.isArray(sourceData) && sourceData.length === 0) || Object.keys(sourceData).length === 0) {
+            alert(`Aucune donnée de stock ${sourceTypeStock} n'a été trouvée pour la date ${sourceDate}`);
+            return;
+        }
+
+        // Demander confirmation
+        if (!confirm(`Voulez-vous copier les données du stock ${sourceTypeStock} du ${sourceDate} vers le stock ${targetTypeStock} du ${targetDate}? Cette action remplacera les données existantes.`)) {
+            return;
+        }
+
+        // Créer une structure pour stocker les données à envoyer
+        let dataToSave = {};
         
-        console.log('%cDonnées vides? Matin:', 'color: #ff9900;', matinEmpty, 'Soir:', soirEmpty);
-
-        // Convertir les données en Map pour un accès plus facile
-        stockData.matin = new Map();
-        stockData.soir = new Map();
-
-        // Initialiser avec des valeurs par défaut si les données sont vides
-        if (matinEmpty || soirEmpty) {
-            console.log('%cInitialisation des données de stock par défaut (à zéro)', 'color: #ff9900;');
-            
-            // Pour chaque combinaison de point de vente et produit, créer une entrée avec des valeurs à zéro
-            POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
-                PRODUITS.forEach(produit => {
-                    const key = `${pointVente}-${produit}`;
-                    
-                    if (matinEmpty) {
-                        stockData.matin.set(key, {
-                            date: date,
-                            typeStock: 'matin',
-                            "Point de Vente": pointVente,
-                            Produit: produit,
-                            Nombre: '0',
-                            PU: PRIX_DEFAUT[produit] || '0',
-                            Montant: '0',
-                            Commentaire: ''
-                        });
-                    }
-                    
-                    if (soirEmpty) {
-                        stockData.soir.set(key, {
-                            date: date,
-                            typeStock: 'soir',
-                            "Point de Vente": pointVente,
-                            Produit: produit,
-                            Nombre: '0',
-                            PU: PRIX_DEFAUT[produit] || '0',
-                            Montant: '0',
-                            Commentaire: ''
-                        });
-                    }
-                });
+        if (Array.isArray(sourceData)) {
+            sourceData.forEach(item => {
+                const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
+                dataToSave[key] = {
+                    ...item,
+                    date: targetDate,
+                    typeStock: targetTypeStock
+                };
+            });
+        } else {
+            Object.entries(sourceData).forEach(([key, value]) => {
+                dataToSave[key] = {
+                    ...value,
+                    date: targetDate,
+                    typeStock: targetTypeStock
+                };
             });
         }
 
-        // Traiter les données du matin si elles ne sont pas vides
-        if (!matinEmpty) {
-            if (Array.isArray(matinData)) {
-                matinData.forEach(item => {
-                    const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
-                    stockData.matin.set(key, item);
-                });
-            } else {
-                Object.entries(matinData || {}).forEach(([key, value]) => {
-                    stockData.matin.set(key, value);
-                });
-            }
-        }
-
-        // Traiter les données du soir si elles ne sont pas vides
-        if (!soirEmpty) {
-            if (Array.isArray(soirData)) {
-                soirData.forEach(item => {
-                    const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
-                    stockData.soir.set(key, item);
-                });
-            } else {
-                Object.entries(soirData || {}).forEach(([key, value]) => {
-                    stockData.soir.set(key, value);
-                });
-            }
-        }
-
-        console.log('%cDonnées stockées dans stockData pour date ' + date + ':', 'color: #00ff00;', {
-            matin: Array.from(stockData.matin.entries()),
-            soir: Array.from(stockData.soir.entries())
+        // Sauvegarder directement les données
+        const saveResponse = await fetch(`http://localhost:3000/api/stock/${targetTypeStock}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(dataToSave)
         });
+
+        if (!saveResponse.ok) {
+            throw new Error(`Erreur lors de la sauvegarde des données (${saveResponse.status}): ${saveResponse.statusText}`);
+        }
+
+        const result = await saveResponse.json();
         
-        // Mettre à jour l'affichage selon le type de stock actuellement sélectionné
-        const typeStock = document.getElementById('type-stock').value;
-        onTypeStockChange();
+        if (result.success) {
+            console.log('%cDonnées copiées et sauvegardées avec succès', 'color: #00ff00; font-weight: bold;');
+            alert(`Les données du stock ${sourceTypeStock} du ${sourceDate} ont été copiées avec succès vers le stock ${targetTypeStock} du ${targetDate}.`);
+        } else {
+            throw new Error(result.error || 'Erreur lors de la sauvegarde');
+        }
         
     } catch (error) {
-        console.error('%cErreur lors du chargement des données de stock:', 'color: #ff0000;', error);
-        
-        // En cas d'erreur, initialiser quand même avec des valeurs par défaut
-        stockData.matin = new Map();
-        stockData.soir = new Map();
-        
-        // Pour chaque combinaison de point de vente et produit, créer une entrée avec des valeurs à zéro
-        POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
-            PRODUITS.forEach(produit => {
-                const key = `${pointVente}-${produit}`;
-                
-                stockData.matin.set(key, {
-                    date: date,
-                    typeStock: 'matin',
-                    "Point de Vente": pointVente,
-                    Produit: produit,
-                    Nombre: '0',
-                    PU: PRIX_DEFAUT[produit] || '0',
-                    Montant: '0',
-                    Commentaire: ''
-                });
-                
-                stockData.soir.set(key, {
-                    date: date,
-                    typeStock: 'soir',
-                    "Point de Vente": pointVente,
-                    Produit: produit,
-                    Nombre: '0',
-                    PU: PRIX_DEFAUT[produit] || '0',
-                    Montant: '0',
-                    Commentaire: ''
-                });
-            });
+        console.error('%cErreur lors de la copie des données:', 'color: #ff0000; font-weight: bold;', error);
+        alert(`Erreur lors de la copie des données: ${error.message}`);
+    }
+}
+
+// ... existing code ...
+
+// Dans l'événement DOMContentLoaded, après les autres initialisations
+document.addEventListener('DOMContentLoaded', function() {
+    // ... existing code ...
+    
+    // Initialiser le bouton de copie de stock
+    document.getElementById('copy-stock').addEventListener('click', copierStock);
+    
+    // Initialiser le datepicker pour la date source
+    if (document.getElementById('source-date')) {
+        flatpickr('#source-date', {
+            dateFormat: 'd/m/Y',
+            locale: 'fr',
+            defaultDate: new Date()
         });
-        
-        // Mettre à jour l'affichage
-        onTypeStockChange();
+    }
+    
+    // ... existing code ...
+});
+
+// ... existing code ...
+
+// Fonction pour initialiser la page de copie de stock
+function initCopierStock() {
+    console.log('%c=== Initialisation de la page copier stock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+    
+    // Initialiser les datepickers
+    flatpickr('#source-date', {
+        dateFormat: "d/m/Y",
+        defaultDate: "today",
+        locale: 'fr'
+    });
+    
+    flatpickr('#destination-date', {
+        dateFormat: "d/m/Y",
+        defaultDate: "today",
+        locale: 'fr'
+    });
+    
+    // Initialiser le bouton de copie
+    const copyStockBtn = document.getElementById('copy-stock');
+    if (copyStockBtn) {
+        console.log('Bouton copy-stock trouvé, ajout de l\'écouteur click');
+        copyStockBtn.addEventListener('click', copierStock);
+    } else {
+        console.error('Bouton copy-stock non trouvé');
+    }
+    
+    console.log('%c=== Initialisation de la page copier stock terminée ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+}
+
+// Fonction pour afficher les onglets en fonction des droits utilisateur
+function afficherOngletsSuivantDroits(userData) {
+    document.getElementById('user-info').textContent = `Connecté en tant que ${userData.username}`;
+    document.getElementById('login-section').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+    
+    // Afficher l'onglet Stock inventaire uniquement pour les utilisateurs avec accès à tous les points de vente
+    const stockInventaireItem = document.getElementById('stock-inventaire-item');
+    const copierStockItem = document.getElementById('copier-stock-item');
+    
+    if (userData.pointVente === 'tous') {
+        stockInventaireItem.style.display = 'block';
+    } else {
+        stockInventaireItem.style.display = 'none';
+    }
+    
+    // Afficher l'onglet Copier Stock uniquement pour les utilisateurs autorisés
+    const usersAutorisesCopiage = ['SALIOU', 'PAPI', 'NADOU', 'OUSMANE'];
+    if (usersAutorisesCopiage.includes(userData.username.toUpperCase())) {
+        copierStockItem.style.display = 'block';
+    } else {
+        copierStockItem.style.display = 'none';
     }
 }

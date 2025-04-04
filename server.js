@@ -828,13 +828,8 @@ app.get('/api/stock/:type', async (req, res) => {
         
         // Vérifier si le fichier existe
         if (!fs.existsSync(filePath)) {
-            // Si le fichier spécifique à la date n'existe pas, vérifier le fichier par défaut
-            if (date && fs.existsSync(baseFilePath)) {
-                // Retourner les données du fichier par défaut comme fallback
-                const defaultData = await fsPromises.readFile(baseFilePath, 'utf8');
-                return res.json(JSON.parse(defaultData));
-            }
-            // Si aucun fichier n'existe, retourner un objet vide
+            // Si le fichier n'existe pas, retourner un objet vide
+            console.log(`Fichier de stock ${type} pour la date ${date} non trouvé, retour d'un objet vide`);
             return res.json({});
         }
         

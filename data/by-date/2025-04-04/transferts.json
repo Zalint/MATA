@@ -18,15 +18,5 @@
     "prixUnitaire": 3500,
     "total": 175000,
     "commentaire": ""
-  },
-  {
-    "date": "04/04/2025",
-    "pointVente": "Mbao",
-    "produit": "Yell",
-    "impact": 1,
-    "quantite": 60,
-    "prixUnitaire": 2500,
-    "total": 150000,
-    "commentaire": ""
   }
 ]

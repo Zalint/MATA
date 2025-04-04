@@ -1,16 +1,16 @@
 {
   "Keur Massar-Boeuf": {
-    "date": "04/04/2025",
+    "date": "03/04/2025",
     "typeStock": "matin",
     "Point de Vente": "Keur Massar",
     "Produit": "Boeuf",
-    "Nombre": "22",
+    "Nombre": "10",
     "PU": "3600",
-    "Montant": "79200",
+    "Montant": "36000",
     "Commentaire": ""
   },
   "Keur Massar-Veau": {
-    "date": "04/04/2025",
+    "date": "03/04/2025",
     "typeStock": "matin",
     "Point de Vente": "Keur Massar",
     "Produit": "Veau",
@@ -20,7 +20,7 @@
     "Commentaire": ""
   },
   "Keur Massar-Poulet": {
-    "date": "04/04/2025",
+    "date": "03/04/2025",
     "typeStock": "matin",
     "Point de Vente": "Keur Massar",
     "Produit": "Poulet",
