@@ -123,6 +123,35 @@ function getPathByDate(baseFile, date) {
     return path.join(dateDir, fileName);
 }
 
+// Fonction pour standardiser une date au format dd-mm-yyyy
+function standardiserDateFormat(dateStr) {
+    if (!dateStr) return '';
+    
+    let jour, mois, annee;
+    
+    if (dateStr.includes('/')) {
+        // Format DD/MM/YYYY ou DD/MM/YY
+        [jour, mois, annee] = dateStr.split('/');
+    } else if (dateStr.includes('-')) {
+        // Format DD-MM-YYYY ou DD-MM-YY
+        [jour, mois, annee] = dateStr.split('-');
+    } else {
+        return dateStr; // Format non reconnu, retourner tel quel
+    }
+    
+    // S'assurer que jour et mois ont 2 chiffres
+    jour = jour.padStart(2, '0');
+    mois = mois.padStart(2, '0');
+    
+    // Convertir l'année à 4 chiffres si elle est à 2 chiffres
+    if (annee.length === 2) {
+        annee = '20' + annee;
+    }
+    
+    // Retourner la date au format standardisé DD-MM-YYYY
+    return `${jour}-${mois}-${annee}`;
+}
+
 // Route pour la connexion
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
@@ -283,10 +312,13 @@ app.post('/api/ventes', checkAuth, (req, res) => {
     let csvContent = '';
     entries.forEach(entry => {
         lastId++; // Incrémenter l'ID pour chaque nouvelle entrée
+        // Standardiser la date au format dd-mm-yyyy
+        const dateStandardisee = standardiserDateFormat(entry.date);
+        
         const ligne = [
             lastId,
             entry.mois,
-            entry.date,
+            dateStandardisee, // Utiliser la date standardisée
             entry.semaine,
             entry.pointVente,
             entry.preparation || entry.pointVente,
@@ -316,7 +348,7 @@ app.post('/api/ventes', checkAuth, (req, res) => {
             const normalizedRow = {
                 id: row.ID,
                 Mois: row.Mois,
-                Date: row.Date,
+                Date: row.Date, // Laisser la date telle quelle, elle est déjà standardisée
                 Semaine: row.Semaine,
                 'Point de Vente': row['Point de Vente'],
                 Preparation: row.Preparation || row['Point de Vente'],
@@ -384,11 +416,14 @@ app.put('/api/ventes/:id', checkAuth, async (req, res) => {
             });
         }
 
+        // Standardiser la date au format dd-mm-yyyy
+        const dateStandardisee = standardiserDateFormat(updatedVente.date);
+
         // Mettre à jour la vente
         ventes[venteIndex] = {
             ID: venteId,
             Mois: updatedVente.mois,
-            Date: updatedVente.date,
+            Date: dateStandardisee, // Utiliser la date standardisée
             Semaine: updatedVente.semaine,
             'Point de Vente': updatedVente.pointVente,
             Preparation: updatedVente.preparation || updatedVente.pointVente,
@@ -466,10 +501,13 @@ app.get('/api/ventes', checkAuth, (req, res) => {
                 relaxColumnCount: true
             }))
             .on('data', (row) => {
+                // Standardiser la date au format dd-mm-yyyy
+                const dateStandardisee = standardiserDateFormat(row.Date);
+                
                 // Normaliser les données
                 const normalizedRow = {
                     Mois: row.Mois,
-                    Date: row.Date,
+                    Date: dateStandardisee, // Utiliser la date standardisée
                     Semaine: row.Semaine,
                     'Point de Vente': row['Point de Vente'],
                     Preparation: row.Preparation || row['Point de Vente'],
@@ -610,7 +648,6 @@ app.get('/api/ventes', checkAuth, (req, res) => {
 // Route pour récupérer les dernières ventes
 app.get('/api/dernieres-ventes', checkAuth, (req, res) => {
     const results = [];
-    let lineCount = 0;
     
     fs.createReadStream(csvFilePath)
         .pipe(parse({ 
@@ -620,12 +657,14 @@ app.get('/api/dernieres-ventes', checkAuth, (req, res) => {
             relaxColumnCount: true // Permet des différences dans le nombre de colonnes
         }))
         .on('data', (row) => {
-            lineCount++;
+            // Standardiser la date au format dd-mm-yyyy
+            const dateStandardisee = standardiserDateFormat(row.Date);
+            
             // Normaliser les données
             const normalizedRow = {
-                id: lineCount, // Ajouter l'ID basé sur le numéro de ligne
+                id: row.ID, // Utiliser row.ID au lieu de lineCount
                 Mois: row.Mois,
-                Date: row.Date,
+                Date: dateStandardisee, // Utiliser la date standardisée
                 Semaine: row.Semaine,
                 'Point de Vente': row['Point de Vente'],
                 Preparation: row.Preparation || row['Point de Vente'], // Utiliser Point de Vente si Preparation n'existe pas
@@ -638,9 +677,8 @@ app.get('/api/dernieres-ventes', checkAuth, (req, res) => {
             results.push(normalizedRow);
         })
         .on('end', () => {
-            // Retourner les 10 dernières entrées
-            const dernieresVentes = results.slice(-10);
-            res.json({ success: true, dernieresVentes });
+            // Retourner toutes les ventes
+            res.json({ success: true, dernieresVentes: results });
         })
         .on('error', (error) => {
             console.error('Erreur lors de la lecture du CSV:', error);
@@ -1142,6 +1180,91 @@ app.delete('/api/ventes/:id', checkAuth, async (req, res) => {
         res.status(500).json({ 
             success: false, 
             message: "Erreur lors de la suppression de la vente: " + error.message 
+        });
+    }
+});
+
+// Route pour récupérer les ventes d'une date spécifique pour un point de vente
+app.get('/api/ventes-date', checkAuth, (req, res) => {
+    try {
+        const { date, pointVente } = req.query;
+        
+        if (!date) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'La date est requise' 
+            });
+        }
+        
+        console.log('Recherche des ventes pour date:', date, 'et point de vente:', pointVente);
+        
+        const dateStandardisee = standardiserDateFormat(date);
+        console.log('Date standardisée:', dateStandardisee);
+        
+        // Lire le fichier CSV
+        const results = [];
+        fs.createReadStream(csvFilePath)
+            .pipe(parse({ 
+                delimiter: ';', 
+                columns: true, 
+                skip_empty_lines: true,
+                relaxColumnCount: true
+            }))
+            .on('data', (row) => {
+                const rowDate = standardiserDateFormat(row.Date);
+                const rowPointVente = row['Point de Vente'];
+                
+                // Filtrer par date et point de vente si spécifié
+                if (rowDate === dateStandardisee && 
+                    (!pointVente || rowPointVente === pointVente)) {
+                    
+                    // Calculer le montant si nécessaire
+                    let montant = parseFloat(row.Montant || row.Total || 0);
+                    
+                    results.push({
+                        id: row.ID,
+                        Date: rowDate,
+                        'Point de Vente': rowPointVente,
+                        Catégorie: row.Catégorie,
+                        Produit: row.Produit,
+                        PU: parseFloat(row.PU || 0),
+                        Nombre: parseFloat(row.Nombre || 0),
+                        Montant: montant
+                    });
+                }
+            })
+            .on('end', () => {
+                // Calculer le total par point de vente
+                const totauxParPointVente = {};
+                
+                results.forEach(vente => {
+                    const pv = vente['Point de Vente'];
+                    if (!totauxParPointVente[pv]) {
+                        totauxParPointVente[pv] = 0;
+                    }
+                    totauxParPointVente[pv] += vente.Montant;
+                });
+                
+                console.log('Totaux des ventes par point de vente:', totauxParPointVente);
+                
+                res.json({ 
+                    success: true, 
+                    ventes: results,
+                    totaux: totauxParPointVente
+                });
+            })
+            .on('error', (error) => {
+                console.error('Erreur lors de la lecture du CSV:', error);
+                res.status(500).json({ 
+                    success: false, 
+                    message: 'Erreur lors de la lecture des ventes' 
+                });
+            });
+    } catch (error) {
+        console.error('Erreur lors de la recherche des ventes:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la recherche des ventes' 
         });
     }
 });

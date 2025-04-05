@@ -1,0 +1,30 @@
+Here's a summary of the test files we've created:
+utils.test.js - Tests for utility functions like:
+calculTotal - Calculation of totals based on quantity and price
+formatDate - Date formatting functions
+parseDate - Date parsing functions
+validateTransfert - Transfer validation
+dom.test.js - Tests for DOM manipulations:
+Adding stock rows to tables
+Adding transfer rows
+Modifying element values
+Event handling
+Dropdown population
+api.test.js - Tests for API interactions:
+Loading stock data
+Saving stock data
+Loading transfers
+Saving transfers
+Deleting transfers
+Error handling
+validation.test.js - Tests for data validation functions:
+Stock validation
+Transfer validation
+Date validation
+HTML escaping
+integration.test.js - Tests for complete workflows:
+Stock management full cycle
+Transfer creation and application
+Complex operations between components
+Edge cases handling
+These tests cover all major aspects of your application and will help ensure its robustness. You can run them locally using Jest without interfering with your Git operations. Since they're in a separate directory, they won't be part of your Git commits unless you specifically add them.

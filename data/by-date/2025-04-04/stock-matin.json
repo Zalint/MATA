@@ -1,32 +1,72 @@
 {
-  "Keur Massar-Boeuf": {
+  "Mbao-Yell": {
     "date": "04/04/2025",
     "typeStock": "matin",
-    "Point de Vente": "Keur Massar",
-    "Produit": "Boeuf",
-    "Nombre": "22",
-    "PU": "3600",
-    "Montant": "79200",
+    "Point de Vente": "Mbao",
+    "Produit": "Yell",
+    "Nombre": "13",
+    "PU": "2000",
+    "Montant": "26000",
     "Commentaire": ""
   },
-  "Keur Massar-Veau": {
+  "Mbao-Agneau": {
     "date": "04/04/2025",
     "typeStock": "matin",
-    "Point de Vente": "Keur Massar",
-    "Produit": "Veau",
+    "Point de Vente": "Mbao",
+    "Produit": "Agneau",
     "Nombre": "10",
-    "PU": "3800",
-    "Montant": "38000",
+    "PU": "4500",
+    "Montant": "45000",
     "Commentaire": ""
   },
-  "Keur Massar-Poulet": {
+  "O.Foire-Tablette": {
     "date": "04/04/2025",
     "typeStock": "matin",
-    "Point de Vente": "Keur Massar",
+    "Point de Vente": "O.Foire",
+    "Produit": "Tablette",
+    "Nombre": "14",
+    "PU": "2800",
+    "Montant": "39200",
+    "Commentaire": ""
+  },
+  "O.Foire-Yell": {
+    "date": "04/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Yell",
+    "Nombre": "15",
+    "PU": "2500",
+    "Montant": "37500",
+    "Commentaire": ""
+  },
+  "Linguere-Poulet": {
+    "date": "04/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Linguere",
     "Produit": "Poulet",
-    "Nombre": "100",
+    "Nombre": "35",
     "PU": "3500",
-    "Montant": "350000",
+    "Montant": "122500",
+    "Commentaire": ""
+  },
+  "Dahra-Poulet": {
+    "date": "04/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Dahra",
+    "Produit": "Poulet",
+    "Nombre": "11",
+    "PU": "3500",
+    "Montant": "38500",
+    "Commentaire": ""
+  },
+  "Dahra-Tablette": {
+    "date": "04/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Dahra",
+    "Produit": "Tablette",
+    "Nombre": "55",
+    "PU": "2800",
+    "Montant": "154000",
     "Commentaire": ""
   }
 }

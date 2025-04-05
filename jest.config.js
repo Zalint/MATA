@@ -4,6 +4,9 @@ module.exports = {
     moduleNameMapper: {
         '\\.(css|less|scss|sass)$': '<rootDir>/tests/styleMock.js'
     },
-    testMatch: ['**/tests/**/*.test.js'],
+    testMatch: [
+        '**/tests/**/*.test.js',
+        '**/local_tests/**/*.test.js'
+    ],
     verbose: true
 }; 

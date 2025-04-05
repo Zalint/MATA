@@ -6,7 +6,8 @@
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
-    "pretest": "jest",
+    "test:local": "jest local_tests",
+    "pretest": "jest tests local_tests",
     "start": "npm run pretest && node server.js",
     "dev": "npm run pretest && nodemon server.js"
   },

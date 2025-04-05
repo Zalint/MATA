@@ -21,22 +21,112 @@
   },
   {
     "date": "04/04/2025",
-    "pointVente": "Mbao",
+    "pointVente": "O.Foire",
     "produit": "Veau",
     "impact": 1,
-    "quantite": 10,
+    "quantite": 121,
     "prixUnitaire": 3800,
-    "total": 38000,
+    "total": 459800,
+    "commentaire": ""
+  },
+  {
+    "date": "04/04/2025",
+    "pointVente": "O.Foire",
+    "produit": "Foie",
+    "impact": 1,
+    "quantite": 5,
+    "prixUnitaire": 4000,
+    "total": 20000,
+    "commentaire": ""
+  },
+  {
+    "date": "04/04/2025",
+    "pointVente": "O.Foire",
+    "produit": "Yell",
+    "impact": 1,
+    "quantite": 12,
+    "prixUnitaire": 2500,
+    "total": 30000,
+    "commentaire": ""
+  },
+  {
+    "date": "04/04/2025",
+    "pointVente": "O.Foire",
+    "produit": "Agneau",
+    "impact": 1,
+    "quantite": 23,
+    "prixUnitaire": 4500,
+    "total": 103500,
+    "commentaire": ""
+  },
+  {
+    "date": "04/04/2025",
+    "pointVente": "O.Foire",
+    "produit": "Veau",
+    "impact": 1,
+    "quantite": 20.8,
+    "prixUnitaire": 3800,
+    "total": 79040,
     "commentaire": ""
   },
   {
     "date": "04/04/2025",
     "pointVente": "Mbao",
-    "produit": "Poulet",
+    "produit": "Boeuf",
     "impact": 1,
-    "quantite": 50,
-    "prixUnitaire": 3500,
-    "total": 175000,
+    "quantite": 118,
+    "prixUnitaire": 3600,
+    "total": 424800,
+    "commentaire": ""
+  },
+  {
+    "date": "04/04/2025",
+    "pointVente": "Mbao",
+    "produit": "Veau",
+    "impact": 1,
+    "quantite": 55,
+    "prixUnitaire": 3800,
+    "total": 209000,
+    "commentaire": ""
+  },
+  {
+    "date": "04/04/2025",
+    "pointVente": "Mbao",
+    "produit": "Foie",
+    "impact": 1,
+    "quantite": 5,
+    "prixUnitaire": 4000,
+    "total": 20000,
+    "commentaire": ""
+  },
+  {
+    "date": "04/04/2025",
+    "pointVente": "Mbao",
+    "produit": "Veau",
+    "impact": -1,
+    "quantite": 20.8,
+    "prixUnitaire": 3800,
+    "total": -79040,
+    "commentaire": ""
+  },
+  {
+    "date": "04/04/2025",
+    "pointVente": "Abattage",
+    "produit": "Veau",
+    "impact": -1,
+    "quantite": 121,
+    "prixUnitaire": 3800,
+    "total": -459800,
+    "commentaire": ""
+  },
+  {
+    "date": "04/04/2025",
+    "pointVente": "Abattage",
+    "produit": "Agneau",
+    "impact": -1,
+    "quantite": 23,
+    "prixUnitaire": 4500,
+    "total": -103500,
     "commentaire": ""
   }
 ]
