@@ -10,6 +10,10 @@ const pointsVente = require('./points-vente');
 const produits = require('./produits');
 const bcrypt = require('bcrypt');
 const fsPromises = require('fs').promises;
+const { Vente, Stock, Transfert } = require('./db/models');
+const { testConnection, sequelize } = require('./db');
+const { Op } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -197,18 +201,48 @@ app.get('/api/check-session', (req, res) => {
     console.log('Session actuelle:', req.session);
     
     if (req.session.user) {
-        console.log('Utilisateur authentifié:', req.session.user);
-        res.json({ 
-            success: true, 
-            user: req.session.user
+        res.json({
+            success: true,
+            user: {
+                username: req.session.user.username,
+                role: req.session.user.role,
+                pointVente: req.session.user.pointVente
+            }
         });
     } else {
-        console.log('Aucun utilisateur authentifié');
-        res.status(401).json({ 
+        res.json({ success: false });
+    }
+});
+
+// Route pour vérifier la connexion à la base de données
+app.get('/api/check-db-connection', async (req, res) => {
+    try {
+        console.log('Vérification de la connexion à la base de données...');
+        const connected = await testConnection();
+        if (connected) {
+            res.json({ 
+                success: true, 
+                message: 'Connexion à la base de données PostgreSQL établie avec succès' 
+            });
+        } else {
+            res.status(500).json({ 
+                success: false, 
+                message: 'Échec de la connexion à la base de données PostgreSQL' 
+            });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification de la connexion:', error);
+        res.status(500).json({ 
             success: false, 
-            message: 'Non authentifié' 
+            message: 'Erreur lors de la vérification de la connexion à la base de données',
+            error: error.message
         });
     }
+});
+
+// Route pour vérifier la santé de l'application
+app.get('/api/check-health', (req, res) => {
+    res.json({ success: true, message: 'Application en cours d\'exécution' });
 });
 
 // Routes pour l'administration
@@ -283,94 +317,100 @@ app.get('/api/admin/produits', checkAuth, checkAdmin, (req, res) => {
 });
 
 // Route pour ajouter des ventes
-app.post('/api/ventes', checkAuth, (req, res) => {
+app.post('/api/ventes', checkAuth, async (req, res) => {
     const entries = req.body;
     
+    console.log('Tentative d\'ajout de ventes:', JSON.stringify(entries));
+    
     // Vérifier si le point de vente est actif
-    entries.forEach(entry => {
+    for (const entry of entries) {
         if (!pointsVente[entry.pointVente]?.active) {
             return res.status(400).json({ 
                 success: false, 
                 message: `Le point de vente ${entry.pointVente} est désactivé` 
             });
         }
-    });
-    
-    // Lire le fichier existant pour obtenir le dernier ID
-    let lastId = 0;
-    if (fs.existsSync(csvFilePath)) {
-        const fileContent = fs.readFileSync(csvFilePath, 'utf-8');
-        const lines = fileContent.split('\n').filter(line => line.trim());
-        if (lines.length > 1) { // Si le fichier contient des données
-            const lastLine = lines[lines.length - 1];
-            const lastIdStr = lastLine.split(';')[0];
-            lastId = parseInt(lastIdStr) || 0;
+        
+        // Vérifier si le produit existe dans la catégorie
+        if (entry.categorie && entry.produit) {
+            const categorieExists = produits[entry.categorie];
+            if (!categorieExists) {
+                return res.status(400).json({
+                    success: false,
+                    message: `La catégorie "${entry.categorie}" n'existe pas`
+                });
+            }
+            
+            const produitExists = produits[entry.categorie][entry.produit] !== undefined;
+            if (!produitExists) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Le produit "${entry.produit}" n'existe pas dans la catégorie "${entry.categorie}"`
+                });
+            }
         }
     }
     
-    // Créer le contenu CSV
-    let csvContent = '';
-    entries.forEach(entry => {
-        lastId++; // Incrémenter l'ID pour chaque nouvelle entrée
-        // Standardiser la date au format dd-mm-yyyy
-        const dateStandardisee = standardiserDateFormat(entry.date);
-        
-        const ligne = [
-            lastId,
-            entry.mois,
-            dateStandardisee, // Utiliser la date standardisée
-            entry.semaine,
-            entry.pointVente,
-            entry.preparation || entry.pointVente,
-            entry.categorie,
-            entry.produit,
-            entry.prixUnit,
-            entry.quantite,
-            entry.total
-        ];
-        // S'assurer qu'il y a une nouvelle ligne avant et après chaque entrée
-        csvContent += (csvContent ? '\n' : '') + ligne.join(';');
-    });
-    
-    // Ajouter les nouvelles entrées au fichier CSV avec une nouvelle ligne à la fin
-    fs.appendFileSync(csvFilePath, '\n' + csvContent + '\n');
-    
-    // Retourner les dernières ventes
-    const results = [];
-    fs.createReadStream(csvFilePath)
-        .pipe(parse({ 
-            delimiter: ';', 
-            columns: true, 
-            skip_empty_lines: true,
-            relaxColumnCount: true
-        }))
-        .on('data', (row) => {
-            const normalizedRow = {
-                id: row.ID,
-                Mois: row.Mois,
-                Date: row.Date, // Laisser la date telle quelle, elle est déjà standardisée
-                Semaine: row.Semaine,
-                'Point de Vente': row['Point de Vente'],
-                Preparation: row.Preparation || row['Point de Vente'],
-                Catégorie: row.Catégorie,
-                Produit: row.Produit,
-                PU: row.PU,
-                Nombre: row.Nombre || '0',
-                Montant: row.Montant || row.Total || '0'
+    try {
+        // Préparer les données pour l'insertion
+        const ventesToInsert = entries.map(entry => {
+            // Standardiser la date au format dd-mm-yyyy
+            const dateStandardisee = standardiserDateFormat(entry.date);
+            
+            // Convertir les valeurs numériques en nombre avec une précision fixe
+            const nombre = parseFloat(parseFloat(entry.quantite).toFixed(2)) || 0;
+            const prixUnit = parseFloat(parseFloat(entry.prixUnit).toFixed(2)) || 0;
+            const montant = parseFloat(parseFloat(entry.total).toFixed(2)) || 0;
+            
+            return {
+                mois: entry.mois,
+                date: dateStandardisee,
+                semaine: entry.semaine,
+                pointVente: entry.pointVente,
+                preparation: entry.preparation || entry.pointVente,
+                categorie: entry.categorie,
+                produit: entry.produit,
+                prixUnit: prixUnit,
+                nombre: nombre,
+                montant: montant
             };
-            results.push(normalizedRow);
-        })
-        .on('end', () => {
-            const dernieresVentes = results.slice(-10);
-            res.json({ success: true, dernieresVentes });
-        })
-        .on('error', (error) => {
-            console.error('Erreur lors de la lecture du CSV:', error);
-            res.status(500).json({ 
-                success: false, 
-                message: 'Erreur lors de la lecture des ventes' 
-            });
         });
+        
+        console.log('Données préparées pour insertion:', JSON.stringify(ventesToInsert));
+        
+        // Insérer les ventes dans la base de données
+        await Vente.bulkCreate(ventesToInsert);
+        
+        // Récupérer les 10 dernières ventes pour l'affichage
+        const dernieresVentes = await Vente.findAll({
+            order: [['createdAt', 'DESC']],
+            limit: 10
+        });
+        
+        // Formater les données pour la réponse
+        const formattedVentes = dernieresVentes.map(vente => ({
+            id: vente.id,
+            Mois: vente.mois,
+            Date: vente.date,
+            Semaine: vente.semaine,
+            'Point de Vente': vente.pointVente,
+            Preparation: vente.preparation,
+            Catégorie: vente.categorie,
+            Produit: vente.produit,
+            PU: vente.prixUnit,
+            Nombre: vente.nombre,
+            Montant: vente.montant
+        }));
+        
+        res.json({ success: true, dernieresVentes: formattedVentes });
+    } catch (error) {
+        console.error('Erreur lors de l\'ajout des ventes:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de l\'ajout des ventes',
+            error: error.message
+        });
+    }
 });
 
 // Route pour mettre à jour une vente
@@ -387,306 +427,223 @@ app.put('/api/ventes/:id', checkAuth, async (req, res) => {
             });
         }
 
-        // Lire tout le fichier CSV
-        const ventes = [];
-        let venteIndex = -1;
-
-        await new Promise((resolve, reject) => {
-            fs.createReadStream(csvFilePath)
-                .pipe(parse({ 
-                    delimiter: ';', 
-                    columns: true, 
-                    skip_empty_lines: true,
-                    relaxColumnCount: true
-                }))
-                .on('data', (row) => {
-                    if (row.ID === venteId) {
-                        venteIndex = ventes.length;
-                    }
-                    ventes.push(row);
-                })
-                .on('end', resolve)
-                .on('error', reject);
-        });
-
-        if (venteIndex === -1) {
+        // Standardiser la date au format dd-mm-yyyy
+        const dateStandardisee = standardiserDateFormat(updatedVente.date);
+        
+        // Rechercher la vente à mettre à jour
+        const vente = await Vente.findByPk(venteId);
+        
+        if (!vente) {
             return res.status(404).json({ 
                 success: false, 
                 message: 'Vente non trouvée' 
             });
         }
-
-        // Standardiser la date au format dd-mm-yyyy
-        const dateStandardisee = standardiserDateFormat(updatedVente.date);
-
+        
         // Mettre à jour la vente
-        ventes[venteIndex] = {
-            ID: venteId,
-            Mois: updatedVente.mois,
-            Date: dateStandardisee, // Utiliser la date standardisée
-            Semaine: updatedVente.semaine,
-            'Point de Vente': updatedVente.pointVente,
-            Preparation: updatedVente.preparation || updatedVente.pointVente,
-            Catégorie: updatedVente.categorie,
-            Produit: updatedVente.produit,
-            PU: updatedVente.prixUnit,
-            Nombre: updatedVente.quantite,
-            Montant: updatedVente.total
-        };
-
-        // Réécrire le fichier CSV avec les en-têtes
-        const headers = 'ID;Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant';
-        const csvContent = headers + '\n' + ventes.map(vente => {
-            return [
-                vente.ID,
-                vente.Mois,
-                vente.Date,
-                vente.Semaine,
-                vente['Point de Vente'],
-                vente.Preparation,
-                vente.Catégorie,
-                vente.Produit,
-                vente.PU,
-                vente.Nombre,
-                vente.Montant
-            ].join(';');
-        }).join('\n') + '\n';
-
-        fs.writeFileSync(csvFilePath, csvContent);
-
-        // Retourner les 10 dernières ventes pour mise à jour de l'affichage
-        const dernieresVentes = ventes.slice(-10).map(vente => ({
-            id: vente.ID,
-            Mois: vente.Mois,
-            Date: vente.Date,
-            Semaine: vente.Semaine,
-            'Point de Vente': vente['Point de Vente'],
-            Preparation: vente.Preparation,
-            Catégorie: vente.Catégorie,
-            Produit: vente.Produit,
-            PU: vente.PU,
-            Nombre: vente.Nombre,
-            Montant: vente.Montant
+        await vente.update({
+            mois: updatedVente.mois,
+            date: dateStandardisee,
+            semaine: updatedVente.semaine,
+            pointVente: updatedVente.pointVente,
+            preparation: updatedVente.preparation || updatedVente.pointVente,
+            categorie: updatedVente.categorie,
+            produit: updatedVente.produit,
+            prixUnit: updatedVente.prixUnit,
+            nombre: updatedVente.quantite,
+            montant: updatedVente.total
+        });
+        
+        // Récupérer les 10 dernières ventes pour mise à jour de l'affichage
+        const dernieresVentes = await Vente.findAll({
+            order: [['createdAt', 'DESC']],
+            limit: 10
+        });
+        
+        // Formater les données pour la réponse
+        const formattedVentes = dernieresVentes.map(v => ({
+            id: v.id,
+            Mois: v.mois,
+            Date: v.date,
+            Semaine: v.semaine,
+            'Point de Vente': v.pointVente,
+            Preparation: v.preparation,
+            Catégorie: v.categorie,
+            Produit: v.produit,
+            PU: v.prixUnit,
+            Nombre: v.nombre,
+            Montant: v.montant
         }));
 
         res.json({ 
             success: true, 
             message: 'Vente mise à jour avec succès',
-            dernieresVentes 
+            dernieresVentes: formattedVentes
         });
-
     } catch (error) {
         console.error('Erreur lors de la mise à jour de la vente:', error);
         res.status(500).json({ 
             success: false, 
-            message: 'Erreur lors de la mise à jour de la vente' 
+            message: 'Erreur lors de la mise à jour de la vente',
+            error: error.message
         });
     }
 });
 
 // Route pour obtenir les ventes avec filtres
-app.get('/api/ventes', checkAuth, (req, res) => {
+app.get('/api/ventes', checkAuth, async (req, res) => {
     try {
         const { dateDebut, dateFin, pointVente } = req.query;
         
         console.log('Paramètres reçus:', { dateDebut, dateFin, pointVente });
         
-        // Lire le fichier CSV avec le parser CSV
-        const results = [];
-        fs.createReadStream('ventes.csv')
-            .pipe(parse({ 
-                delimiter: ';', 
-                columns: true, 
-                skip_empty_lines: true,
-                relaxColumnCount: true
-            }))
-            .on('data', (row) => {
-                // Standardiser la date au format dd-mm-yyyy
-                const dateStandardisee = standardiserDateFormat(row.Date);
-                
-                // Normaliser les données
-                const normalizedRow = {
-                    Mois: row.Mois,
-                    Date: dateStandardisee, // Utiliser la date standardisée
-                    Semaine: row.Semaine,
-                    'Point de Vente': row['Point de Vente'],
-                    Preparation: row.Preparation || row['Point de Vente'],
-                    Catégorie: row.Catégorie,
-                    Produit: row.Produit,
-                    PU: row.PU,
-                    Nombre: row.Nombre || '0',
-                    Montant: row.Montant || row.Total || '0'
+        // Préparer les conditions de filtrage
+        const whereConditions = {};
+        
+        if (dateDebut || dateFin) {
+            // Fonction pour convertir une date ISO (YYYY-MM-DD) en format DD-MM-YYYY
+            const convertISOToAppFormat = (isoDate) => {
+                const date = new Date(isoDate);
+                const jour = date.getDate().toString().padStart(2, '0');
+                const mois = (date.getMonth() + 1).toString().padStart(2, '0');
+                const annee = date.getFullYear();
+                return `${jour}-${mois}-${annee}`;
+            };
+            
+            // Fonction pour comparer des dates au format DD-MM-YYYY
+            const isDateInRange = (dateToCheck, startDate, endDate) => {
+                // Convertir les dates au format comparable (YYYY-MM-DD)
+                const convertToComparable = (dateStr) => {
+                    if (!dateStr) return '';
+                    const [day, month, year] = dateStr.split('-');
+                    return `${year}-${month}-${day}`;
                 };
-                results.push(normalizedRow);
-            })
-            .on('end', () => {
-                console.log('Nombre total de ventes lues:', results.length);
-                console.log('Premières ventes:', results.slice(0, 3));
                 
-                // Filtrer les ventes selon les critères
-                let ventesFiltrees = results;
+                const comparableDate = convertToComparable(dateToCheck);
+                const comparableStart = startDate ? convertToComparable(startDate) : '';
+                const comparableEnd = endDate ? convertToComparable(endDate) : '';
                 
-                if (dateDebut) {
-                    console.log('Filtrage par date de début:', dateDebut);
-                    const debut = new Date(dateDebut);
-                    console.log('Date de début convertie:', debut);
-                    
-                    ventesFiltrees = ventesFiltrees.filter(vente => {
-                        // Gérer les deux formats de date (avec "/" et "-")
-                        let jourVente, moisVente, anneeVente;
-                        if (vente.Date.includes('/')) {
-                            [jourVente, moisVente, anneeVente] = vente.Date.split('/');
-                        } else if (vente.Date.includes('-')) {
-                            [jourVente, moisVente, anneeVente] = vente.Date.split('-');
-                        } else {
-                            console.error(`Format de date invalide pour la vente: ${vente.Date}`);
-                            return false;
-                        }
-
-                        // S'assurer que l'année est au format 4 chiffres
-                        console.log('Date structure');
-                        console.log(vente.Date);
-                        const annee = anneeVente.length === 2 ? '20' + anneeVente : anneeVente;
-                        const dateVente = new Date(annee, moisVente - 1, jourVente);
-                        console.log('Comparaison:', {
-                            dateVente: dateVente.toISOString(),
-                            debut: debut.toISOString(),
-                            estInclus: dateVente >= debut
-                        });
-                        return dateVente >= debut;
-                    });
+                let isInRange = true;
+                
+                if (comparableStart && comparableDate) {
+                    isInRange = isInRange && (comparableDate >= comparableStart);
                 }
                 
-                if (dateFin) {
-                    console.log('Filtrage par date de fin:', dateFin);
-                    const fin = new Date(dateFin);
-                    console.log('Date de fin convertie:', fin);
-                    
-                    ventesFiltrees = ventesFiltrees.filter(vente => {
-                        // Gérer les deux formats de date (avec "/" et "-")
-                        let jourVente, moisVente, anneeVente;
-                        if (vente.Date.includes('/')) {
-                            [jourVente, moisVente, anneeVente] = vente.Date.split('/');
-                        } else if (vente.Date.includes('-')) {
-                            [jourVente, moisVente, anneeVente] = vente.Date.split('-');
-                        } else {
-                            console.error(`Format de date invalide pour la vente: ${vente.Date}`);
-                            return false;
-                        }
-
-                        // S'assurer que l'année est au format 4 chiffres
-                        console.log('Date structure');
-                        console.log(vente.Date);
-                        const annee = anneeVente.length === 2 ? '20' + anneeVente : anneeVente;
-                        const dateVente = new Date(annee, moisVente - 1, jourVente);
-                        console.log('Comparaison:', {
-                            dateVente: dateVente.toISOString(),
-                            fin: fin.toISOString(),
-                            estInclus: dateVente <= fin
-                        });
-                        return dateVente <= fin;
-                    });
+                if (comparableEnd && comparableDate) {
+                    isInRange = isInRange && (comparableDate <= comparableEnd);
                 }
                 
-                // Filtrer selon le point de vente si l'utilisateur n'a pas accès à tous
-                if (req.session.user.pointVente !== "tous") {
-                    ventesFiltrees = ventesFiltrees.filter(vente => 
-                        vente['Point de Vente'] === req.session.user.pointVente
-                    );
-                } else if (pointVente && pointVente !== 'tous') {
-                    ventesFiltrees = ventesFiltrees.filter(vente => 
-                        vente['Point de Vente'] === pointVente
-                    );
-                }
-                
-                // Trier par date décroissante
-                ventesFiltrees.sort((a, b) => {
-                    // Gérer les deux formats de date (avec "/" et "-")
-                    let jourA, moisA, anneeA, jourB, moisB, anneeB;
-                    
-                    if (a.Date.includes('/')) {
-                        [jourA, moisA, anneeA] = a.Date.split('/');
-                    } else if (a.Date.includes('-')) {
-                        [jourA, moisA, anneeA] = a.Date.split('-');
-                    } else {
-                        console.error(`Format de date invalide pour la vente A: ${a.Date}`);
-                        return 0;
-                    }
-
-                    if (b.Date.includes('/')) {
-                        [jourB, moisB, anneeB] = b.Date.split('/');
-                    } else if (b.Date.includes('-')) {
-                        [jourB, moisB, anneeB] = b.Date.split('-');
-                    } else {
-                        console.error(`Format de date invalide pour la vente B: ${b.Date}`);
-                        return 0;
-                    }
-
-                    // S'assurer que les années sont au format 4 chiffres
-                    const anneeA4 = anneeA.length === 2 ? '20' + anneeA : anneeA;
-                    const anneeB4 = anneeB.length === 2 ? '20' + anneeB : anneeB;
-                    const dateA = new Date(anneeA4, moisA - 1, jourA);
-                    const dateB = new Date(anneeB4, moisB - 1, jourB);
-                    return dateB - dateA;
-                });
-                
-                console.log('Nombre de ventes filtrées:', ventesFiltrees.length);
-                console.log('Dates des ventes filtrées:', ventesFiltrees.map(v => v.Date));
-                
-                res.json({ success: true, ventes: ventesFiltrees });
-            })
-            .on('error', (error) => {
-                console.error('Erreur lors de la lecture du CSV:', error);
-                res.status(500).json({ success: false, message: 'Erreur lors de la lecture des ventes' });
+                return isInRange;
+            };
+            
+            // Convertir les dates d'entrée au format de l'application (DD-MM-YYYY)
+            const debutFormatted = dateDebut ? convertISOToAppFormat(dateDebut) : null;
+            const finFormatted = dateFin ? convertISOToAppFormat(dateFin) : null;
+            
+            console.log('Dates converties:', { debutFormatted, finFormatted });
+            
+            // Récupérer toutes les ventes et filtrer manuellement pour les dates
+            const allVentes = await Vente.findAll({
+                where: pointVente && pointVente !== 'tous' ? { pointVente } : {},
+                order: [['date', 'DESC']]
             });
+            
+            // Filtrer les ventes selon la date
+            const filteredVentes = allVentes.filter(vente => 
+                isDateInRange(vente.date, debutFormatted, finFormatted)
+            );
+            
+            // Formater les données pour la réponse
+            const formattedVentes = filteredVentes.map(vente => ({
+                Mois: vente.mois,
+                Date: vente.date,
+                Semaine: vente.semaine,
+                'Point de Vente': vente.pointVente,
+                Preparation: vente.preparation,
+                Catégorie: vente.categorie,
+                Produit: vente.produit,
+                PU: vente.prixUnit,
+                Nombre: vente.nombre,
+                Montant: vente.montant
+            }));
+            
+            console.log('Nombre de ventes filtrées:', formattedVentes.length);
+            
+            return res.json({ success: true, ventes: formattedVentes });
+        }
+        
+        // Si pas de filtrage par date, utiliser la méthode standard avec les conditions Sequelize
+        if (req.session.user.pointVente !== "tous") {
+            whereConditions.pointVente = req.session.user.pointVente;
+        } else if (pointVente && pointVente !== 'tous') {
+            whereConditions.pointVente = pointVente;
+        }
+        
+        // Récupérer les ventes depuis la base de données
+        const ventes = await Vente.findAll({
+            where: whereConditions,
+            order: [['date', 'DESC']]
+        });
+        
+        // Formater les données pour la réponse
+        const formattedVentes = ventes.map(vente => ({
+            Mois: vente.mois,
+            Date: vente.date,
+            Semaine: vente.semaine,
+            'Point de Vente': vente.pointVente,
+            Preparation: vente.preparation,
+            Catégorie: vente.categorie,
+            Produit: vente.produit,
+            PU: vente.prixUnit,
+            Nombre: vente.nombre,
+            Montant: vente.montant
+        }));
+        
+        console.log('Nombre de ventes filtrées:', formattedVentes.length);
+        
+        res.json({ success: true, ventes: formattedVentes });
     } catch (error) {
-        console.error('Erreur lors de la lecture des ventes:', error);
-        res.status(500).json({ success: false, message: 'Erreur lors de la lecture des ventes' });
+        console.error('Erreur lors de la récupération des ventes:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la récupération des ventes',
+            error: error.message
+        });
     }
 });
 
 // Route pour récupérer les dernières ventes
-app.get('/api/dernieres-ventes', checkAuth, (req, res) => {
-    const results = [];
-    
-    fs.createReadStream(csvFilePath)
-        .pipe(parse({ 
-            delimiter: ';', 
-            columns: true, 
-            skip_empty_lines: true,
-            relaxColumnCount: true // Permet des différences dans le nombre de colonnes
-        }))
-        .on('data', (row) => {
-            // Standardiser la date au format dd-mm-yyyy
-            const dateStandardisee = standardiserDateFormat(row.Date);
-            
-            // Normaliser les données
-            const normalizedRow = {
-                id: row.ID, // Utiliser row.ID au lieu de lineCount
-                Mois: row.Mois,
-                Date: dateStandardisee, // Utiliser la date standardisée
-                Semaine: row.Semaine,
-                'Point de Vente': row['Point de Vente'],
-                Preparation: row.Preparation || row['Point de Vente'], // Utiliser Point de Vente si Preparation n'existe pas
-                Catégorie: row.Catégorie,
-                Produit: row.Produit,
-                PU: row.PU,
-                Nombre: row.Nombre || '0',
-                Montant: row.Montant || row.Total || '0' // Utiliser Total si Montant n'existe pas
-            };
-            results.push(normalizedRow);
-        })
-        .on('end', () => {
-            // Retourner toutes les ventes
-            res.json({ success: true, dernieresVentes: results });
-        })
-        .on('error', (error) => {
-            console.error('Erreur lors de la lecture du CSV:', error);
-            res.status(500).json({ 
-                success: false, 
-                message: 'Erreur lors de la lecture des ventes' 
-            });
+app.get('/api/dernieres-ventes', checkAuth, async (req, res) => {
+    try {
+        // Récupérer toutes les ventes depuis la base de données
+        const ventes = await Vente.findAll({
+            order: [['createdAt', 'DESC']]
         });
+        
+        // Formater les données pour la réponse
+        const formattedVentes = ventes.map(vente => ({
+            id: vente.id,
+            Mois: vente.mois,
+            Date: vente.date,
+            Semaine: vente.semaine,
+            'Point de Vente': vente.pointVente,
+            Preparation: vente.preparation,
+            Catégorie: vente.categorie,
+            Produit: vente.produit,
+            PU: vente.prixUnit,
+            Nombre: vente.nombre,
+            Montant: vente.montant
+        }));
+        
+        res.json({ success: true, dernieresVentes: formattedVentes });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des dernières ventes:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la récupération des ventes',
+            error: error.message
+        });
+    }
 });
 
 // Route pour la redirection après connexion
@@ -836,21 +793,24 @@ app.post('/api/import-ventes', checkAuth, (req, res) => {
 });
 
 // Route pour vider la base de données des ventes
-app.post('/api/vider-base', (req, res) => {
+app.post('/api/vider-base', async (req, res) => {
     try {
         // Vérifier si l'utilisateur est SALIOU
         if (!req.session.user || req.session.user.username !== 'SALIOU') {
             return res.status(403).json({ success: false, message: 'Accès non autorisé' });
         }
 
-        // Écrire uniquement l'en-tête dans le fichier CSV
-        const headers = 'ID;Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant\n';
-        fs.writeFileSync('ventes.csv', headers);
+        // Vider la table des ventes
+        await Vente.destroy({ where: {}, truncate: true });
         
         res.json({ success: true, message: 'Base de données vidée avec succès' });
     } catch (error) {
         console.error('Erreur lors du vidage de la base:', error);
-        res.status(500).json({ success: false, message: 'Erreur lors du vidage de la base de données' });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors du vidage de la base de données',
+            error: error.message
+        });
     }
 });
 
@@ -1124,50 +1084,26 @@ app.delete('/api/ventes/:id', checkAuth, async (req, res) => {
 
         console.log(`Tentative de suppression de la vente ID: ${venteId}, Point de vente: ${pointVente}`);
 
+        // Trouver la vente à supprimer
+        const vente = await Vente.findByPk(venteId);
+        
+        if (!vente) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Vente non trouvée" 
+            });
+        }
+        
         // Vérifier si l'utilisateur a accès au point de vente
-        if (req.session.user.pointVente !== "tous" && req.session.user.pointVente !== pointVente) {
+        if (req.session.user.pointVente !== "tous" && req.session.user.pointVente !== vente.pointVente) {
             return res.status(403).json({ 
                 success: false, 
                 message: "Accès non autorisé à ce point de vente" 
             });
         }
 
-        // Lire le fichier CSV
-        const fileContent = await fsPromises.readFile(csvFilePath, 'utf-8');
-        const lines = fileContent.split('\n');
-        
-        // Conserver l'en-tête
-        const header = lines[0];
-        let found = false;
-        
-        // Filtrer les lignes pour supprimer celle avec l'ID correspondant
-        const newLines = [header];
-        
-        for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-            
-            // Extraire l'ID de la ligne
-            const lineId = line.split(';')[0];
-            
-            // Si ce n'est pas la ligne à supprimer, la conserver
-            if (lineId !== venteId) {
-                newLines.push(line);
-            } else {
-                found = true;
-                console.log(`Ligne avec ID ${venteId} supprimée`);
-            }
-        }
-
-        if (!found) {
-            return res.status(404).json({ 
-                success: false, 
-                message: "Vente non trouvée" 
-            });
-        }
-
-        // Écrire le fichier mis à jour
-        await fsPromises.writeFile(csvFilePath, newLines.join('\n'));
+        // Supprimer la vente
+        await vente.destroy();
 
         console.log(`Vente ID: ${venteId} supprimée avec succès`);
         
@@ -1185,7 +1121,7 @@ app.delete('/api/ventes/:id', checkAuth, async (req, res) => {
 });
 
 // Route pour récupérer les ventes d'une date spécifique pour un point de vente
-app.get('/api/ventes-date', checkAuth, (req, res) => {
+app.get('/api/ventes-date', checkAuth, async (req, res) => {
     try {
         const { date, pointVente } = req.query;
         
@@ -1201,70 +1137,108 @@ app.get('/api/ventes-date', checkAuth, (req, res) => {
         const dateStandardisee = standardiserDateFormat(date);
         console.log('Date standardisée:', dateStandardisee);
         
-        // Lire le fichier CSV
-        const results = [];
-        fs.createReadStream(csvFilePath)
-            .pipe(parse({ 
-                delimiter: ';', 
-                columns: true, 
-                skip_empty_lines: true,
-                relaxColumnCount: true
-            }))
-            .on('data', (row) => {
-                const rowDate = standardiserDateFormat(row.Date);
-                const rowPointVente = row['Point de Vente'];
-                
-                // Filtrer par date et point de vente si spécifié
-                if (rowDate === dateStandardisee && 
-                    (!pointVente || rowPointVente === pointVente)) {
-                    
-                    // Calculer le montant si nécessaire
-                    let montant = parseFloat(row.Montant || row.Total || 0);
-                    
-                    results.push({
-                        id: row.ID,
-                        Date: rowDate,
-                        'Point de Vente': rowPointVente,
-                        Catégorie: row.Catégorie,
-                        Produit: row.Produit,
-                        PU: parseFloat(row.PU || 0),
-                        Nombre: parseFloat(row.Nombre || 0),
-                        Montant: montant
-                    });
-                }
-            })
-            .on('end', () => {
-                // Calculer le total par point de vente
-                const totauxParPointVente = {};
-                
-                results.forEach(vente => {
-                    const pv = vente['Point de Vente'];
-                    if (!totauxParPointVente[pv]) {
-                        totauxParPointVente[pv] = 0;
-                    }
-                    totauxParPointVente[pv] += vente.Montant;
-                });
-                
-                console.log('Totaux des ventes par point de vente:', totauxParPointVente);
-                
-                res.json({ 
-                    success: true, 
-                    ventes: results,
-                    totaux: totauxParPointVente
-                });
-            })
-            .on('error', (error) => {
-                console.error('Erreur lors de la lecture du CSV:', error);
-                res.status(500).json({ 
-                    success: false, 
-                    message: 'Erreur lors de la lecture des ventes' 
-                });
-            });
+        // Préparer les conditions de filtrage
+        const whereConditions = { date: dateStandardisee };
+        
+        if (pointVente) {
+            whereConditions.pointVente = pointVente;
+        }
+        
+        // Récupérer les ventes depuis la base de données
+        const ventes = await Vente.findAll({
+            where: whereConditions
+        });
+        
+        // Formater les données pour la réponse
+        const formattedVentes = ventes.map(vente => ({
+            id: vente.id,
+            Date: vente.date,
+            'Point de Vente': vente.pointVente,
+            Catégorie: vente.categorie,
+            Produit: vente.produit,
+            PU: vente.prixUnit,
+            Nombre: vente.nombre,
+            Montant: vente.montant
+        }));
+        
+        // Calculer le total par point de vente
+        const totauxParPointVente = {};
+        
+        formattedVentes.forEach(vente => {
+            const pv = vente['Point de Vente'];
+            if (!totauxParPointVente[pv]) {
+                totauxParPointVente[pv] = 0;
+            }
+            totauxParPointVente[pv] += vente.Montant;
+        });
+        
+        console.log('Totaux des ventes par point de vente:', totauxParPointVente);
+        
+        res.json({ 
+            success: true, 
+            ventes: formattedVentes,
+            totaux: totauxParPointVente
+        });
     } catch (error) {
         console.error('Erreur lors de la recherche des ventes:', error);
         res.status(500).json({ 
             success: false, 
-            message: 'Erreur lors de la recherche des ventes' 
+            message: 'Erreur lors de la recherche des ventes',
+            error: error.message
+        });
+    }
+});
+
+// Endpoint pour utiliser DeepSeek (local)
+app.post('/api/analyse-deepseek', (req, res) => {
+    try {
+        // Vérifier que les données nécessaires sont présentes
+        const { donnees } = req.body;
+        if (!donnees) {
+            return res.status(400).json({ success: false, message: 'Données manquantes pour l\'analyse' });
+        }
+
+        // Dans une version réelle, ici nous appellerions le modèle DeepSeek
+        // pour analyser les données. Pour l'instant, nous simulons cela
+        // en renvoyant la même réponse que le code frontend.
+        
+        // Structurer notre prompt pour DeepSeek
+        console.log("Préparation de l'analyse DeepSeek pour", donnees.pointVente);
+        
+        // Simuler une réponse après un délai
+        setTimeout(() => {
+            const ecart = donnees.ecart;
+            const isEcartPositif = ecart > 0;
+            const isEcartNegatif = ecart < 0;
+            const isEcartZero = ecart === 0;
+            
+            // Créer une réponse similaire à celle du frontend
+            let analysis = `**Analyse DeepSeek des résultats de réconciliation**\n\n`;
+            
+            analysis += `**Point de vente:** ${donnees.pointVente}\n`;
+            analysis += `**Date:** ${donnees.date}\n\n`;
+            
+            analysis += `**Résumé des données financières:**\n`;
+            analysis += `- Stock Matin: ${donnees.stockMatin} FCFA\n`;
+            analysis += `- Stock Soir: ${donnees.stockSoir} FCFA\n`;
+            analysis += `- Transferts: ${donnees.transferts} FCFA\n`;
+            analysis += `- Ventes Théoriques: ${donnees.ventesTheoriques} FCFA\n`;
+            analysis += `- Ventes Saisies: ${donnees.ventesSaisies} FCFA\n`;
+            analysis += `- Écart: ${donnees.ecart} FCFA\n\n`;
+            
+            // Envoyer la réponse
+            res.json({ 
+                success: true, 
+                analysis: analysis,
+                model: "DeepSeek-Lite (Local)"
+            });
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'analyse DeepSeek:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de l\'analyse avec DeepSeek: ' + error.message 
         });
     }
 });
@@ -1310,6 +1284,13 @@ async function loadVentesWithIds() {
 }
 
 // Démarrer le serveur
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Serveur démarré sur le port ${PORT}`);
+    
+    try {
+        await sequelize.authenticate();
+        console.log('Connecté à la base de données PostgreSQL');
+    } catch (error) {
+        console.error('Erreur de connexion à la base de données:', error);
+    }
 });

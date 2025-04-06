@@ -11,14 +11,14 @@ const produits = {
         "Filet": 5000,
         "Sans Os": 4500,
         "Viande Hachée": 5000,
-        "Veau en détail": 3800,
+        "Veau en détail": 4000,
         "Veau en gros": 3600,
         "Veau sur pied": 0,
         "Merguez": 4500,
         "Boeuf sur pied": 0
     },
     "Ovin": {
-        "Agneau": 4500,
+        "Agneau": 4000,
         "Tete Agneau": 1000
     },
     "Volaille": {
