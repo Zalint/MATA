@@ -15,8 +15,8 @@
     "Point de Vente": "Mbao",
     "Produit": "Yell",
     "Nombre": "13",
-    "PU": "2000",
-    "Montant": "26000",
+    "PU": "2500",
+    "Montant": "32500",
     "Commentaire": ""
   },
   "Mbao-Agneau": {
@@ -77,6 +77,16 @@
     "Nombre": "5",
     "PU": "4500",
     "Montant": "22500",
+    "Commentaire": ""
+  },
+  "Linguere-Poulet": {
+    "date": "05/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Linguere",
+    "Produit": "Poulet",
+    "Nombre": "35",
+    "PU": "3500",
+    "Montant": "122500",
     "Commentaire": ""
   },
   "Dahra-Poulet": {

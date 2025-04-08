@@ -8,8 +8,18 @@
     "test:watch": "jest --watch",
     "test:local": "jest local_tests",
     "pretest": "jest tests local_tests",
-    "start": "npm run pretest && node server.js",
-    "dev": "npm run pretest && nodemon server.js"
+    "start": "npm run pretest && node -r dotenv/config server.js",
+    "dev": "npm run pretest && nodemon -r dotenv/config server.js",
+    "download-deepseek": "node download-deepseek.js",
+    "migrate": "node -r dotenv/config migrate.js",
+    "db:create": "node -r dotenv/config -e \"require('./db/models').syncDatabase(true)\"",
+    "db:reset": "node -r dotenv/config -e \"require('./db/models').syncDatabase(true)\"",
+    "db:view": "node -r dotenv/config view-db.js",
+    "db:schema": "node -r dotenv/config db-schema.js",
+    "db:export": "node -r dotenv/config export-db.js",
+    "db:explore": "node -r dotenv/config explore-db.js",
+    "db:migrate:sqlite-to-postgres": "node -r dotenv/config scripts/migrate-sqlite-to-postgres.js",
+    "db:update-schema": "node -r dotenv/config db/update-schema.js"
   },
   "keywords": [],
   "author": "",
@@ -20,8 +30,15 @@
     "csv-parse": "^5.6.0",
     "csv-parser": "^3.0.0",
     "csv-stringify": "^6.5.2",
+    "dotenv": "^16.4.7",
     "express": "^4.18.2",
-    "express-session": "^1.18.1"
+    "express-session": "^1.18.1",
+    "ml-regression-simple-linear": "^2.0.5",
+    "natural": "^6.12.0",
+    "pg": "^8.11.3",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.1",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

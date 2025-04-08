@@ -108,4 +108,23 @@ input[type="number"] {
 #type-stock {
     width: auto;
     min-width: 150px;
+}
+
+#visualisation-section[style*="display: none"] canvas {
+    display: none !important;
+}
+
+/* Masquer les graphiques et tableaux de visualisation lorsqu'ils ne devraient pas être visibles */
+#saisie-section .visualisation-charts,
+#saisie-section .visualisation-data,
+#saisie-section #montant-total,
+body > .visualisation-charts,
+body > .visualisation-data {
+    display: none !important;
+}
+
+/* Assurer que les éléments de visualisation ne sont visibles que dans la section de visualisation */
+#visualisation-section:not([style*="display: none"]) .visualisation-charts,
+#visualisation-section:not([style*="display: none"]) .visualisation-data {
+    display: block !important;
 } 

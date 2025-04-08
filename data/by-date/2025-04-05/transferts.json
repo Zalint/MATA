@@ -1,0 +1,72 @@
+[
+  {
+    "date": "05/04/2025",
+    "pointVente": "O.Foire",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 62,
+    "prixUnitaire": 3600,
+    "total": 223200,
+    "commentaire": ""
+  },
+  {
+    "date": "05/04/2025",
+    "pointVente": "O.Foire",
+    "produit": "Tablette",
+    "impact": 1,
+    "quantite": 7,
+    "prixUnitaire": 2800,
+    "total": 19600,
+    "commentaire": ""
+  },
+  {
+    "date": "05/04/2025",
+    "pointVente": "Mbao",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 65,
+    "prixUnitaire": 3600,
+    "total": 234000,
+    "commentaire": ""
+  },
+  {
+    "date": "05/04/2025",
+    "pointVente": "Mbao",
+    "produit": "Foie",
+    "impact": 1,
+    "quantite": 3,
+    "prixUnitaire": 4000,
+    "total": 12000,
+    "commentaire": ""
+  },
+  {
+    "date": "05/04/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 127,
+    "prixUnitaire": 3600,
+    "total": -457200,
+    "commentaire": ""
+  },
+  {
+    "date": "05/04/2025",
+    "pointVente": "Abattage",
+    "produit": "Foie",
+    "impact": -1,
+    "quantite": 3,
+    "prixUnitaire": 4000,
+    "total": -12000,
+    "commentaire": ""
+  },
+  {
+    "date": "05/04/2025",
+    "pointVente": "Mbao",
+    "produit": "Yell",
+    "impact": 1,
+    "quantite": 4,
+    "prixUnitaire": 2500,
+    "total": 10000,
+    "commentaire": ""
+  }
+]

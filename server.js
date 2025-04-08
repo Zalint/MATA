@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const { parse } = require('csv-parse');
@@ -127,31 +127,48 @@ function getPathByDate(baseFile, date) {
     return path.join(dateDir, fileName);
 }
 
-// Fonction pour standardiser une date au format dd-mm-yyyy
+// Fonction pour standardiser une date au format DD-MM-YYYY
 function standardiserDateFormat(dateStr) {
     if (!dateStr) return '';
     
     let jour, mois, annee;
     
+    // Essayer de parser différents formats
     if (dateStr.includes('/')) {
         // Format DD/MM/YYYY ou DD/MM/YY
         [jour, mois, annee] = dateStr.split('/');
     } else if (dateStr.includes('-')) {
-        // Format DD-MM-YYYY ou DD-MM-YY
-        [jour, mois, annee] = dateStr.split('-');
+        // Format DD-MM-YYYY, YYYY-MM-DD, ou DD-MM-YY
+        const parts = dateStr.split('-');
+        if (parts[0].length === 4) {
+            // Format YYYY-MM-DD
+            [annee, mois, jour] = parts;
+        } else {
+            // Format DD-MM-YYYY ou DD-MM-YY
+            [jour, mois, annee] = parts;
+        }
     } else {
+        console.warn('Format de date non reconnu:', dateStr);
         return dateStr; // Format non reconnu, retourner tel quel
     }
     
-    // S'assurer que jour et mois ont 2 chiffres
-    jour = jour.padStart(2, '0');
-    mois = mois.padStart(2, '0');
+    // S'assurer que jour et mois sont bien définis et ont 2 chiffres
+    jour = jour ? jour.padStart(2, '0') : '01';
+    mois = mois ? mois.padStart(2, '0') : '01';
     
     // Convertir l'année à 4 chiffres si elle est à 2 chiffres
-    if (annee.length === 2) {
+    if (annee && annee.length === 2) {
         annee = '20' + annee;
+    } else if (!annee) {
+        annee = new Date().getFullYear().toString(); // Année actuelle par défaut
     }
     
+    // Vérifier la validité des composants
+    if (isNaN(parseInt(jour)) || isNaN(parseInt(mois)) || isNaN(parseInt(annee))) {
+        console.error('Composants de date invalides après parsing:', {jour, mois, annee});
+        return dateStr; // Retourner l'original si invalide
+    }
+
     // Retourner la date au format standardisé DD-MM-YYYY
     return `${jour}-${mois}-${annee}`;
 }
@@ -1132,6 +1149,7 @@ app.get('/api/ventes-date', checkAuth, async (req, res) => {
             });
         }
         
+        console.log('==== DEBUG VENTES-DATE ====');
         console.log('Recherche des ventes pour date:', date, 'et point de vente:', pointVente);
         
         const dateStandardisee = standardiserDateFormat(date);
@@ -1149,17 +1167,38 @@ app.get('/api/ventes-date', checkAuth, async (req, res) => {
             where: whereConditions
         });
         
+        console.log(`Nombre de ventes trouvées: ${ventes.length}`);
+        if (ventes.length > 0) {
+            console.log('Premier échantillon de vente:', {
+                id: ventes[0].id,
+                date: ventes[0].date,
+                pointVente: ventes[0].pointVente,
+                produit: ventes[0].produit,
+                nombre: ventes[0].nombre,
+                prixUnit: ventes[0].prixUnit,
+                montant: ventes[0].montant,
+                montantType: typeof ventes[0].montant
+            });
+        }
+        
         // Formater les données pour la réponse
-        const formattedVentes = ventes.map(vente => ({
-            id: vente.id,
-            Date: vente.date,
-            'Point de Vente': vente.pointVente,
-            Catégorie: vente.categorie,
-            Produit: vente.produit,
-            PU: vente.prixUnit,
-            Nombre: vente.nombre,
-            Montant: vente.montant
-        }));
+        const formattedVentes = ventes.map(vente => {
+            // Conversion explicite en nombres
+            const prixUnit = parseFloat(vente.prixUnit) || 0;
+            const nombre = parseFloat(vente.nombre) || 0;
+            const montant = parseFloat(vente.montant) || 0;
+            
+            return {
+                id: vente.id,
+                Date: vente.date,
+                'Point de Vente': vente.pointVente,
+                Catégorie: vente.categorie,
+                Produit: vente.produit,
+                PU: prixUnit,
+                Nombre: nombre,
+                Montant: montant
+            };
+        });
         
         // Calculer le total par point de vente
         const totauxParPointVente = {};
@@ -1169,10 +1208,19 @@ app.get('/api/ventes-date', checkAuth, async (req, res) => {
             if (!totauxParPointVente[pv]) {
                 totauxParPointVente[pv] = 0;
             }
-            totauxParPointVente[pv] += vente.Montant;
+            // S'assurer que le montant est un nombre
+            const montant = parseFloat(vente.Montant) || 0;
+            totauxParPointVente[pv] += montant;
         });
         
         console.log('Totaux des ventes par point de vente:', totauxParPointVente);
+        
+        // Vérification supplémentaire pour s'assurer que les totaux sont bien des nombres
+        Object.keys(totauxParPointVente).forEach(pv => {
+            console.log(`Total pour ${pv}: ${totauxParPointVente[pv]} (type: ${typeof totauxParPointVente[pv]})`);
+        });
+        
+        console.log('==== FIN DEBUG VENTES-DATE ====');
         
         res.json({ 
             success: true, 
@@ -1282,6 +1330,86 @@ async function loadVentesWithIds() {
     throw error;
   }
 }
+
+// Routes pour la réconciliation
+app.post('/api/reconciliation/save', checkAuth, async (req, res) => {
+    try {
+        const { date, reconciliation } = req.body;
+        
+        if (!date || !reconciliation) {
+            return res.status(400).json({ success: false, message: 'Date et données de réconciliation requises' });
+        }
+        
+        // Vérifier si une réconciliation existe déjà pour cette date
+        const existingReconciliation = await sequelize.query(
+            'SELECT * FROM reconciliations WHERE date = :date',
+            {
+                replacements: { date },
+                type: sequelize.QueryTypes.SELECT
+            }
+        );
+        
+        if (existingReconciliation.length > 0) {
+            // Mettre à jour la réconciliation existante
+            await sequelize.query(
+                'UPDATE reconciliations SET data = :data, "updatedAt" = NOW() WHERE date = :date',
+                {
+                    replacements: { 
+                        date,
+                        data: JSON.stringify({ reconciliation })
+                    }
+                }
+            );
+        } else {
+            // Créer une nouvelle réconciliation
+            await sequelize.query(
+                'INSERT INTO reconciliations (date, data, "createdAt", "updatedAt") VALUES (:date, :data, NOW(), NOW())',
+                {
+                    replacements: { 
+                        date,
+                        data: JSON.stringify({ reconciliation })
+                    }
+                }
+            );
+        }
+        
+        res.json({ success: true, message: 'Réconciliation sauvegardée avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde de la réconciliation:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur: ' + error.message });
+    }
+});
+
+app.get('/api/reconciliation/load', checkAuth, async (req, res) => {
+    try {
+        const { date } = req.query;
+        
+        if (!date) {
+            return res.status(400).json({ success: false, message: 'Date requise' });
+        }
+        
+        // Récupérer la réconciliation pour la date spécifiée
+        const reconciliationData = await sequelize.query(
+            'SELECT * FROM reconciliations WHERE date = :date',
+            {
+                replacements: { date },
+                type: sequelize.QueryTypes.SELECT
+            }
+        );
+        
+        if (reconciliationData.length === 0) {
+            return res.json({ success: false, message: 'Aucune réconciliation trouvée pour cette date' });
+        }
+        
+        // Renvoyer les données
+        const data = JSON.parse(reconciliationData[0].data);
+        
+        res.json({ success: true, data });
+    } catch (error) {
+        console.error('Erreur lors du chargement de la réconciliation:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur: ' + error.message });
+    }
+});
 
 // Démarrer le serveur
 app.listen(PORT, async () => {

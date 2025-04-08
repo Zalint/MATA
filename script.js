@@ -1,4 +1,4 @@
-// Vérification de l'authentification
+﻿// Vérification de l'authentification
 let currentUser = null;
 
 // Variables globales
@@ -53,6 +53,101 @@ function hideAllSections() {
     document.getElementById('stock-inventaire-section').style.display = 'none';
     document.getElementById('copier-stock-section').style.display = 'none';
     document.getElementById('reconciliation-section').style.display = 'none';
+    document.getElementById('stock-alerte-section').style.display = 'none';
+    
+    // Nettoyer les graphiques lorsqu'on n'est pas dans la section visualisation
+    if (ventesParMoisChart) {
+        ventesParMoisChart.destroy();
+        ventesParMoisChart = null;
+    }
+    if (ventesParProduitChart) {
+        ventesParProduitChart.destroy();
+        ventesParProduitChart = null;
+    }
+    if (ventesParCategorieChart) {
+        ventesParCategorieChart.destroy();
+        ventesParCategorieChart = null;
+    }
+}
+
+// Fonction pour initialiser la section de réconciliation
+function initReconciliation() {
+    console.log('Initialisation de la section de réconciliation');
+    
+    // S'assurer que la section est visible
+    document.getElementById('reconciliation-section').style.display = 'block';
+    
+    // Initialiser le sélecteur de date avec flatpickr s'il ne l'est pas déjà
+    if (!document.getElementById('date-reconciliation')._flatpickr) {
+        flatpickr('#date-reconciliation', {
+            dateFormat: 'd/m/Y',
+            locale: 'fr',
+            defaultDate: new Date(),
+            disableMobile: "true",
+            onChange: function(selectedDates, dateStr) {
+                console.log('Date sélectionnée pour la réconciliation:', dateStr);
+                viderTableauReconciliation();
+            }
+        });
+    }
+    
+    // S'assurer que l'indicateur de chargement est masqué
+    const loadingIndicator = document.getElementById('loading-indicator-reconciliation');
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+    }
+    
+    // Vérifier si une date est déjà sélectionnée
+    const dateInput = document.getElementById('date-reconciliation');
+    if (dateInput && dateInput.value) {
+        // Mettre à jour l'affichage de la date
+        const dateDisplay = document.getElementById('date-reconciliation-display');
+        if (dateDisplay) {
+            dateDisplay.textContent = dateInput.value;
+        }
+    }
+}
+
+// Fonction pour vider le tableau de réconciliation quand la date change
+function viderTableauReconciliation() {
+    console.log('Date changée, vidage du tableau de réconciliation');
+    
+    // Vider le tableau des résultats
+    const tbody = document.querySelector('#reconciliation-table tbody');
+    if (tbody) tbody.innerHTML = '';
+    
+    // Vider également les détails de débogage
+    const debugTitle = document.getElementById('debug-title');
+    const debugFormule = document.getElementById('debug-formule');
+    const debugEcart = document.getElementById('debug-ecart');
+    const debugStockSection = document.getElementById('debug-stock-section');
+    const debugVentesSection = document.getElementById('debug-ventes-section');
+    
+    if (debugTitle) debugTitle.innerHTML = '';
+    if (debugFormule) debugFormule.innerHTML = '';
+    if (debugEcart) debugEcart.innerHTML = '';
+    if (debugStockSection) debugStockSection.innerHTML = '';
+    if (debugVentesSection) debugVentesSection.innerHTML = '';
+    
+    // Désactiver le bouton de sauvegarde
+    const btnSauvegarder = document.getElementById('sauvegarder-reconciliation');
+    if (btnSauvegarder) btnSauvegarder.disabled = true;
+    
+    // Mettre à jour l'affichage de la date sélectionnée
+    const dateStr = document.getElementById('date-reconciliation').value;
+    const dateDisplay = document.getElementById('date-reconciliation-display');
+    if (dateDisplay) dateDisplay.textContent = dateStr || '--/--/----';
+    
+    // Masquer les sections d'analyse
+    const llmContainer = document.getElementById('llm-analyse-container');
+    if (llmContainer) llmContainer.style.display = 'none';
+    
+    const deepseekContainer = document.getElementById('deepseek-analyse-container');
+    if (deepseekContainer) deepseekContainer.style.display = 'none';
+    
+    // Réinitialiser les variables globales
+    window.currentReconciliation = null;
+    window.currentDebugInfo = null;
 }
 
 // Gestion des onglets
@@ -62,20 +157,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const importTab = document.getElementById('import-tab');
     const stockInventaireTab = document.getElementById('stock-inventaire-tab');
     const copierStockTab = document.getElementById('copier-stock-tab');
+    const reconciliationTab = document.getElementById('reconciliation-tab');
+    const stockAlerteTab = document.getElementById('stock-alerte-tab');
     
     const saisieSection = document.getElementById('saisie-section');
     const visualisationSection = document.getElementById('visualisation-section');
     const importSection = document.getElementById('import-section');
     const stockInventaireSection = document.getElementById('stock-inventaire-section');
     const copierStockSection = document.getElementById('copier-stock-section');
+    const reconciliationSection = document.getElementById('reconciliation-section');
+    const stockAlerteSection = document.getElementById('stock-alerte-section');
 
     // Fonction pour désactiver tous les onglets
     function deactivateAllTabs() {
-        saisieTab.classList.remove('active');
-        visualisationTab.classList.remove('active');
-        importTab.classList.remove('active');
+        if (saisieTab) saisieTab.classList.remove('active');
+        if (visualisationTab) visualisationTab.classList.remove('active');
+        if (importTab) importTab.classList.remove('active');
         if (stockInventaireTab) stockInventaireTab.classList.remove('active');
         if (copierStockTab) copierStockTab.classList.remove('active');
+        if (reconciliationTab) reconciliationTab.classList.remove('active');
+        if (stockAlerteTab) stockAlerteTab.classList.remove('active');
     }
 
     if (saisieTab) {
@@ -85,6 +186,11 @@ document.addEventListener('DOMContentLoaded', function() {
             saisieSection.style.display = 'block';
             deactivateAllTabs();
             this.classList.add('active');
+            
+            // S'assurer que les éléments de visualisation sont masqués
+            document.querySelectorAll('.visualisation-charts, .visualisation-data').forEach(el => {
+                el.style.display = 'none';
+            });
         });
     }
 
@@ -95,6 +201,13 @@ document.addEventListener('DOMContentLoaded', function() {
             visualisationSection.style.display = 'block';
             deactivateAllTabs();
             this.classList.add('active');
+            
+            // S'assurer que les éléments de visualisation sont visibles
+            document.querySelectorAll('.visualisation-charts, .visualisation-data').forEach(el => {
+                el.style.display = 'block';
+            });
+            
+            // Charger les données et créer les graphiques
             chargerVentes();
         });
     }
@@ -110,13 +223,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (stockInventaireTab) {
-        stockInventaireTab.addEventListener('click', function(e) {
+        stockInventaireTab.addEventListener('click', async function(e) {
             e.preventDefault();
             hideAllSections();
             stockInventaireSection.style.display = 'block';
             deactivateAllTabs();
             this.classList.add('active');
-            initInventaire();
+            await initInventaire();
         });
     }
 
@@ -125,8 +238,31 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             hideAllSections();
             copierStockSection.style.display = 'block';
-            copierStockTab.classList.add('active');
+            deactivateAllTabs();
+            this.classList.add('active');
             initCopierStock();
+        });
+    }
+
+    if (reconciliationTab) {
+        reconciliationTab.addEventListener('click', function(e) {
+            e.preventDefault();
+            hideAllSections();
+            reconciliationSection.style.display = 'block';
+            deactivateAllTabs();
+            this.classList.add('active');
+            initReconciliation();
+        });
+    }
+
+    if (stockAlerteTab) {
+        stockAlerteTab.addEventListener('click', function(e) {
+            e.preventDefault();
+            hideAllSections();
+            stockAlerteSection.style.display = 'block';
+            deactivateAllTabs();
+            this.classList.add('active');
+            initStockAlerte();
         });
     }
 
@@ -351,48 +487,57 @@ const dateFinPicker = flatpickr("#date-fin", {
     }
 });
 
-// Base de données des produits et leurs prix
-const produitsDB = {
-    "Bovin": {
-        "Boeuf en détail": [3600, 3700],
-        "Boeuf en gros": [3400],
-        "Dechet": [1000],
-        "Foie": [4000],
-        "Yell": [2000, 2500],
-        "Jarret": [250],
-        "Abats": [1000, 1500],
-        "Faux Filet": [3500],
-        "Filet": [5000, 4000, 7000],
-        "Sans Os": [4500, 4000],
-        "Viande Hachée": [5000],
-        "Veau en détail": [3700, 3800],
-        "Veau en gros": [3500, 3600],
-        "Veau sur pied": [],
-        "Merguez": [4500],
-        "Boeuf sur pied": []
-    },
-    "Ovin": {
-        "Agneau": [4500],
-        "Tete Agneau": [1000, 1500]
-    },
-    "Volaille": {
-        "Poulet en détail": [3500, 3000, 3700],
-        "Poulet en gros": [3000, 3300],
-        "Oeuf": [2500, 2800, 2900],
-        "Pack Pigeon": [2500, 2000],
-        "Pilon": [3500],
-        "Merguez poulet": [5500]
-    },
-    "Pack": {
-        "Pack25000": [25000],
-        "Pack30000": [30000],
-        "Pack35000": [35000],
-        "Pack50000": [50000],
-        "Pack75000": [75000],
-        "Pack100000": [100000],
-        "Pack20000": [20000]
+// Fonction pour mettre à jour les dates en fonction de la période sélectionnée
+function updateDatesByPeriod(period) {
+    const today = new Date();
+    let startDate, endDate;
+    
+    switch(period) {
+        case 'jour':
+            // Aujourd'hui
+            startDate = new Date(today);
+            endDate = new Date(today);
+            break;
+        case 'semaine':
+            // Cette semaine (lundi au dimanche)
+            const dayOfWeek = today.getDay();
+            const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Ajuster quand c'est dimanche
+            startDate = new Date(today.setDate(diff));
+            endDate = new Date(today);
+            endDate.setDate(startDate.getDate() + 6);
+            break;
+        case 'mois':
+            // Ce mois
+            startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            break;
+        case 'personnalise':
+            // Ne rien faire, laisser les dates telles quelles
+            return;
+        default:
+            return;
     }
-};
+    
+    dateDebutPicker.setDate(startDate);
+    dateFinPicker.setDate(endDate);
+    chargerVentes();
+}
+
+// Ajouter un écouteur d'événements pour le sélecteur de période
+document.addEventListener('DOMContentLoaded', function() {
+    const periodeSelect = document.getElementById('periode-select');
+    if (periodeSelect) {
+        periodeSelect.addEventListener('change', function() {
+            updateDatesByPeriod(this.value);
+        });
+        
+        // Initialiser avec la période par défaut (aujourd'hui)
+        updateDatesByPeriod(periodeSelect.value);
+    }
+});
+
+// Importer la base de données des produits
+// Note: produits est d�fini dans produits.js et disponible globalement
 
 // Gestion des catégories et produits
 document.querySelectorAll('.categorie-select').forEach(select => {
@@ -402,8 +547,8 @@ document.querySelectorAll('.categorie-select').forEach(select => {
         
         produitSelect.innerHTML = '<option value="">Sélectionner un produit</option>';
         
-        if (categorie && produitsDB[categorie]) {
-            Object.keys(produitsDB[categorie]).forEach(produit => {
+        if (categorie && produits[categorie]) {
+            Object.keys(produits[categorie]).forEach(produit => {
                 const option = document.createElement('option');
                 option.value = produit;
                 option.textContent = produit;
@@ -421,8 +566,8 @@ document.querySelectorAll('.produit-select').forEach(select => {
         const produit = this.value;
         const prixUnitInput = row.querySelector('.prix-unit');
         
-        if (categorie && produit && produitsDB[categorie][produit]) {
-            const prix = produitsDB[categorie][produit][0];
+        if (categorie && produit && produits[categorie] && produits[categorie][produit]) {
+            const prix = produits.getPrixPreferePour(categorie, produit);
             prixUnitInput.value = prix;
             calculerTotal(row);
         } else {
@@ -584,15 +729,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Fonction pour créer une nouvelle entrée de produit
 function creerNouvelleEntree() {
-    const container = document.getElementById('produits-container');
-    const newEntry = document.createElement('div');
-    newEntry.className = 'produit-entry mb-3';
-    newEntry.innerHTML = `
-        <div class="row">
-            <div class="col-md-3">
+    const div = document.createElement('div');
+    div.className = 'produit-entry mb-3';
+    div.innerHTML = `
+        <div class="row align-items-end">
+            <div class="col-md-2">
                 <label class="form-label">Catégorie</label>
                 <select class="form-select categorie-select" required>
-                    <option value="">Sélectionner une catégorie</option>
+                    <option value="">Sélectionner...</option>
                     <option value="Bovin">Bovin</option>
                     <option value="Ovin">Ovin</option>
                     <option value="Volaille">Volaille</option>
@@ -602,7 +746,7 @@ function creerNouvelleEntree() {
             <div class="col-md-3">
                 <label class="form-label">Produit</label>
                 <select class="form-select produit-select" required>
-                    <option value="">Sélectionner un produit</option>
+                    <option value="">Sélectionner...</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -617,48 +761,69 @@ function creerNouvelleEntree() {
                 <label class="form-label">Total</label>
                 <input type="number" class="form-control total" readonly>
             </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-danger btn-sm supprimer-produit">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
         </div>
     `;
-    
-    // Ajouter les event listeners
-    newEntry.querySelector('.categorie-select').addEventListener('change', function() {
-        const produitSelect = this.closest('.row').querySelector('.produit-select');
+
+    // Gestion dynamique des produits
+    const categorieSelect = div.querySelector('.categorie-select');
+    const produitSelect = div.querySelector('.produit-select');
+    categorieSelect.addEventListener('change', function() {
         const categorie = this.value;
+        produitSelect.innerHTML = '<option value="">Sélectionner...</option>'; // Vider les options précédentes
         
-        produitSelect.innerHTML = '<option value="">Sélectionner un produit</option>';
-        
-        if (categorie && produitsDB[categorie]) {
-            Object.keys(produitsDB[categorie]).forEach(produit => {
+        // Utiliser produitsDB au lieu de produitsParCategorie
+        if (categorie && typeof produits !== 'undefined' && produits[categorie]) {
+            Object.keys(produits[categorie]).forEach(produit => {
                 const option = document.createElement('option');
                 option.value = produit;
                 option.textContent = produit;
                 produitSelect.appendChild(option);
             });
+        } else if (categorie) {
+            console.error(`Données produits non trouvées ou catégorie vide: ${categorie}`);
+            // Vous pourriez vouloir afficher un message à l'utilisateur ici
         }
-    });
-    
-    newEntry.querySelector('.produit-select').addEventListener('change', function() {
-        const row = this.closest('.row');
-        const categorie = row.querySelector('.categorie-select').value;
-        const produit = this.value;
-        const prixUnitInput = row.querySelector('.prix-unit');
         
-        if (categorie && produit && produitsDB[categorie][produit]) {
-            const prix = produitsDB[categorie][produit][0];
-            prixUnitInput.value = prix;
-            calculerTotal(row);
+        // Déclencher manuellement l'événement change sur produitSelect pour mettre à jour le prix
+        produitSelect.dispatchEvent(new Event('change')); 
+    });
+
+    // Mise à jour auto du prix unitaire
+    const prixUnitInput = div.querySelector('.prix-unit');
+    produitSelect.addEventListener('change', function() {
+        const selectedProduit = this.value;
+        const categorie = categorieSelect.value;
+        
+        // Utiliser le prix depuis produitsDB
+        if (categorie && selectedProduit && produits[categorie] && produits[categorie][selectedProduit]) {
+            // Prendre le premier prix disponible pour ce produit
+            prixUnitInput.value = produits.getPrixPreferePour(categorie, selectedProduit) || '';
         } else {
+            console.warn(`Prix non trouvé pour ${categorie} > ${selectedProduit}`);
             prixUnitInput.value = '';
         }
+        
+        calculerTotal(div); // Recalculer le total ligne quand produit change
     });
-    
-    newEntry.querySelectorAll('.quantite, .prix-unit').forEach(input => {
-        input.addEventListener('input', function() {
-            calculerTotal(this.closest('.row'));
-        });
+
+    // Calcul auto du total
+    const quantiteInput = div.querySelector('.quantite');
+    prixUnitInput.addEventListener('input', () => calculerTotal(div));
+    quantiteInput.addEventListener('input', () => calculerTotal(div));
+
+    // Logique de suppression
+    const deleteButton = div.querySelector('.supprimer-produit');
+    deleteButton.addEventListener('click', function() {
+        div.remove();
+        calculerTotalGeneral(); // Recalculer le total général après suppression
     });
-    
-    return newEntry;
+
+    return div;
 }
 
 // Modifier la gestion du formulaire
@@ -1278,10 +1443,11 @@ let allVentes = [];
 async function chargerVentes() {
     try {
         // S'assurer que la section de visualisation est visible
-        const visualisationSection = document.getElementById('visualisation-section');
-        if (visualisationSection) {
-            visualisationSection.style.display = 'block';
-        }
+        // La visibilité est maintenant gérée par les gestionnaires d'onglets
+        // const visualisationSection = document.getElementById('visualisation-section');
+        // if (visualisationSection) {
+        //     visualisationSection.style.display = 'block'; 
+        // }
 
         const dateDebut = document.getElementById('date-debut').value;
         const dateFin = document.getElementById('date-fin').value;
@@ -2068,6 +2234,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     const copierStockTab = document.getElementById('copier-stock-tab');
     const copierStockSection = document.getElementById('copier-stock-section');
     const copierStockItem = document.getElementById('copier-stock-item');
+    const stockAlerteTab = document.getElementById('stock-alerte-tab');
+    const stockAlerteSection = document.getElementById('stock-alerte-section');
     
     // Forcer l'affichage de l'onglet Copier Stock pour tous les utilisateurs
     if (copierStockItem) {
@@ -2107,6 +2275,11 @@ document.addEventListener('DOMContentLoaded', async function() {
         hideAllSections();
         copierStockSection.style.display = 'block';
         initCopierStock();
+    } else if (stockAlerteTab && stockAlerteTab.classList.contains('active')) {
+        console.log('Onglet Alertes de stock actif au chargement, initialisation...');
+        hideAllSections();
+        stockAlerteSection.style.display = 'block';
+        initStockAlerte();
     }
 });
 
@@ -3132,22 +3305,22 @@ async function calculerReconciliation(date) {
         console.log('Calcul de réconciliation pour la date:', date);
         
         // Effacer le tableau des résultats précédents
-        const tbody = document.querySelector('#reconciliation-table tbody');
-        tbody.innerHTML = '';
-        
+                const tbody = document.querySelector('#reconciliation-table tbody');
+                tbody.innerHTML = '';
+                
         // Effacer aussi les détails de débogage
-        const debugTitle = document.getElementById('debug-title');
-        const debugFormule = document.getElementById('debug-formule');
-        const debugEcart = document.getElementById('debug-ecart');
-        const debugStockSection = document.getElementById('debug-stock-section');
-        const debugVentesSection = document.getElementById('debug-ventes-section');
-        
-        if (debugTitle) debugTitle.innerHTML = '';
-        if (debugFormule) debugFormule.innerHTML = '';
-        if (debugEcart) debugEcart.innerHTML = '';
-        if (debugStockSection) debugStockSection.innerHTML = '';
-        if (debugVentesSection) debugVentesSection.innerHTML = '';
-        
+                const debugTitle = document.getElementById('debug-title');
+                const debugFormule = document.getElementById('debug-formule');
+                const debugEcart = document.getElementById('debug-ecart');
+                const debugStockSection = document.getElementById('debug-stock-section');
+                const debugVentesSection = document.getElementById('debug-ventes-section');
+                
+                if (debugTitle) debugTitle.innerHTML = '';
+                if (debugFormule) debugFormule.innerHTML = '';
+                if (debugEcart) debugEcart.innerHTML = '';
+                if (debugStockSection) debugStockSection.innerHTML = '';
+                if (debugVentesSection) debugVentesSection.innerHTML = '';
+                
         // Afficher un indicateur de chargement
         const loadingRow = document.createElement('tr');
         const loadingCell = document.createElement('td');
@@ -3351,11 +3524,25 @@ async function calculerReconciliationParPointVente(stockMatin, stockSoir, transf
             const montant = parseFloat(item.Montant || item.total || 0);
             reconciliation[pointVente].stockMatin += montant;
             
+            // Extraire les valeurs de quantité et prix unitaire
+            const quantite = parseFloat(item.Quantite || item.Nombre || item.quantite || 0);
+            const prixUnitaire = parseFloat(item.PU || item.prixUnitaire || 0);
+            
+            // Vérifier les données extraites
+            console.log(`Stock Matin - ${pointVente} - ${produit}:`, { 
+                montant, 
+                quantite, 
+                prixUnitaire, 
+                rawData: item 
+            });
+            
             // Ajouter aux détails de débogage
             if (debugInfo.detailsParPointVente[pointVente]) {
                 debugInfo.detailsParPointVente[pointVente].stockMatin.push({
                     produit: produit,
-                    montant: montant
+                    montant: montant,
+                    quantite: quantite,
+                    prixUnitaire: prixUnitaire
                 });
                 debugInfo.detailsParPointVente[pointVente].totalStockMatin += montant;
             }
@@ -3369,11 +3556,25 @@ async function calculerReconciliationParPointVente(stockMatin, stockSoir, transf
             const montant = parseFloat(item.Montant || item.total || 0);
             reconciliation[pointVente].stockSoir += montant;
             
+            // Extraire les valeurs de quantité et prix unitaire
+            const quantite = parseFloat(item.Quantite || item.Nombre || item.quantite || 0);
+            const prixUnitaire = parseFloat(item.PU || item.prixUnitaire || 0);
+            
+            // Vérifier les données extraites
+            console.log(`Stock Soir - ${pointVente} - ${produit}:`, { 
+                montant, 
+                quantite, 
+                prixUnitaire, 
+                rawData: item 
+            });
+            
             // Ajouter aux détails de débogage
             if (debugInfo.detailsParPointVente[pointVente]) {
                 debugInfo.detailsParPointVente[pointVente].stockSoir.push({
                     produit: produit,
-                    montant: montant
+                    montant: montant,
+                    quantite: quantite,
+                    prixUnitaire: prixUnitaire
                 });
                 debugInfo.detailsParPointVente[pointVente].totalStockSoir += montant;
             }
@@ -3408,7 +3609,9 @@ async function calculerReconciliationParPointVente(stockMatin, stockSoir, transf
                     produit: transfert.produit || '',
                     impact: impact,
                     montant: montant,
-                    valeur: valeurTransfert
+                    valeur: valeurTransfert,
+                    quantite: parseFloat(transfert.quantite || 0),
+                    prixUnitaire: parseFloat(transfert.prixUnitaire || 0)
                 });
             }
         });
@@ -3431,23 +3634,29 @@ async function calculerReconciliationParPointVente(stockMatin, stockSoir, transf
             reconciliation[pointVente].stockSoir + 
             reconciliation[pointVente].transferts;
         
-        // Stocker les ventes théoriques pour l'affichage de débogage
+        // Calculer la différence entre les ventes théoriques et saisies
+        reconciliation[pointVente].difference = 
+            reconciliation[pointVente].ventes - 
+            reconciliation[pointVente].ventesSaisies;
+            
+        // Calculer le pourcentage d'écart par rapport aux ventes théoriques
+        if (reconciliation[pointVente].ventes !== 0) {
+            reconciliation[pointVente].pourcentageEcart = 
+                (reconciliation[pointVente].difference / reconciliation[pointVente].ventes) * 100;
+        } else {
+            reconciliation[pointVente].pourcentageEcart = 0;
+        }
+        
+        // Vérifier si l'écart absolu est significatif (éviter les divisions par des petits nombres)
+        if (Math.abs(reconciliation[pointVente].ventes) < 1000) {
+            reconciliation[pointVente].pourcentageEcart = 0;
+        }
+            
+        // Stocker les valeurs dans les détails de débogage
         if (debugInfo.detailsParPointVente[pointVente]) {
             debugInfo.detailsParPointVente[pointVente].venteTheoriques = reconciliation[pointVente].ventes;
-        }
-        
-        // Ajouter la formule complète aux détails de débogage
-        if (debugInfo.detailsParPointVente[pointVente]) {
-            debugInfo.detailsParPointVente[pointVente].formule = `${reconciliation[pointVente].stockMatin} - ${reconciliation[pointVente].stockSoir} + ${reconciliation[pointVente].transferts} = ${reconciliation[pointVente].ventes}`;
-        }
-        
-        // Calculer la différence entre ventes théoriques et ventes saisies
-        reconciliation[pointVente].difference = reconciliation[pointVente].ventes - reconciliation[pointVente].ventesSaisies;
-        
-        // Ajouter la formule d'écart aux détails de débogage
-        if (debugInfo.detailsParPointVente[pointVente]) {
-            debugInfo.detailsParPointVente[pointVente].ecart = reconciliation[pointVente].difference;
-            debugInfo.detailsParPointVente[pointVente].formuleEcart = `${reconciliation[pointVente].ventes} - ${reconciliation[pointVente].ventesSaisies} = ${reconciliation[pointVente].difference}`;
+            debugInfo.detailsParPointVente[pointVente].difference = reconciliation[pointVente].difference;
+            debugInfo.detailsParPointVente[pointVente].pourcentageEcart = reconciliation[pointVente].pourcentageEcart;
         }
     });
     
@@ -3472,6 +3681,16 @@ function afficherReconciliation(reconciliation, debugInfo) {
         if (data) {
             // Créer une ligne pour chaque point de vente
             const row = document.createElement('tr');
+            row.setAttribute('data-point-vente', pointVente);
+            
+            // Appliquer une couleur de fond basée sur le pourcentage d'écart
+            if (Math.abs(data.pourcentageEcart) > 10.5) {
+                row.classList.add('table-danger'); // Rouge pour > 10.5%
+            } else if (Math.abs(data.pourcentageEcart) > 8) {
+                row.classList.add('table-warning'); // Jaune pour 8% à 10.5%
+            } else if (Math.abs(data.pourcentageEcart) > 0) {
+                row.classList.add('table-success'); // Vert pour <= 8%
+            }
             
             // Point de vente
             const tdPointVente = document.createElement('td');
@@ -3533,9 +3752,46 @@ function afficherReconciliation(reconciliation, debugInfo) {
             row.appendChild(tdDifference);
             totalDifference += data.difference;
             
+            // Pourcentage d'écart
+            const tdPourcentage = document.createElement('td');
+            // Formater le pourcentage avec 2 décimales
+            tdPourcentage.textContent = data.pourcentageEcart ? `${data.pourcentageEcart.toFixed(2)}%` : "0.00%";
+            tdPourcentage.classList.add('currency');
+            // Ajouter une classe basée sur la valeur du pourcentage
+            if (Math.abs(data.pourcentageEcart) > 10.5) {
+                tdPourcentage.classList.add('text-danger', 'fw-bold');
+            } else if (Math.abs(data.pourcentageEcart) > 8) {
+                tdPourcentage.classList.add('text-warning', 'fw-bold');
+            } else if (Math.abs(data.pourcentageEcart) > 0) {
+                tdPourcentage.classList.add('text-success', 'fw-bold');
+            }
+            row.appendChild(tdPourcentage);
+            
+            // Commentaire - Nouveau
+            const tdCommentaire = document.createElement('td');
+            const inputCommentaire = document.createElement('input');
+            inputCommentaire.type = 'text';
+            inputCommentaire.className = 'form-control commentaire-input';
+            inputCommentaire.placeholder = 'Ajouter un commentaire...';
+            inputCommentaire.setAttribute('data-point-vente', pointVente);
+            
+            // Charger un commentaire existant s'il y en a un
+            if (data.commentaire) {
+                inputCommentaire.value = data.commentaire;
+            }
+            
+            tdCommentaire.appendChild(inputCommentaire);
+            row.appendChild(tdCommentaire);
+            
             tbody.appendChild(row);
         }
     });
+    
+    // Calculer le pourcentage d'écart total
+    let totalPourcentageEcart = 0;
+    if (totalVentesTheoriques !== 0) {
+        totalPourcentageEcart = (totalDifference / totalVentesTheoriques) * 100;
+    }
     
     // Créer une ligne pour les totaux
     const rowTotal = document.createElement('tr');
@@ -3595,12 +3851,180 @@ function afficherReconciliation(reconciliation, debugInfo) {
     }
     rowTotal.appendChild(tdTotalDifference);
     
+    // Total Pourcentage d'écart
+    const tdTotalPourcentage = document.createElement('td');
+    tdTotalPourcentage.textContent = `${totalPourcentageEcart.toFixed(2)}%`;
+    tdTotalPourcentage.classList.add('currency');
+    tdTotalPourcentage.style.fontWeight = 'bold';
+    // Ajouter une classe basée sur la valeur du pourcentage
+    if (Math.abs(totalPourcentageEcart) > 10.5) {
+        tdTotalPourcentage.classList.add('text-danger');
+    } else if (Math.abs(totalPourcentageEcart) > 8) {
+        tdTotalPourcentage.classList.add('text-warning');
+    } else if (Math.abs(totalPourcentageEcart) > 0) {
+        tdTotalPourcentage.classList.add('text-success');
+    }
+    rowTotal.appendChild(tdTotalPourcentage);
+    
+    // Cellule vide pour la colonne commentaire dans la ligne totale
+    const tdTotalCommentaire = document.createElement('td');
+    rowTotal.appendChild(tdTotalCommentaire);
+    
     tbody.appendChild(rowTotal);
     
     // Mettre à jour le total affiché dans l'interface
     document.getElementById('date-reconciliation-display').textContent = 
         document.getElementById('date-reconciliation').value;
+        
+    // Enregistrer la réconciliation dans une variable globale pour pouvoir la sauvegarder plus tard
+    window.currentReconciliation = {
+        date: document.getElementById('date-reconciliation').value,
+        data: reconciliation,
+        debug: debugInfo
+    };
+    
+    // Activer le bouton de sauvegarde
+    document.getElementById('sauvegarder-reconciliation').disabled = false;
 }
+
+// Fonction pour sauvegarder les données de réconciliation
+async function sauvegarderReconciliation() {
+    try {
+        // Vérifier si les données de réconciliation existent
+        if (!window.currentReconciliation) {
+            alert('Aucune réconciliation à sauvegarder');
+            return;
+        }
+        
+        // Récupérer la date
+        const date = window.currentReconciliation.date;
+        if (!date) {
+            alert('Date de réconciliation non définie');
+            return;
+        }
+        
+        // Récupérer les données de réconciliation
+        const reconciliationData = window.currentReconciliation.data;
+        
+        // Récupérer les commentaires saisis par l'utilisateur
+        const commentaires = {};
+        document.querySelectorAll('.commentaire-input').forEach(input => {
+            const pointVente = input.getAttribute('data-point-vente');
+            const commentaire = input.value.trim();
+            if (commentaire) {
+                commentaires[pointVente] = commentaire;
+            }
+        });
+        
+        // Ajouter les commentaires aux données de réconciliation
+        Object.keys(reconciliationData).forEach(pointVente => {
+            if (commentaires[pointVente]) {
+                reconciliationData[pointVente].commentaire = commentaires[pointVente];
+            }
+        });
+        
+        // Préparer les données à envoyer
+        const dataToSave = {
+            date: date,
+            reconciliation: reconciliationData
+        };
+        
+        // Envoyer les données au serveur
+        const response = await fetch('http://localhost:3000/api/reconciliation/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(dataToSave)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Réconciliation sauvegardée avec succès');
+        } else {
+            throw new Error(result.message || 'Erreur lors de la sauvegarde');
+        }
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde de la réconciliation:', error);
+        alert('Erreur lors de la sauvegarde: ' + error.message);
+    }
+}
+
+// Ajouter un gestionnaire d'événements pour le bouton de sauvegarde
+document.addEventListener('DOMContentLoaded', function() {
+    const btnSauvegarder = document.getElementById('sauvegarder-reconciliation');
+    if (btnSauvegarder) {
+        btnSauvegarder.addEventListener('click', sauvegarderReconciliation);
+        
+        // Désactiver le bouton par défaut
+        btnSauvegarder.disabled = true;
+    }
+});
+
+// Fonction pour charger une réconciliation sauvegardée
+async function chargerReconciliationSauvegardee(date) {
+    try {
+        // Afficher l'indicateur de chargement
+        document.getElementById('loading-indicator-reconciliation').style.display = 'block';
+        
+        // Récupérer les données sauvegardées
+        const response = await fetch(`http://localhost:3000/api/reconciliation/load?date=${date}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            // Afficher les données chargées
+            afficherReconciliation(result.data.reconciliation, result.data.debug || {});
+            
+            // Mettre à jour les commentaires
+            Object.keys(result.data.reconciliation).forEach(pointVente => {
+                const data = result.data.reconciliation[pointVente];
+                if (data.commentaire) {
+                    const input = document.querySelector(`.commentaire-input[data-point-vente="${pointVente}"]`);
+                    if (input) {
+                        input.value = data.commentaire;
+                    }
+                }
+            });
+            
+            // Masquer l'indicateur de chargement
+            document.getElementById('loading-indicator-reconciliation').style.display = 'none';
+        } else {
+            // Si aucune donnée sauvegardée n'est trouvée, effectuer un calcul normal
+            calculerReconciliation(date);
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement de la réconciliation:', error);
+        
+        // En cas d'erreur, essayer de calculer normalement
+        calculerReconciliation(date);
+    }
+}
+
+// Modifier le gestionnaire d'événements pour le bouton de calcul de réconciliation
+document.addEventListener('DOMContentLoaded', function() {
+                const btnCalculer = document.getElementById('calculer-reconciliation');
+    if (btnCalculer) {
+        // Remplacer l'ancien gestionnaire d'événements
+        btnCalculer.removeEventListener('click', calculerReconciliation);
+        
+        btnCalculer.addEventListener('click', function() {
+            const date = document.getElementById('date-reconciliation').value;
+            if (!date) {
+                alert('Veuillez sélectionner une date');
+                return;
+            }
+            
+            // Essayer de charger une réconciliation sauvegardée d'abord
+            chargerReconciliationSauvegardee(date);
+        });
+    }
+});
 
 // Variable globale pour stocker les informations de débogage actuelles
 window.currentDebugInfo = null;
@@ -3650,7 +4074,8 @@ function afficherDetailsDebugging(pointVente, debugInfo) {
             <div><strong>Formule Écart:</strong></div>
             <div class="mt-2">Ventes Théoriques (${formatMonetaire(details.venteTheoriques)}) - 
             Ventes Saisies (${formatMonetaire(details.totalVentesSaisies)}) = 
-            Écart (${formatMonetaire(details.ecart)})</div>
+            Écart (${formatMonetaire(details.difference)})</div>
+            <div class="mt-2"><strong>Pourcentage d'écart:</strong> ${details.pourcentageEcart ? details.pourcentageEcart.toFixed(2) : '0.00'}%</div>
         `;
         
         // Section Stock et Transferts - Tableau unifié
@@ -3943,6 +4368,12 @@ function ajouterStylesCSS() {
 // Appeler la fonction lors du chargement de la page
 document.addEventListener('DOMContentLoaded', function() {
     ajouterStylesCSS();
+    
+    // Initialiser la fonctionnalité de sélection de colonne style Excel
+    if (!window.excelSelectInitialized) {
+        initTableauSelectionnableExcel();
+        window.excelSelectInitialized = true;
+    }
 });
 
 // Fonction pour créer un tableau de détails unifié pour la section Stock et Transferts
@@ -3959,6 +4390,9 @@ function creerTableauUnifie(details) {
     // Créer une map pour combiner les données par produit
     const produitsMap = new Map();
     
+    // Structure pour stocker les détails supplémentaires (quantité et prix unitaire)
+    const produitsDetails = new Map();
+    
     // Traiter le stock matin
     if (details.stockMatin && details.stockMatin.length > 0) {
         details.stockMatin.forEach(item => {
@@ -3973,6 +4407,25 @@ function creerTableauUnifie(details) {
             } else {
                 const produit = produitsMap.get(item.produit);
                 produit.stockMatin = item.montant || 0;
+            }
+            
+            // Stocker les détails pour le tooltip
+            if (!produitsDetails.has(item.produit)) {
+                produitsDetails.set(item.produit, {});
+            }
+            
+            const details = produitsDetails.get(item.produit);
+            
+            // Vérifier si nous avons des données de quantité et prix
+            if (item.quantite && item.prixUnitaire) {
+                details.stockMatinQuantite = item.quantite;
+                details.stockMatinPrixUnitaire = item.prixUnitaire;
+            } else if (item.montant > 0) {
+                // Calculer à partir du montant en utilisant les prix par défaut
+                const prixUnitaire = PRIX_DEFAUT[item.produit] || 1;
+                const quantite = (item.montant / prixUnitaire).toFixed(2);
+                details.stockMatinQuantite = quantite;
+                details.stockMatinPrixUnitaire = prixUnitaire;
             }
         });
     }
@@ -3992,6 +4445,25 @@ function creerTableauUnifie(details) {
                 const produit = produitsMap.get(item.produit);
                 produit.stockSoir = item.montant || 0;
             }
+            
+            // Stocker les détails pour le tooltip
+            if (!produitsDetails.has(item.produit)) {
+                produitsDetails.set(item.produit, {});
+            }
+            
+            const details = produitsDetails.get(item.produit);
+            
+            // Vérifier si nous avons des données de quantité et prix
+            if (item.quantite && item.prixUnitaire) {
+                details.stockSoirQuantite = item.quantite;
+                details.stockSoirPrixUnitaire = item.prixUnitaire;
+            } else if (item.montant > 0) {
+                // Calculer à partir du montant en utilisant les prix par défaut
+                const prixUnitaire = PRIX_DEFAUT[item.produit] || 1;
+                const quantite = (item.montant / prixUnitaire).toFixed(2);
+                details.stockSoirQuantite = quantite;
+                details.stockSoirPrixUnitaire = prixUnitaire;
+            }
         });
     }
     
@@ -4009,6 +4481,38 @@ function creerTableauUnifie(details) {
             } else {
                 const produit = produitsMap.get(item.produit);
                 produit.transfert = (produit.transfert || 0) + (item.valeur || 0);
+            }
+            
+            // Stocker les détails pour le tooltip
+            if (!produitsDetails.has(item.produit)) {
+                produitsDetails.set(item.produit, {});
+            }
+            
+            const details = produitsDetails.get(item.produit);
+            
+            // Vérifier si nous avons des données de quantité et prix
+            if (item.quantite && item.prixUnitaire) {
+                // Pour les transferts, nous pouvons avoir plusieurs entrées
+                if (!details.transferts) {
+                    details.transferts = [];
+                }
+                details.transferts.push({
+                    quantite: item.quantite,
+                    prixUnitaire: item.prixUnitaire,
+                    valeur: item.valeur
+                });
+            } else if (item.valeur) {
+                // Calculer à partir de la valeur en utilisant les prix par défaut
+                const prixUnitaire = PRIX_DEFAUT[item.produit] || 1;
+                const quantite = (item.valeur / prixUnitaire).toFixed(2);
+                if (!details.transferts) {
+                    details.transferts = [];
+                }
+                details.transferts.push({
+                    quantite: quantite,
+                    prixUnitaire: prixUnitaire,
+                    valeur: item.valeur
+                });
             }
         });
     }
@@ -4126,6 +4630,9 @@ function creerTableauUnifie(details) {
     produitsTriesParOrdre.forEach(produit => {
         const row = document.createElement('tr');
         
+        // Récupérer les détails pour ce produit
+        const produitDetails = produitsDetails.get(produit.produit) || {};
+        
         // Ajouter les cellules pour chaque colonne
         colonnes.forEach(colonne => {
             const td = document.createElement('td');
@@ -4153,6 +4660,24 @@ function creerTableauUnifie(details) {
                     } else if (valeur < 0) {
                         td.classList.add('negative');
                     }
+                }
+                
+                // Ajouter des tooltips
+                if (colonne.id === 'stockMatin' && produitDetails.stockMatinQuantite && produitDetails.stockMatinPrixUnitaire) {
+                    td.title = `${produitDetails.stockMatinQuantite} kg * ${formatMonetaire(produitDetails.stockMatinPrixUnitaire)}`;
+                    td.style.cursor = 'help';
+                } else if (colonne.id === 'stockSoir' && produitDetails.stockSoirQuantite && produitDetails.stockSoirPrixUnitaire) {
+                    td.title = `${produitDetails.stockSoirQuantite} kg * ${formatMonetaire(produitDetails.stockSoirPrixUnitaire)}`;
+                    td.style.cursor = 'help';
+                } else if (colonne.id === 'transfert' && produitDetails.transferts && produitDetails.transferts.length > 0) {
+                    let tooltipText = produitDetails.transferts.map(t => 
+                        `${t.quantite} kg * ${formatMonetaire(t.prixUnitaire)}`
+                    ).join('\n');
+                    td.title = tooltipText;
+                    td.style.cursor = 'help';
+                } else if (colonne.id === 'venteTheorique') {
+                    td.title = `Stock Matin (${formatMonetaire(produit.stockMatin)}) - Stock Soir (${formatMonetaire(produit.stockSoir)}) + Transferts (${formatMonetaire(produit.transfert)})`;
+                    td.style.cursor = 'help';
                 }
             }
             
@@ -4357,6 +4882,13 @@ async function simulerReponseAPI(prompt, donnees) {
             const isEcartZero = ecart === 0;
             const absEcart = Math.abs(ecart);
             
+            // Calculer le pourcentage d'écart par rapport aux ventes théoriques
+            const pourcentageEcart = donnees.ventesTheoriques !== 0 ? 
+                (absEcart / Math.abs(donnees.ventesTheoriques)) * 100 : 0;
+            
+            // Déterminer si l'écart est tolérable (inférieur ou égal à 8%)
+            const isEcartTolerable = pourcentageEcart <= 8;
+            
             let analysis = `
                 <h5>Analyse des résultats de réconciliation pour ${donnees.pointVente} - ${donnees.date}</h5>
                 
@@ -4364,27 +4896,33 @@ async function simulerReponseAPI(prompt, donnees) {
                 <p>
                     ${isEcartZero ? 
                         `<span class="badge bg-success">Parfait équilibre</span> Les ventes théoriques correspondent exactement aux ventes saisies.` :
-                        isEcartPositif ? 
-                            `<span class="badge bg-warning">Écart positif</span> Les ventes théoriques (${formatMonetaire(donnees.ventesTheoriques)}) sont supérieures aux ventes saisies (${formatMonetaire(donnees.ventesSaisies)}), avec un écart de ${formatMonetaire(absEcart)}. Cela signifie que des ventes potentielles n'ont pas été saisies dans le système.` :
-                            `<span class="badge bg-danger">Écart négatif</span> Les ventes saisies (${formatMonetaire(donnees.ventesSaisies)}) sont supérieures aux ventes théoriques (${formatMonetaire(donnees.ventesTheoriques)}), avec un écart de ${formatMonetaire(absEcart)}. Cela peut indiquer des problèmes de saisie ou d'inventaire.`
+                        isEcartTolerable ? 
+                            `<span class="badge bg-success">Écart tolérable</span> L'écart de ${pourcentageEcart.toFixed(2)}% (${formatMonetaire(absEcart)}) est inférieur au seuil de tolérance de 8%. Les ventes théoriques (${formatMonetaire(donnees.ventesTheoriques)}) et les ventes saisies (${formatMonetaire(donnees.ventesSaisies)}) sont considérées comme cohérentes.` :
+                            isEcartPositif ? 
+                                `<span class="badge bg-warning">Écart positif significatif</span> Les ventes théoriques (${formatMonetaire(donnees.ventesTheoriques)}) sont supérieures aux ventes saisies (${formatMonetaire(donnees.ventesSaisies)}), avec un écart de ${formatMonetaire(absEcart)} (${pourcentageEcart.toFixed(2)}%). Cet écart dépasse le seuil de tolérance de 8% et indique que des ventes potentielles n'ont pas été saisies dans le système.` :
+                                `<span class="badge bg-danger">Écart négatif significatif</span> Les ventes saisies (${formatMonetaire(donnees.ventesSaisies)}) sont supérieures aux ventes théoriques (${formatMonetaire(donnees.ventesTheoriques)}), avec un écart de ${formatMonetaire(absEcart)} (${pourcentageEcart.toFixed(2)}%). Cet écart dépasse le seuil de tolérance de 8% et peut indiquer des problèmes de saisie ou d'inventaire.`
                     }
                 </p>
                 
                 <h6 class="mt-3">2. Explications possibles</h6>
                 <ul>
-                    ${isEcartPositif ? `
+                    ${isEcartZero ? `
+                        <li>Excellente gestion et suivi précis des stocks et des ventes.</li>
+                        <li>Processus de saisie des ventes efficace et rigoureux.</li>
+                    ` : isEcartTolerable ? `
+                        <li>Légères variations normales dans un contexte commercial.</li>
+                        <li>Petites différences acceptables dans le comptage ou la saisie.</li>
+                        <li>Variations mineures liées à la manipulation des produits.</li>
+                    ` : isEcartPositif ? `
                         <li>Des ventes ont pu être réalisées sans être correctement enregistrées dans le système.</li>
                         <li>Erreurs possibles dans le comptage du stock du soir (surestimation).</li>
                         <li>Des pertes de stock non documentées (détérioration, vol, etc.).</li>
                         <li>Transferts de stock qui n'ont pas été correctement enregistrés.</li>
-                    ` : isEcartNegatif ? `
+                    ` : `
                         <li>Des ventes ont pu être saisies en double ou avec des quantités incorrectes.</li>
                         <li>Le stock du soir a pu être sous-estimé.</li>
                         <li>Des transferts entrants n'ont pas été correctement comptabilisés.</li>
                         <li>Le stock du matin a pu être surestimé.</li>
-                    ` : `
-                        <li>Excellente gestion et suivi précis des stocks et des ventes.</li>
-                        <li>Processus de saisie des ventes efficace et rigoureux.</li>
                     `}
                 </ul>
                 
@@ -4393,6 +4931,9 @@ async function simulerReponseAPI(prompt, donnees) {
                     ${isEcartZero ? `
                         <li>Continuer avec les bonnes pratiques actuelles.</li>
                         <li>Documenter les procédures pour maintenir cette précision dans le temps.</li>
+                    ` : isEcartTolerable ? `
+                        <li>Maintenir les bonnes pratiques actuelles.</li>
+                        <li>Aucune action corrective nécessaire, la situation est dans les normes acceptables.</li>
                     ` : `
                         <li>Revoir les procédures de saisie des ventes ${isEcartPositif ? 'pour éviter les oublis' : 'pour éviter les doublons'}.</li>
                         <li>Optimiser les processus d'inventaire et de comptage du stock pour plus de précision.</li>
@@ -4404,45 +4945,75 @@ async function simulerReponseAPI(prompt, donnees) {
                 <h6 class="mt-3">4. Points d'attention spécifiques</h6>
             `;
             
-            // Analyser les produits avec les écarts les plus importants
-            let produitsDifferenceMap = new Map();
+            // Analyser les produits
+            const produitAnalyses = [];
             
-            // Fonction pour ajouter un produit à notre map d'analyse
+            // Fonction pour ajouter un produit à la map
             const ajouterProduitAMap = (produit, montant, type) => {
-                if (!produitsDifferenceMap.has(produit)) {
-                    produitsDifferenceMap.set(produit, {
-                        produit,
+                // Trouver ou créer une entrée pour ce produit
+                let produitAnalyse = produitAnalyses.find(p => p.produit === produit);
+                if (!produitAnalyse) {
+                    produitAnalyse = {
+                        produit: produit,
                         stockMatin: 0,
                         stockSoir: 0,
                         transferts: 0,
+                        ventesTheoriques: 0,
                         ventesSaisies: 0
-                    });
+                    };
+                    produitAnalyses.push(produitAnalyse);
                 }
                 
-                produitsDifferenceMap.get(produit)[type] += montant;
+                // Mettre à jour la valeur en fonction du type
+                if (type === 'stockMatin') {
+                    produitAnalyse.stockMatin += montant;
+                } else if (type === 'stockSoir') {
+                    produitAnalyse.stockSoir += montant;
+                } else if (type === 'transferts') {
+                    produitAnalyse.transferts += montant;
+                } else if (type === 'ventesSaisies') {
+                    produitAnalyse.ventesSaisies += montant;
+                }
             };
             
-            // Ajouter les données à la map
-            donnees.stockMatinDetails.forEach(item => ajouterProduitAMap(item.produit, item.montant, 'stockMatin'));
-            donnees.stockSoirDetails.forEach(item => ajouterProduitAMap(item.produit, item.montant, 'stockSoir'));
-            donnees.transfertsDetails.forEach(item => ajouterProduitAMap(item.produit, item.valeur, 'transferts'));
-            donnees.ventesSaisiesDetails.forEach(item => ajouterProduitAMap(item.produit, item.montant, 'ventesSaisies'));
+            // Parcourir les données de stock matin
+            if (donnees.detailsStockMatin) {
+                donnees.detailsStockMatin.forEach(item => {
+                    ajouterProduitAMap(item.produit, item.montant, 'stockMatin');
+                });
+            }
             
-            // Calculer les écarts par produit
-            const produitAnalyses = [];
-            produitsDifferenceMap.forEach(item => {
-                const ventesTheoriques = item.stockMatin - item.stockSoir + item.transferts;
-                const ventesSaisies = item.ventesSaisies;
-                const ecart = ventesTheoriques - ventesSaisies;
+            // Parcourir les données de stock soir
+            if (donnees.detailsStockSoir) {
+                donnees.detailsStockSoir.forEach(item => {
+                    ajouterProduitAMap(item.produit, item.montant, 'stockSoir');
+                });
+            }
+            
+            // Parcourir les transferts
+            if (donnees.detailsTransferts) {
+                donnees.detailsTransferts.forEach(item => {
+                    ajouterProduitAMap(item.produit, item.valeur, 'transferts');
+                });
+            }
+            
+            // Parcourir les ventes saisies
+            if (donnees.detailsVentesSaisies) {
+                donnees.detailsVentesSaisies.forEach(item => {
+                    ajouterProduitAMap(item.produit, parseFloat(item.montant), 'ventesSaisies');
+                });
+            }
+            
+            // Calculer les ventes théoriques et les écarts pour chaque produit
+            produitAnalyses.forEach(produit => {
+                produit.ventesTheoriques = produit.stockMatin - produit.stockSoir + produit.transferts;
+                produit.ecart = produit.ventesTheoriques - produit.ventesSaisies;
                 
-                if (ventesTheoriques !== 0 || ventesSaisies !== 0) {
-                    produitAnalyses.push({
-                        produit: item.produit,
-                        ventesTheoriques,
-                        ventesSaisies,
-                        ecart
-                    });
-                }
+                // Calculer le pourcentage d'écart pour ce produit
+                produit.pourcentageEcart = produit.ventesTheoriques !== 0 ? 
+                    (Math.abs(produit.ecart) / Math.abs(produit.ventesTheoriques)) * 100 : 0;
+                
+                produit.estTolerable = produit.pourcentageEcart <= 8;
             });
             
             // Trier par écart absolu décroissant
@@ -4455,13 +5026,25 @@ async function simulerReponseAPI(prompt, donnees) {
                 analysis += `<p>Les produits suivants présentent les écarts les plus significatifs :</p><ul>`;
                 
                 topProduits.forEach(item => {
-                    const ecartClass = item.ecart > 0 ? 'text-warning' : item.ecart < 0 ? 'text-danger' : 'text-success';
+                    // Déterminer la classe CSS en fonction du pourcentage d'écart
+                    let ecartClass;
+                    if (item.ecart === 0) {
+                        ecartClass = 'text-success';
+                    } else if (item.estTolerable) {
+                        ecartClass = 'text-success';
+                    } else if (item.ecart > 0) {
+                        ecartClass = 'text-warning';
+                    } else {
+                        ecartClass = 'text-danger';
+                    }
+                    
                     analysis += `
                         <li>
                             <strong>${item.produit}</strong> : 
                             Ventes théoriques ${formatMonetaire(item.ventesTheoriques)}, 
                             Ventes saisies ${formatMonetaire(item.ventesSaisies)}, 
-                            <span class="${ecartClass}">Écart ${formatMonetaire(item.ecart)}</span>
+                            <span class="${ecartClass}">Écart ${formatMonetaire(item.ecart)} (${item.pourcentageEcart.toFixed(2)}%)</span>
+                            ${item.estTolerable && item.ecart !== 0 ? '<span class="badge bg-success">Tolérable</span>' : ''}
                         </li>
                     `;
                 });
@@ -4475,15 +5058,66 @@ async function simulerReponseAPI(prompt, donnees) {
                 <p>
                     ${isEcartZero ? 
                         `La réconciliation est parfaite pour cette journée. Continuez à maintenir cette rigueur dans la gestion des stocks et des ventes.` :
-                        isEcartPositif ? 
-                            `Un écart positif de ${formatMonetaire(absEcart)} suggère des ventes non enregistrées ou des pertes de stock. Une attention particulière aux procédures de saisie et d'inventaire est recommandée.` :
-                            `Un écart négatif de ${formatMonetaire(absEcart)} suggère des erreurs de saisie ou d'inventaire. Un contrôle approfondi des procédures d'entrée de stock et de saisie des ventes est recommandé.`
+                        isEcartTolerable ? 
+                            `L'écart de ${pourcentageEcart.toFixed(2)}% (${formatMonetaire(absEcart)}) est considéré comme acceptable car inférieur au seuil de tolérance de 8%. Aucune action corrective n'est nécessaire.` :
+                            isEcartPositif ? 
+                                `Un écart positif significatif de ${formatMonetaire(absEcart)} (${pourcentageEcart.toFixed(2)}%) dépasse le seuil de tolérance de 8%. Une attention particulière aux procédures de saisie et d'inventaire est recommandée.` :
+                                `Un écart négatif significatif de ${formatMonetaire(absEcart)} (${pourcentageEcart.toFixed(2)}%) dépasse le seuil de tolérance de 8%. Un contrôle approfondi des procédures d'entrée de stock et de saisie des ventes est recommandé.`
                     }
                 </p>
             `;
             
             resolve(analysis);
         }, 1500); // Simuler un délai de 1,5 secondes
+    });
+}
+
+// Fonction utilitaire pour simuler une analyse locale en cas d'erreur
+function simulerAnalyseLocale(donnees) {
+    return new Promise((resolve) => {
+        // Préparer les données pour l'analyse
+        const ecart = donnees.ecart;
+        const isEcartPositif = ecart > 0;
+        const isEcartNegatif = ecart < 0;
+        const isEcartZero = ecart === 0;
+        const absEcart = Math.abs(ecart);
+        
+        // Calculer le pourcentage d'écart par rapport aux ventes théoriques
+        const pourcentageEcart = donnees.ventesTheoriques !== 0 ? 
+            (absEcart / Math.abs(donnees.ventesTheoriques)) * 100 : 0;
+        
+        // Déterminer si l'écart est tolérable (inférieur ou égal à 8%)
+        const isEcartTolerable = pourcentageEcart <= 8;
+        
+        // Simuler l'analyse statistique
+        let analysis = `**Analyse statistique des résultats de réconciliation**\n\n`;
+        
+        analysis += `**Point de vente:** ${donnees.pointVente}\n`;
+        analysis += `**Date:** ${donnees.date}\n\n`;
+        
+        analysis += `**Résumé des données financières:**\n`;
+        analysis += `- Stock Matin: ${formatMonetaire(donnees.stockMatin)}\n`;
+        analysis += `- Stock Soir: ${formatMonetaire(donnees.stockSoir)}\n`;
+        analysis += `- Transferts: ${formatMonetaire(donnees.transferts)}\n`;
+        analysis += `- Ventes Théoriques: ${formatMonetaire(donnees.ventesTheoriques)}\n`;
+        analysis += `- Ventes Saisies: ${formatMonetaire(donnees.ventesSaisies)}\n`;
+        analysis += `- Écart: ${formatMonetaire(donnees.ecart)} (${pourcentageEcart.toFixed(2)}%)\n\n`;
+        
+        if (isEcartZero) {
+            analysis += `**Analyse:** Réconciliation parfaite! Félicitations pour votre gestion rigoureuse.\n\n`;
+        } else if (isEcartTolerable) {
+            analysis += `**Analyse:** L'écart de ${pourcentageEcart.toFixed(2)}% est inférieur au seuil de tolérance de 8%. La réconciliation est considérée comme acceptable.\n\n`;
+        } else if (isEcartPositif) {
+            analysis += `**Analyse:** L'écart positif de ${pourcentageEcart.toFixed(2)}% dépasse le seuil de tolérance de 8%. Cela suggère des ventes non enregistrées ou des erreurs de stock.\n\n`;
+        } else {
+            analysis += `**Analyse:** L'écart négatif de ${pourcentageEcart.toFixed(2)}% dépasse le seuil de tolérance de 8%. Cela suggère des erreurs de saisie ou d'inventaire.\n\n`;
+        }
+        
+        analysis += `**Recommandation principale:** ${isEcartZero || isEcartTolerable ? 
+            'Maintenir la qualité actuelle de gestion' : 
+            'Vérifier les procédures de saisie et de comptage'}\n`;
+        
+        resolve(analysis);
     });
 }
 
@@ -4529,4 +5163,1125 @@ document.addEventListener('DOMContentLoaded', function() {
             analyserReconciliationAvecLLM(pointVenteActuel, window.currentDebugInfo);
         });
     }
+});
+
+// Fonction pour filtrer le tableau de stock par point de vente et produit
+function filtrerStock() {
+    const pointVenteFiltre = document.getElementById('filtre-point-vente').value;
+    const produitFiltre = document.getElementById('filtre-produit').value;
+    const rows = document.querySelectorAll('#stock-table tbody tr');
+
+    console.log(`Filtrage du stock - Point de vente: ${pointVenteFiltre}, Produit: ${produitFiltre}`);
+    
+    rows.forEach(row => {
+        const pointVenteCell = row.querySelector('td:first-child select');
+        const produitCell = row.querySelector('td:nth-child(2) select');
+        
+        if (!pointVenteCell || !produitCell) return;
+        
+        const pointVente = pointVenteCell.value;
+        const produit = produitCell.value;
+        
+        const matchPointVente = pointVenteFiltre === 'tous' || pointVente === pointVenteFiltre;
+        const matchProduit = produitFiltre === 'tous' || produit === produitFiltre;
+        
+        if (matchPointVente && matchProduit) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Fonction pour initialiser les filtres de stock
+function initFilterStock() {
+    const filtrePointVente = document.getElementById('filtre-point-vente');
+    const filtreProduit = document.getElementById('filtre-produit');
+    
+    if (filtrePointVente) {
+        filtrePointVente.addEventListener('change', filtrerStock);
+    }
+    
+    if (filtreProduit) {
+        filtreProduit.addEventListener('change', filtrerStock);
+    }
+}
+
+// Remplacer la fonction dupliquée initInventaire par une version correcte
+async function initInventaire() {
+    console.log('%c=== Initialisation de la page inventaire ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+    
+    // Initialiser les filtres de stock
+    initFilterStock();
+    
+    // Initialiser le datepicker
+    const dateInput = document.getElementById('date-inventaire');
+    flatpickr(dateInput, {
+        dateFormat: "d/m/Y",
+        defaultDate: "today",
+        disableMobile: "true",
+        onChange: function(selectedDates, dateStr) {
+            // Recharger les transferts quand la date change
+            chargerTransferts();
+            // Recharger les données de stock quand la date change
+            chargerStock(dateStr);
+        }
+    });
+    
+    // Initialiser le type de stock
+    const typeStockSelect = document.getElementById('type-stock');
+    if (typeStockSelect) {
+        typeStockSelect.addEventListener('change', onTypeStockChange);
+    }
+    
+    // Initialiser les boutons
+    const btnAjouterLigneStock = document.getElementById('add-stock-row');
+    if (btnAjouterLigneStock) {
+        btnAjouterLigneStock.addEventListener('click', ajouterLigneStock);
+    }
+    
+    const btnSaveStock = document.getElementById('save-stock');
+    if (btnSaveStock) {
+        btnSaveStock.addEventListener('click', sauvegarderDonneesStock);
+    }
+    
+    // Charger les données initiales
+    try {
+        const dateInitiale = dateInput.value;
+        console.log('%cChargement initial des données pour la date:', 'color: #00aaff;', dateInitiale);
+        
+        await chargerStock(dateInitiale);
+        await chargerTransferts();
+        
+    } catch (error) {
+        console.error('%cErreur lors du chargement initial des données:', 'color: #ff0000;', error);
+        // En cas d'erreur, initialiser quand même le tableau
+        ajouterLigneStock();
+    }
+    
+    console.log('%c=== Initialisation terminée ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+}
+
+// ... existing code ...
+// Fonction pour analyser les résultats avec DeepSeek en local
+async function analyserReconciliationAvecDeepSeek(pointVente, debugInfo) {
+    // Afficher l'indicateur de chargement
+    document.getElementById('deepseek-loading').style.display = 'block';
+    document.getElementById('deepseek-analyse-container').style.display = 'block';
+    document.getElementById('deepseek-result').innerHTML = '';
+    
+    try {
+        // Préparer les données pour l'API DeepSeek
+        const details = debugInfo.detailsParPointVente[pointVente];
+        
+        if (!details) {
+            throw new Error('Aucune donnée disponible pour ce point de vente.');
+        }
+        
+        // Créer un résumé des données pour le prompt (même structure que pour LLM)
+        const donnees = {
+            pointVente: pointVente,
+            date: debugInfo.date || new Date().toLocaleDateString('fr-FR'),
+            stockMatin: details.totalStockMatin,
+            stockSoir: details.totalStockSoir,
+            transferts: details.totalTransferts,
+            ventesTheoriques: details.venteTheoriques,
+            ventesSaisies: details.totalVentesSaisies,
+            ecart: details.ecart,
+            stockMatinDetails: details.stockMatin,
+            stockSoirDetails: details.stockSoir,
+            transfertsDetails: details.transferts,
+            ventesSaisiesDetails: details.ventesSaisies
+        };
+        
+        // Appeler l'API pour analyser les données avec DeepSeek
+        const result = await analyserAvecDeepSeekLocal(donnees);
+        
+        // Afficher la réponse
+        document.getElementById('deepseek-result').innerHTML = formatDeepSeekAnalysis(result);
+    } catch (error) {
+        console.error('Erreur lors de l\'analyse DeepSeek:', error);
+        document.getElementById('deepseek-result').innerHTML = `
+            <div class="alert alert-danger">
+                <strong>Erreur :</strong> ${error.message || 'Une erreur est survenue lors de l\'analyse des données avec DeepSeek.'}
+            </div>
+        `;
+    } finally {
+        // Masquer l'indicateur de chargement
+        document.getElementById('deepseek-loading').style.display = 'none';
+    }
+}
+
+// Fonction pour formatter la réponse DeepSeek en HTML
+function formatDeepSeekAnalysis(analysisText) {
+    // Convertir le texte brut en HTML avec formatage
+    const formattedText = analysisText
+        .replace(/\n\n/g, '</p><p>') // Paragraphes
+        .replace(/\n/g, '<br>') // Sauts de ligne
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Gras
+        .replace(/\*(.*?)\*/g, '<em>$1</em>'); // Italique
+    
+    return `
+        <div class="deepseek-analysis">
+            <p>${formattedText}</p>
+        </div>
+    `;
+}
+
+// Fonction pour analyser les données avec DeepSeek localement
+async function analyserAvecDeepSeekLocal(donnees) {
+    return new Promise((resolve, reject) => {
+        // Simuler un petit délai pour montrer le chargement
+        setTimeout(async () => {
+            try {
+                console.log('Exécution de l\'analyse statistique...');
+                
+                // Passage direct à simulerAnalyseLocale car window.require n'est pas disponible dans le navigateur
+                simulerAnalyseLocale(donnees).then(resolve).catch(reject);
+            } catch (error) {
+                console.error("Erreur lors de l'analyse statistique:", error);
+                // En cas d'erreur, utiliser l'analyse de secours
+                simulerAnalyseLocale(donnees).then(resolve).catch(reject);
+            }
+        }, 1500);
+    });
+}
+
+// Fonction utilitaire pour simuler une analyse locale en cas d'erreur
+function simulerAnalyseLocale(donnees) {
+    return new Promise((resolve) => {
+        // Préparer les données pour l'analyse
+        const ecart = donnees.ecart;
+        const isEcartPositif = ecart > 0;
+        const isEcartNegatif = ecart < 0;
+        const isEcartZero = ecart === 0;
+        
+        // Simuler l'analyse statistique
+        let analysis = `**Analyse statistique des résultats de réconciliation**\n\n`;
+        
+        analysis += `**Point de vente:** ${donnees.pointVente}\n`;
+        analysis += `**Date:** ${donnees.date}\n\n`;
+        
+        analysis += `**Résumé des données financières:**\n`;
+        analysis += `- Stock Matin: ${formatMonetaire(donnees.stockMatin)}\n`;
+        analysis += `- Stock Soir: ${formatMonetaire(donnees.stockSoir)}\n`;
+        analysis += `- Transferts: ${formatMonetaire(donnees.transferts)}\n`;
+        analysis += `- Ventes Théoriques: ${formatMonetaire(donnees.ventesTheoriques)}\n`;
+        analysis += `- Ventes Saisies: ${formatMonetaire(donnees.ventesSaisies)}\n`;
+        analysis += `- Écart: ${formatMonetaire(donnees.ecart)}\n\n`;
+        
+        if (isEcartZero) {
+            analysis += `**Analyse:** Réconciliation parfaite! Félicitations pour votre gestion rigoureuse.\n\n`;
+        } else if (isEcartPositif) {
+            analysis += `**Analyse:** L'écart positif suggère des ventes non enregistrées ou des erreurs de stock.\n\n`;
+        } else {
+            analysis += `**Analyse:** L'écart négatif suggère des erreurs de saisie ou d'inventaire.\n\n`;
+        }
+        
+        analysis += `**Recommandation principale:** ${isEcartZero ? 
+            'Maintenir la qualité actuelle de gestion' : 
+            'Vérifier les procédures de saisie et de comptage'}\n`;
+        
+        resolve(analysis);
+    });
+}
+
+// Fonction utilitaire pour mélanger un tableau
+function shuffleArray(array) {
+    const newArray = [...array];
+    for (let i = newArray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+    }
+    return newArray;
+}
+
+// ... existing code ...
+
+// Fonction pour initialiser l'environnement DeepSeek-Local
+async function initDeepSeekLocal() {
+    try {
+        console.log('Initialisation du module d\'analyse statistique...');
+        console.log('Mode d\'analyse simplifiée activé pour les statistiques.');
+        return true;
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation du module d\'analyse statistique:', error);
+        return false;
+    }
+}
+
+// Ajouter des gestionnaires d'événements pour les boutons d'analyse
+document.addEventListener('DOMContentLoaded', function() {
+    // Vérifier si les éléments existent pour éviter les erreurs
+    const btnAnalyseLLM = document.getElementById('btn-analyse-llm');
+    const btnAnalyseDeepSeek = document.getElementById('btn-analyse-deepseek');
+    
+    // Gestionnaire pour le bouton LLM
+    if (btnAnalyseLLM) {
+        btnAnalyseLLM.addEventListener('click', function() {
+            // Récupérer le point de vente et les données de débogage actuellement affichés
+            const debugTitle = document.getElementById('debug-title');
+            if (!debugTitle || !debugTitle.textContent) {
+                alert('Veuillez d\'abord sélectionner un point de vente dans le tableau pour voir les détails.');
+                return;
+            }
+            
+            // Extraire le nom du point de vente à partir du titre
+            const titleText = debugTitle.textContent || '';
+            const match = titleText.match(/Détails pour "([^"]+)"/);
+            
+            if (!match || !match[1]) {
+                alert('Impossible de déterminer le point de vente actuel. Veuillez sélectionner un point de vente dans le tableau.');
+                return;
+            }
+            
+            const pointVenteActuel = match[1];
+            
+            // Récupérer les données de débogage de la variable globale
+            if (!window.currentDebugInfo || !window.currentDebugInfo.detailsParPointVente) {
+                alert('Aucune donnée disponible pour l\'analyse. Veuillez recalculer la réconciliation.');
+                return;
+            }
+            
+            // Lancer l'analyse LLM
+            analyserReconciliationAvecLLM(pointVenteActuel, window.currentDebugInfo);
+        });
+    }
+    
+    // Gestionnaire pour le bouton DeepSeek
+    if (btnAnalyseDeepSeek) {
+        btnAnalyseDeepSeek.addEventListener('click', function() {
+            // Récupérer le point de vente et les données de débogage actuellement affichés
+            const debugTitle = document.getElementById('debug-title');
+            if (!debugTitle || !debugTitle.textContent) {
+                alert('Veuillez d\'abord sélectionner un point de vente dans le tableau pour voir les détails.');
+                return;
+            }
+            
+            // Extraire le nom du point de vente à partir du titre
+            const titleText = debugTitle.textContent || '';
+            const match = titleText.match(/Détails pour "([^"]+)"/);
+            
+            if (!match || !match[1]) {
+                alert('Impossible de déterminer le point de vente actuel. Veuillez sélectionner un point de vente dans le tableau.');
+                return;
+            }
+            
+            const pointVenteActuel = match[1];
+            
+            // Récupérer les données de débogage de la variable globale
+            if (!window.currentDebugInfo || !window.currentDebugInfo.detailsParPointVente) {
+                alert('Aucune donnée disponible pour l\'analyse. Veuillez recalculer la réconciliation.');
+                return;
+            }
+            
+            // Lancer l'analyse avec DeepSeek-Local
+            analyserReconciliationAvecDeepSeek(pointVenteActuel, window.currentDebugInfo);
+        });
+    }
+    
+    // Initialiser l'environnement DeepSeek-Local
+    initDeepSeekLocal().then(success => {
+        if (success) {
+            console.log('Le module d\'analyse statistique est prêt.');
+        } else {
+            console.warn('Le module d\'analyse statistique n\'a pas pu être initialisé correctement. L\'analyse utilisera le mode de secours.');
+        }
+    }).catch(error => {
+        console.error('Erreur lors de l\'initialisation du module d\'analyse statistique:', error);
+    });
+});
+// ... existing code ...
+
+// ... existing code ...
+
+// Fonction pour initialiser la page des alertes d'accumulation de stock
+function initStockAlerte() {
+    console.log('%c=== Initialisation de la page des alertes d\'accumulation de stock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+    
+    // Initialiser les datepickers
+    flatpickr('#date-debut-alerte', {
+        dateFormat: "d/m/Y",
+        defaultDate: new Date(new Date().setDate(new Date().getDate() - 7)), // 7 jours avant aujourd'hui
+        locale: 'fr'
+    });
+    
+    flatpickr('#date-fin-alerte', {
+        dateFormat: "d/m/Y",
+        defaultDate: "today",
+        locale: 'fr'
+    });
+    
+    // Initialiser le pourcentage par défaut
+    document.getElementById('pourcentage-alerte').value = 10;
+    
+    // Ajouter l'écouteur d'événement pour le bouton de recherche
+    const btnRechercherAlertes = document.getElementById('btn-rechercher-alertes');
+    
+    if (btnRechercherAlertes) {
+        console.log('Bouton de recherche d\'alertes trouvé, ajout de l\'écouteur d\'événement');
+        btnRechercherAlertes.addEventListener('click', function() {
+            console.log('Clic sur le bouton de recherche d\'alertes');
+            rechercherAlertesAccumulation();
+        });
+    } else {
+        console.error('Erreur : le bouton de recherche d\'alertes (ID: btn-rechercher-alertes) n\'a pas été trouvé!');
+    }
+    
+    // Nettoyer le tableau des alertes précédentes
+    const tableBody = document.querySelector('#alertes-table tbody');
+    if (tableBody) {
+        tableBody.innerHTML = '';
+    } else {
+        console.error('Erreur : le tableau des alertes (ID: alertes-table) n\'a pas été trouvé!');
+    }
+    
+    const noAlertesMessage = document.getElementById('no-alertes-message');
+    if (noAlertesMessage) {
+        noAlertesMessage.style.display = 'none';
+    } else {
+        console.error('Erreur : le message "aucune alerte" (ID: no-alertes-message) n\'a pas été trouvé!');
+    }
+}
+
+// Fonction pour formater une date en format dd/mm/yyyy
+function formatDate(date) {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+}
+
+// Fonction pour générer une liste de dates entre deux dates
+function generateDateRange(startDate, endDate) {
+    const dateArray = [];
+    let currentDate = new Date(startDate);
+    
+    // Convertir les dates en objets Date si elles sont des chaînes
+    if (typeof startDate === 'string') {
+        currentDate = parseDate(startDate);
+    }
+    
+    const endDateTime = typeof endDate === 'string' ? parseDate(endDate) : new Date(endDate);
+    
+    while (currentDate <= endDateTime) {
+        dateArray.push(formatDate(new Date(currentDate)));
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return dateArray;
+}
+
+// Fonction pour convertir une date du format dd/mm/yyyy en objet Date
+function parseDate(dateString) {
+    const parts = dateString.split('/');
+    // Note: le mois est 0-indexed dans JavaScript Date
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+}
+
+// Fonction pour récupérer les données de stock pour une date spécifique
+async function getStockForDate(date, type) {
+    try {
+        const response = await fetch(`http://localhost:3000/api/stock/${type}?date=${date}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            console.log(`Aucune donnée de stock ${type} disponible pour ${date}`);
+            return {};
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error(`Erreur lors de la récupération du stock ${type} pour ${date}:`, error);
+        return {};
+    }
+}
+
+// Fonction pour charger les transferts pour une date spécifique
+async function getTransfersForDate(date) {
+    try {
+        console.log(`Récupération des transferts pour la date: ${date}`);
+        
+        const response = await fetch(`http://localhost:3000/api/transferts?date=${date}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            console.log(`Aucun transfert disponible pour ${date}`);
+            return [];
+        }
+        
+        const data = await response.json();
+        const transferts = data.success && data.transferts ? data.transferts : [];
+        
+        // Déboguer les données de transferts reçues
+        console.log(`Transferts reçus pour ${date}:`, transferts);
+        
+        return transferts;
+    } catch (error) {
+        console.error(`Erreur lors de la récupération des transferts pour ${date}:`, error);
+        return [];
+    }
+}
+
+// Fonction pour rechercher les alertes d'accumulation de stock
+async function rechercherAlertesAccumulation() {
+    console.log('%c=== Recherche des alertes d\'accumulation de stock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+    
+    // Récupérer les paramètres
+    const dateDebut = document.getElementById('date-debut-alerte').value;
+    const dateFin = document.getElementById('date-fin-alerte').value;
+    const pourcentageSeuil = parseFloat(document.getElementById('pourcentage-alerte').value) || 10;
+    
+    if (!dateDebut || !dateFin) {
+        alert('Veuillez sélectionner une période valide');
+        return;
+    }
+    
+    // Afficher l'indicateur de chargement
+    document.getElementById('loading-indicator-alertes').style.display = 'block';
+    document.getElementById('no-alertes-message').style.display = 'none';
+    
+    try {
+        // Générer la liste des dates à traiter
+        const datesRange = generateDateRange(dateDebut, dateFin);
+        console.log('Dates à traiter:', datesRange);
+        
+        // Tableau pour stocker toutes les alertes
+        const alertes = [];
+        
+        // Fonction pour normaliser le nom du produit (enlever espaces/minuscules)
+        const normaliserProduit = (produit) => {
+            if (!produit) return '';
+            return produit.toLowerCase().trim();
+        };
+        
+        // Traiter chaque date
+        for (const date of datesRange) {
+            console.log(`Traitement de la date: ${date}`);
+            
+            // Récupérer les données de stock matin, stock soir et transferts pour cette date
+            const stockMatin = await getStockForDate(date, 'matin');
+            const stockSoir = await getStockForDate(date, 'soir');
+            const transferts = await getTransfersForDate(date);
+            
+            // Vérifier si nous avons des données pour cette date
+            if (Object.keys(stockMatin).length === 0 && Object.keys(stockSoir).length === 0) {
+                console.log(`Aucune donnée de stock pour ${date}, ignorer cette date`);
+                continue;
+            }
+            
+            // Organiser les transferts par point de vente et produit normalisé
+            const transfertsMap = new Map();
+            transferts.forEach(transfert => {
+                // Extraire le point de vente et le produit avec plus de robustesse
+                const pointVente = transfert.pointVente || transfert["Point de Vente"];
+                const produitBrut = transfert.produit || transfert.Produit;
+                
+                // Vérifier que les valeurs sont bien extraites
+                if (!pointVente || !produitBrut) {
+                    console.warn('Transfert ignoré car point de vente ou produit manquant:', transfert);
+                    return; // Passer au transfert suivant
+                }
+                
+                // Normaliser le nom du produit et créer la clé
+                const produit = produitBrut.trim();
+                const key = `${pointVente}-${produit}`;
+                console.log(`Traitement du transfert: ${key} (produit brut: ${produitBrut})`, transfert);
+                
+                if (!transfertsMap.has(key)) {
+                    transfertsMap.set(key, 0);
+                }
+                
+                // Récupérer la valeur de transfert
+                const impact = parseInt(transfert.impact) || 1;
+                
+                // Essayer de récupérer le montant à partir de plusieurs propriétés possibles
+                let montant = 0;
+                if (transfert.total !== undefined && transfert.total !== null) {
+                    montant = parseFloat(transfert.total);
+                } else if (transfert.montant !== undefined && transfert.montant !== null) {
+                    montant = parseFloat(transfert.montant);
+                } else if (transfert.Montant !== undefined && transfert.Montant !== null) {
+                    montant = parseFloat(transfert.Montant);
+                } else {
+                    // Essayer de calculer à partir de la quantité et du prix unitaire
+                    const quantite = parseFloat(transfert.quantite || transfert.Quantite || transfert.Nombre || transfert.nombre || 0);
+                    const pu = parseFloat(transfert.prixUnitaire || transfert.PU || transfert.pu || 0);
+                    if (quantite > 0 && pu > 0) {
+                        montant = quantite * pu;
+                    }
+                }
+                
+                // Vérifier que le montant est valide
+                if (isNaN(montant) || montant === 0) {
+                    console.warn(`Montant invalide pour le transfert ${key}:`, transfert);
+                }
+                
+                const valeurTransfert = montant;
+                console.log(`Valeur calculée pour le transfert ${key}: ${valeurTransfert}`);
+                
+                // Ajouter à la somme des transferts pour ce produit
+                transfertsMap.set(key, transfertsMap.get(key) + valeurTransfert);
+                console.log(`Valeur totale des transferts pour ${key}: ${transfertsMap.get(key)}`);
+            });
+            
+            // Déboguer toutes les clés stockées dans transfertsMap
+            console.log("Clés de transferts après traitement:");
+            for (const [key, value] of transfertsMap.entries()) {
+                console.log(`  ${key}: ${value}`);
+            }
+            
+            // Parcourir tous les produits dans le stock matin
+            const keysTraitees = new Set(); // Pour éviter les doublons
+            
+            for (const key in stockMatin) {
+                const [pointVente, produitBrut] = key.split('-');
+                
+                // Vérifier si c'est un point de vente physique
+                if (!POINTS_VENTE_PHYSIQUES.includes(pointVente)) continue;
+                
+                // Normaliser le nom du produit et recréer la clé
+                const produit = produitBrut.trim();
+                const keyNorm = `${pointVente}-${produit}`;
+                
+                keysTraitees.add(keyNorm);
+                
+                const stockMatinItem = stockMatin[key];
+                const stockMatinMontant = parseFloat(stockMatinItem.Montant || stockMatinItem.total || 0);
+                
+                // Récupérer la valeur des transferts pour ce produit
+                const transfertMontant = transfertsMap.has(keyNorm) ? transfertsMap.get(keyNorm) : 0;
+                console.log(`Vérification transfert pour ${keyNorm}: ${transfertMontant}`);
+                
+                // Calculer le stock attendu (stock matin + transferts)
+                const stockAttendu = stockMatinMontant + transfertMontant;
+                
+                // Ignorer les stocks nuls ou négatifs
+                if (stockAttendu <= 0) continue;
+                
+                // Vérifier s'il y a un stock soir correspondant
+                if (stockSoir[key]) {
+                    const stockSoirItem = stockSoir[key];
+                    const stockSoirMontant = parseFloat(stockSoirItem.Montant || stockSoirItem.total || 0);
+                    
+                    // Calculer l'écart entre le stock soir et le stock attendu
+                    const difference = stockSoirMontant - stockAttendu;
+                    
+                    // Calculer le pourcentage d'accumulation par rapport au stock attendu
+                    // Si seuil = 10%, on cherche si stockSoir > 90% * stockAttendu (ce qui indique une accumulation)
+                    const pourcentageAccumulation = (difference / stockAttendu) * 100;
+                    
+                    // Si le stock soir dépasse le stock attendu moins le seuil, c'est une accumulation
+                    // NOUVEAU: On ajoute la condition difference > 0 pour ne montrer que les accumulations positives
+                    if (pourcentageAccumulation > -pourcentageSeuil && difference > 0) {
+                        // Extraire les détails du stock matin
+                        const stockMatinQuantite = parseFloat(stockMatinItem.Quantite || stockMatinItem.Nombre || 0);
+                        const stockMatinPU = parseFloat(stockSoirItem.PU || stockSoirItem.prixUnitaire || 0);
+                        
+                        // Extraire les détails du stock soir
+                        const stockSoirQuantite = parseFloat(stockSoirItem.Quantite || stockSoirItem.Nombre || 0);
+                        const stockSoirPU = parseFloat(stockSoirItem.PU || stockSoirItem.prixUnitaire || 0);
+                        
+                        // Rechercher les transferts pour ce produit
+                        const transfertDetails = {
+                            quantite: 0,
+                            prixUnitaire: 0
+                        };
+                        
+                        // Chercher dans les transferts pour trouver les détails
+                        transferts.forEach(transfert => {
+                            const transfertPV = transfert.pointVente || transfert["Point de Vente"];
+                            const transfertProduit = transfert.produit || transfert.Produit;
+                            
+                            if (transfertPV === pointVente && transfertProduit === produit) {
+                                transfertDetails.quantite += parseFloat(transfert.quantite || transfert.Quantite || transfert.Nombre || transfert.nombre || 0);
+                                if (transfertDetails.prixUnitaire === 0) {
+                                    transfertDetails.prixUnitaire = parseFloat(transfert.prixUnitaire || transfert.PU || transfert.pu || 0);
+                                }
+                            }
+                        });
+                        
+                        alertes.push({
+                            pointVente,
+                            produit,
+                            date,
+                            stockMatin: stockMatinMontant,
+                            stockSoir: stockSoirMontant,
+                            transfert: transfertMontant,
+                            difference,
+                            pourcentage: pourcentageAccumulation,
+                            type: 'accumulation',
+                            // Ajouter les détails pour les tooltips
+                            stockMatinDetails: {
+                                quantite: stockMatinQuantite,
+                                prixUnitaire: stockMatinPU
+                            },
+                            stockSoirDetails: {
+                                quantite: stockSoirQuantite,
+                                prixUnitaire: stockSoirPU
+                            },
+                            transfertDetails: transfertDetails
+                        });
+                    }
+                }
+            }
+            
+            // Traiter les produits qui sont dans le stock soir mais pas dans le stock matin
+            for (const key in stockSoir) {
+                // Extraire et normaliser
+                const [pointVente, produitBrut] = key.split('-');
+                const produit = produitBrut.trim();
+                const keyNorm = `${pointVente}-${produit}`;
+                
+                // Ignorer les produits déjà traités
+                if (keysTraitees.has(keyNorm)) continue;
+                
+                // Vérifier si c'est un point de vente physique
+                if (!POINTS_VENTE_PHYSIQUES.includes(pointVente)) continue;
+                
+                const stockSoirItem = stockSoir[key];
+                const stockSoirMontant = parseFloat(stockSoirItem.Montant || stockSoirItem.total || 0);
+                
+                // Récupérer la valeur des transferts pour ce produit
+                const transfertMontant = transfertsMap.has(keyNorm) ? transfertsMap.get(keyNorm) : 0;
+                console.log(`Vérification transfert pour ${keyNorm} (stock soir sans matin): ${transfertMontant}`);
+                
+                // Stock matin est 0, mais il pourrait y avoir des transferts
+                const stockAttendu = transfertMontant;
+                
+                // Si le stock attendu est positif, vérifier s'il y a une accumulation
+                if (stockAttendu > 0) {
+                    const difference = stockSoirMontant - stockAttendu;
+                    const pourcentageAccumulation = (difference / stockAttendu) * 100;
+                    
+                    // NOUVEAU: On ajoute la condition difference > 0 pour ne montrer que les accumulations positives
+                    if (pourcentageAccumulation > -pourcentageSeuil && difference > 0) {
+                        // Extraire les détails du stock soir
+                        const stockSoirQuantite = parseFloat(stockSoirItem.Quantite || stockSoirItem.Nombre || 0);
+                        const stockSoirPU = parseFloat(stockSoirItem.PU || stockSoirItem.prixUnitaire || 0);
+                        
+                        // Rechercher les transferts pour ce produit
+                        const transfertDetails = {
+                            quantite: 0,
+                            prixUnitaire: 0
+                        };
+                        
+                        // Chercher dans les transferts pour trouver les détails
+                        transferts.forEach(transfert => {
+                            const transfertPV = transfert.pointVente || transfert["Point de Vente"];
+                            const transfertProduitBrut = transfert.produit || transfert.Produit;
+                            const transfertProduit = transfertProduitBrut ? transfertProduitBrut.trim() : '';
+                            
+                            if (transfertPV === pointVente && transfertProduit === produit) {
+                                transfertDetails.quantite += parseFloat(transfert.quantite || transfert.Quantite || transfert.Nombre || transfert.nombre || 0);
+                                if (transfertDetails.prixUnitaire === 0) {
+                                    transfertDetails.prixUnitaire = parseFloat(transfert.prixUnitaire || transfert.PU || transfert.pu || 0);
+                                }
+                            }
+                        });
+                        
+                        alertes.push({
+                            pointVente,
+                            produit,
+                            date,
+                            stockMatin: 0,
+                            stockSoir: stockSoirMontant,
+                            transfert: transfertMontant,
+                            difference,
+                            pourcentage: pourcentageAccumulation,
+                            type: 'accumulation',
+                            // Ajouter les détails pour les tooltips
+                            stockMatinDetails: {
+                                quantite: 0,
+                                prixUnitaire: 0
+                            },
+                            stockSoirDetails: {
+                                quantite: stockSoirQuantite,
+                                prixUnitaire: stockSoirPU
+                            },
+                            transfertDetails: transfertDetails
+                        });
+                    }
+                }
+                // Si stock attendu est 0, mais stock soir > 0, c'est une apparition
+                else if (stockSoirMontant > 0) {
+                    // Extraire les détails du stock soir
+                    const stockSoirQuantite = parseFloat(stockSoirItem.Quantite || stockSoirItem.Nombre || 0);
+                    const stockSoirPU = parseFloat(stockSoirItem.PU || stockSoirItem.prixUnitaire || 0);
+                    
+                    alertes.push({
+                        pointVente,
+                        produit,
+                        date,
+                        stockMatin: 0,
+                        stockSoir: stockSoirMontant,
+                        transfert: 0,
+                        difference: stockSoirMontant,
+                        pourcentage: 100, // 100% d'augmentation (par rapport à zéro)
+                        type: 'apparition',
+                        // Ajouter les détails pour les tooltips
+                        stockMatinDetails: {
+                            quantite: 0,
+                            prixUnitaire: 0
+                        },
+                        stockSoirDetails: {
+                            quantite: stockSoirQuantite,
+                            prixUnitaire: stockSoirPU
+                        },
+                        transfertDetails: null
+                    });
+                }
+            }
+        }
+        
+        // Trier les alertes
+        alertes.sort((a, b) => {
+            // Ordre prioritaire des points de vente
+            const ordrePointsVente = ["O.Foire", "Mbao"];
+            
+            // D'abord, trier par point de vente selon la priorité
+            const indexA = ordrePointsVente.indexOf(a.pointVente);
+            const indexB = ordrePointsVente.indexOf(b.pointVente);
+            
+            // Si les deux points de vente sont dans la liste de priorité
+            if (indexA !== -1 && indexB !== -1) {
+                return indexA - indexB; // Trier selon l'ordre dans le tableau
+            }
+            // Si seulement a est dans la liste de priorité
+            else if (indexA !== -1) {
+                return -1; // a vient avant b
+            }
+            // Si seulement b est dans la liste de priorité
+            else if (indexB !== -1) {
+                return 1; // b vient avant a
+            }
+            // Si aucun des deux n'est prioritaire, comparer alphabétiquement
+            else if (a.pointVente !== b.pointVente) {
+                return a.pointVente.localeCompare(b.pointVente);
+            }
+            
+            // Ensuite, trier par pourcentage (décroissant)
+            return b.pourcentage - a.pourcentage;
+        });
+        
+        // Afficher les résultats
+        afficherAlertesAccumulation(alertes);
+        
+    } catch (error) {
+        console.error('Erreur lors de la recherche des alertes:', error);
+        alert('Une erreur est survenue lors de la recherche des alertes. Veuillez réessayer.');
+    } finally {
+        // Masquer l'indicateur de chargement
+        document.getElementById('loading-indicator-alertes').style.display = 'none';
+    }
+}
+
+// Fonction pour afficher les alertes d'accumulation de stock
+function afficherAlertesAccumulation(alertes) {
+    console.log('Alertes trouvées:', alertes);
+    
+    const tbody = document.querySelector('#alertes-table tbody');
+    tbody.innerHTML = ''; // Vider le tableau
+    
+    if (alertes.length === 0) {
+        // Aucune alerte trouvée
+        document.getElementById('no-alertes-message').style.display = 'block';
+        return;
+    }
+    
+    // Remplir le tableau avec les alertes
+    alertes.forEach(alerte => {
+        const tr = document.createElement('tr');
+        
+        // Appliquer une classe en fonction du type d'alerte
+        if (alerte.type === 'accumulation') {
+            tr.classList.add('table-warning');
+        } else if (alerte.type === 'apparition') {
+            tr.classList.add('table-info');
+        }
+        
+        // Point de vente
+        const tdPointVente = document.createElement('td');
+        tdPointVente.textContent = alerte.pointVente;
+        tr.appendChild(tdPointVente);
+        
+        // Produit
+        const tdProduit = document.createElement('td');
+        tdProduit.textContent = alerte.produit;
+        tr.appendChild(tdProduit);
+        
+        // Date
+        const tdDate = document.createElement('td');
+        tdDate.textContent = alerte.date;
+        tr.appendChild(tdDate);
+        
+        // Stock Matin
+        const tdStockMatin = document.createElement('td');
+        tdStockMatin.textContent = formatMonetaire(alerte.stockMatin);
+        tdStockMatin.classList.add('text-end');
+        
+        // Ajouter le détail du calcul en tooltip
+        if (alerte.stockMatinDetails) {
+            const quantite = alerte.stockMatinDetails.quantite || 0;
+            const pu = alerte.stockMatinDetails.prixUnitaire || 0;
+            tdStockMatin.title = `Quantité: ${quantite} × Prix unitaire: ${formatMonetaire(pu)} = ${formatMonetaire(alerte.stockMatin)}`;
+            tdStockMatin.style.cursor = 'help';
+        }
+        
+        tr.appendChild(tdStockMatin);
+        
+        // Stock Soir
+        const tdStockSoir = document.createElement('td');
+        tdStockSoir.textContent = formatMonetaire(alerte.stockSoir);
+        tdStockSoir.classList.add('text-end');
+        
+        // Ajouter le détail du calcul en tooltip
+        if (alerte.stockSoirDetails) {
+            const quantite = alerte.stockSoirDetails.quantite || 0;
+            const pu = alerte.stockSoirDetails.prixUnitaire || 0;
+            tdStockSoir.title = `Quantité: ${quantite} × Prix unitaire: ${formatMonetaire(pu)} = ${formatMonetaire(alerte.stockSoir)}`;
+            tdStockSoir.style.cursor = 'help';
+        }
+        
+        tr.appendChild(tdStockSoir);
+        
+        // Transferts
+        const tdTransfert = document.createElement('td');
+        tdTransfert.textContent = formatMonetaire(alerte.transfert);
+        tdTransfert.classList.add('text-end');
+        
+        // Ajouter le détail du calcul en tooltip
+        if (alerte.transfertDetails) {
+            const quantite = alerte.transfertDetails.quantite || 0;
+            const pu = alerte.transfertDetails.prixUnitaire || 0;
+            tdTransfert.title = `Quantité: ${quantite} × Prix unitaire: ${formatMonetaire(pu)} = ${formatMonetaire(alerte.transfert)}`;
+            tdTransfert.style.cursor = 'help';
+        }
+        
+        tr.appendChild(tdTransfert);
+        
+        // Différence
+        const tdDifference = document.createElement('td');
+        tdDifference.textContent = formatMonetaire(alerte.difference);
+        tdDifference.classList.add('text-end');
+        
+        if (alerte.difference > 0) {
+            tdDifference.classList.add('text-danger', 'fw-bold');
+        } else if (alerte.difference < 0) {
+            tdDifference.classList.add('text-success', 'fw-bold');
+        }
+        
+        tr.appendChild(tdDifference);
+        
+        // Pourcentage
+        const tdPourcentage = document.createElement('td');
+        tdPourcentage.textContent = `${alerte.pourcentage.toFixed(2)}%`;
+        tdPourcentage.classList.add('text-end');
+        
+        if (alerte.pourcentage > 0) {
+            tdPourcentage.classList.add('text-danger', 'fw-bold');
+        } else if (alerte.pourcentage < 0) {
+            tdPourcentage.classList.add('text-success', 'fw-bold');
+        }
+        
+        tr.appendChild(tdPourcentage);
+        
+        tbody.appendChild(tr);
+    });
+}
+
+// Ajouter après les styles CSS existants dans la fonction ajouterStylesCSS
+function ajouterStylesCSS() {
+    // Styles existants...
+    
+    // Ajouter des styles pour les colonnes sélectionnées
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+        .currency {
+            text-align: right;
+        }
+        .negative {
+            color: red;
+        }
+        .positive {
+            color: green;
+        }
+        .debug-toggle {
+            cursor: pointer;
+            color: #0d6efd;
+            text-decoration: underline;
+        }
+        #debug-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .column-selected {
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+        .column-tooltip {
+            position: fixed;
+            background-color: #333;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            z-index: 1000;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+    `;
+    document.head.appendChild(styleElement);
+}
+
+// Ajouter à la fin du fichier
+function initTableauSelectionnableExcel() {
+    // Identifier tous les tableaux à rendre sélectionnables
+    const tableaux = [
+        'reconciliation-table',
+        'stock-table',
+        'alertes-table',
+        'transfertTable',
+        'tableau-ventes',
+        'dernieres-ventes'
+    ];
+    
+    tableaux.forEach(tableId => {
+        const table = document.getElementById(tableId);
+        if (table) {
+            rendreTableauSelectionnable(table);
+        }
+    });
+}
+
+function rendreTableauSelectionnable(table) {
+    let selectedColIndex = -1;
+    let tooltip = null;
+    
+    // Fonction pour créer l'infobulle
+    function creerTooltip() {
+        if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.className = 'column-tooltip';
+            tooltip.style.display = 'none';
+            document.body.appendChild(tooltip);
+        }
+        return tooltip;
+    }
+    
+    // Fonction pour calculer la somme d'une colonne
+    function calculerSommeColonne(colIndex) {
+        let somme = 0;
+        let count = 0;
+        let estNumerique = true;
+        
+        // Parcourir toutes les cellules de la colonne (sauf l'en-tête)
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            // Ignorer les lignes de titre ou de total
+            if (row.classList.contains('total-row')) return;
+            
+            const cell = row.cells[colIndex];
+            if (cell) {
+                // Extraire le texte et le convertir en nombre
+                let texte = cell.textContent.trim();
+                // Supprimer les formatages monétaires (FCFA, espaces, etc.)
+                texte = texte.replace(/\s+/g, '').replace(/FCFA/g, '').replace(/,/g, '.');
+                
+                // Si la cellule contient un nombre valide
+                if (!isNaN(texte) && texte !== '') {
+                    somme += parseFloat(texte);
+                    count++;
+                } else {
+                    estNumerique = false;
+                }
+            }
+        });
+        
+        return { somme, count, estNumerique };
+    }
+    
+    // Fonction pour mettre à jour le tooltip
+    function mettreAJourTooltip(e, colIndex) {
+        const tooltip = creerTooltip();
+        const { somme, count, estNumerique } = calculerSommeColonne(colIndex);
+        
+        if (estNumerique && count > 0) {
+            // Formater la somme pour l'affichage
+            const sommeFormatee = formatMonetaire(somme);
+            tooltip.textContent = `Somme: ${sommeFormatee} | Nombre: ${count}`;
+            tooltip.style.display = 'block';
+            
+            // Positionner le tooltip sous le curseur
+            tooltip.style.left = `${e.pageX}px`;
+            tooltip.style.top = `${e.pageY + 20}px`;
+            
+            // Ajuster si le tooltip dépasse du bord droit
+            const tooltipRect = tooltip.getBoundingClientRect();
+            if (tooltipRect.right > window.innerWidth) {
+                tooltip.style.left = `${window.innerWidth - tooltipRect.width - 10}px`;
+            }
+        } else {
+            // Masquer le tooltip si la colonne n'est pas numérique
+            tooltip.style.display = 'none';
+        }
+    }
+    
+    // Écouteur pour le clic sur les en-têtes de colonnes
+    table.addEventListener('click', function(e) {
+        const th = e.target.closest('th');
+        if (!th) return;
+        
+        const headerRow = th.parentElement;
+        const colIndex = Array.from(headerRow.children).indexOf(th);
+        
+        // Désélectionner la colonne précédente
+        if (selectedColIndex >= 0) {
+            const previousCells = table.querySelectorAll(`tr > :nth-child(${selectedColIndex + 1})`);
+            previousCells.forEach(cell => cell.classList.remove('column-selected'));
+        }
+        
+        // Sélectionner une nouvelle colonne (ou désélectionner si on reclique sur la même)
+        if (selectedColIndex !== colIndex) {
+            selectedColIndex = colIndex;
+            const cells = table.querySelectorAll(`tr > :nth-child(${colIndex + 1})`);
+            cells.forEach(cell => cell.classList.add('column-selected'));
+            
+            // Afficher le tooltip
+            mettreAJourTooltip(e, colIndex);
+        } else {
+            selectedColIndex = -1;
+            if (tooltip) tooltip.style.display = 'none';
+        }
+    });
+    
+    // Écouteur pour le survol lorsqu'une colonne est sélectionnée
+    table.addEventListener('mousemove', function(e) {
+        if (selectedColIndex >= 0) {
+            mettreAJourTooltip(e, selectedColIndex);
+        }
+    });
+    
+    // Masquer le tooltip quand on quitte le tableau
+    table.addEventListener('mouseleave', function() {
+        if (tooltip) tooltip.style.display = 'none';
+    });
+}
+
+// Initialiser la fonctionnalité après le chargement du document
+document.addEventListener('DOMContentLoaded', function() {
+    // Si déjà initialisé, ne rien faire
+    if (window.excelSelectInitialized) return;
+    
+    // Initialiser la fonctionnalité de sélection de colonne
+    initTableauSelectionnableExcel();
+    
+    // Marquer comme initialisé pour éviter les initialisations multiples
+    window.excelSelectInitialized = true;
 });

@@ -1,6 +1,6 @@
 {
   "Mbao-Foie": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "Mbao",
     "Produit": "Foie",
@@ -10,17 +10,17 @@
     "Commentaire": ""
   },
   "Mbao-Yell": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "Mbao",
     "Produit": "Yell",
-    "Nombre": "21",
-    "PU": "2000",
-    "Montant": "42000",
+    "Nombre": "17",
+    "PU": "2500",
+    "Montant": "42500",
     "Commentaire": ""
   },
   "Mbao-Agneau": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "Mbao",
     "Produit": "Agneau",
@@ -30,67 +30,47 @@
     "Commentaire": ""
   },
   "Mbao-Déchet 400": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "Mbao",
     "Produit": "Déchet 400",
-    "Nombre": "5.2",
+    "Nombre": "4.395",
     "PU": "400",
-    "Montant": "2080",
+    "Montant": "1757.9999999999998",
     "Commentaire": ""
   },
   "O.Foire-Tablette": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "O.Foire",
     "Produit": "Tablette",
-    "Nombre": "11",
+    "Nombre": "15",
     "PU": "2800",
-    "Montant": "30800",
-    "Commentaire": ""
-  },
-  "O.Foire-Foie": {
-    "date": "07/04/2025",
-    "typeStock": "soir",
-    "Point de Vente": "O.Foire",
-    "Produit": "Foie",
-    "Nombre": "7",
-    "PU": "4000",
-    "Montant": "28000",
+    "Montant": "42000",
     "Commentaire": ""
   },
   "O.Foire-Yell": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "O.Foire",
     "Produit": "Yell",
-    "Nombre": "26",
+    "Nombre": "28",
     "PU": "2500",
-    "Montant": "65000",
-    "Commentaire": ""
-  },
-  "O.Foire-Agneau": {
-    "date": "07/04/2025",
-    "typeStock": "soir",
-    "Point de Vente": "O.Foire",
-    "Produit": "Agneau",
-    "Nombre": "2.5",
-    "PU": "4500",
-    "Montant": "11250",
+    "Montant": "70000",
     "Commentaire": ""
   },
   "O.Foire-Déchet 400": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "O.Foire",
     "Produit": "Déchet 400",
-    "Nombre": "7",
+    "Nombre": "4",
     "PU": "400",
-    "Montant": "2800",
+    "Montant": "1600",
     "Commentaire": ""
   },
   "Linguere-Poulet": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "Linguere",
     "Produit": "Poulet",
@@ -100,23 +80,23 @@
     "Commentaire": ""
   },
   "Dahra-Poulet": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "Dahra",
     "Produit": "Poulet",
-    "Nombre": "11",
+    "Nombre": "6",
     "PU": "3500",
-    "Montant": "38500",
+    "Montant": "21000",
     "Commentaire": ""
   },
   "Dahra-Tablette": {
-    "date": "07/04/2025",
+    "date": "05/04/2025",
     "typeStock": "soir",
     "Point de Vente": "Dahra",
     "Produit": "Tablette",
-    "Nombre": "55",
+    "Nombre": "48",
     "PU": "2800",
-    "Montant": "154000",
+    "Montant": "134400",
     "Commentaire": ""
   }
 }

@@ -38,6 +38,9 @@
                         <li class="nav-item" id="reconciliation-item">
                             <a class="nav-link" href="#" id="reconciliation-tab">Réconciliation</a>
                         </li>
+                        <li class="nav-item" id="stock-alerte-item">
+                            <a class="nav-link" href="#" id="stock-alerte-tab">Accumulation de stock alerte</a>
+                        </li>
                     </ul>
                     <div class="navbar-nav">
                         <span class="nav-item nav-link" id="user-info"></span>
@@ -214,7 +217,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="row mb-4">
+                <div class="row mb-4 visualisation-charts">
                     <div class="col-md-6">
                         <div class="card">
                             <div class="card-body">
@@ -236,7 +239,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="row mb-4">
+                <div class="row mb-4 visualisation-charts">
                     <div class="col-12">
                         <div class="card">
                             <div class="card-body">
@@ -248,7 +251,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="row">
+                <div class="row visualisation-data">
                     <div class="col-12">
                         <div class="card">
                             <div class="card-body">
@@ -401,6 +404,40 @@
                     </div>
                 </div>
 
+                <!-- Filtres pour le stock -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="filtre-point-vente" class="form-label">Filtrer par Point de Vente</label>
+                            <select id="filtre-point-vente" class="form-select">
+                                <option value="tous">Tous les points de vente</option>
+                                <option value="Mbao">Mbao</option>
+                                <option value="O.Foire">O.Foire</option>
+                                <option value="Linguere">Linguere</option>
+                                <option value="Dahra">Dahra</option>
+                                <option value="Touba">Touba</option>
+                                <option value="Keur Massar">Keur Massar</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="filtre-produit" class="form-label">Filtrer par Produit</label>
+                            <select id="filtre-produit" class="form-select">
+                                <option value="tous">Tous les produits</option>
+                                <option value="Boeuf">Boeuf</option>
+                                <option value="Veau">Veau</option>
+                                <option value="Poulet">Poulet</option>
+                                <option value="Tete De Mouton">Tête de Mouton</option>
+                                <option value="Tablette">Tablette</option>
+                                <option value="Foie">Foie</option>
+                                <option value="Yell">Yell</option>
+                                <option value="Agneau">Agneau</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tableau de stock -->
                 <div class="card mb-4">
                     <div class="card-header">
@@ -526,105 +563,163 @@
             </div>
             
             <!-- Section Réconciliation -->
-            <div id="reconciliation-section" class="container mt-3" style="display: none;">
-                <h2>Réconciliation Stock / Ventes</h2>
-                
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <div class="input-group">
-                            <span class="input-group-text">Date</span>
-                            <input type="text" id="date-reconciliation" class="form-control" placeholder="Sélectionner une date">
-                            <button id="calculer-reconciliation" class="btn btn-primary">Calculer</button>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="alert alert-info">
-                            Réconciliation pour le <strong id="date-reconciliation-display">--/--/----</strong>
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="loading-indicator-reconciliation" class="text-center mb-3" style="display: none;">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Chargement...</span>
-                    </div>
-                    <p>Chargement des données de réconciliation...</p>
-                </div>
-                
-                <div class="table-responsive">
-                    <table id="reconciliation-table" class="table table-bordered table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Point de Vente</th>
-                                <th>Stock Matin</th>
-                                <th>Stock Soir</th>
-                                <th>Transferts</th>
-                                <th>Ventes Théoriques</th>
-                                <th>Ventes Saisies</th>
-                                <th>Écart</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Les données seront insérées ici par JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-                
-                <!-- Zone de débogage pour les détails de réconciliation -->
-                <div id="debug-container" class="mt-4" style="display: none;">
-                    <h4>Détails de la réconciliation</h4>
-                    <p>Cliquez sur un point de vente dans le tableau pour voir les détails de calcul.</p>
-                    
-                    <div id="debug-title" class="mb-3"></div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header bg-primary text-white">
-                                    <h5 class="mb-0">Stock et Transferts</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div id="debug-formule" class="mb-3 p-2 border rounded bg-light"></div>
-                                    <div id="debug-stock-section"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header bg-success text-white">
-                                    <h5 class="mb-0">Ventes Saisies</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div id="debug-ecart" class="mb-3 p-2 border rounded bg-light"></div>
-                                    <div id="debug-ventes-section"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Bouton pour obtenir une interprétation via LLM -->
-                    <div class="mt-4 text-center">
-                        <button id="btn-analyse-llm" class="btn btn-info">
-                            <i class="fas fa-robot me-2"></i>Analyser les résultats avec IA
-                        </button>
-                    </div>
-                    
-                    <!-- Section pour afficher l'interprétation du LLM -->
-                    <div id="llm-analyse-container" class="mt-3" style="display: none;">
+            <div id="reconciliation-section" class="container-fluid mt-4" style="display: none;">
+                <div class="row">
+                    <div class="col-md-12">
                         <div class="card">
-                            <div class="card-header bg-info text-white">
-                                <h5 class="mb-0">Analyse par Intelligence Artificielle</h5>
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">Réconciliation Stock / Ventes</h5>
+                                <span class="small text-muted" id="sync-status-reconciliation"></span>
                             </div>
                             <div class="card-body">
-                                <div id="llm-loading" class="text-center" style="display: none;">
-                                    <div class="spinner-border text-info" role="status">
-                                        <span class="visually-hidden">Analyse en cours...</span>
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <div class="input-group">
+                                            <span class="input-group-text">Date</span>
+                                            <input type="text" id="date-reconciliation" class="form-control" placeholder="Sélectionner une date" onchange="viderTableauReconciliation(); setTimeout(() => calculerReconciliation(this.value), 100);">
+                                            <button class="btn btn-primary" id="calculer-reconciliation">Calculer</button>
+                                            <button class="btn btn-success ms-2" id="sauvegarder-reconciliation" disabled>Sauvegarder</button>
+                                        </div>
                                     </div>
-                                    <p>Analyse des données en cours...</p>
+                                    <div class="col-md-6 text-md-end">
+                                        <div>Réconciliation pour le <strong id="date-reconciliation-display">--/--/----</strong></div>
+                                    </div>
                                 </div>
-                                <div id="llm-result" class="p-3 border rounded bg-light"></div>
+                                
+                                <div id="loading-indicator-reconciliation" class="text-center" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Chargement...</span>
+                                    </div>
+                                    <p>Calcul en cours, veuillez patienter...</p>
+                                </div>
+                                
+                                <div class="table-responsive">
+                                    <table id="reconciliation-table" class="table table-striped table-bordered">
+                                        <thead>
+                                            <tr>
+                                                <th>Point de Vente</th>
+                                                <th class="text-end">Stock Matin</th>
+                                                <th class="text-end">Stock Soir</th>
+                                                <th class="text-end">Transferts</th>
+                                                <th class="text-end">Ventes Théoriques</th>
+                                                <th class="text-end">Ventes Saisies</th>
+                                                <th class="text-end">Écart</th>
+                                                <th class="text-end">Écart %</th>
+                                                <th>Commentaire</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Données de réconciliation générées dynamiquement -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Conteneur pour les détails -->
+                                <div id="debug-container" class="mt-4" style="display: none;">
+                                    <h5>Détails de la réconciliation</h5>
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <div id="debug-title" class="mb-3"></div>
+                                            <div id="debug-formule" class="mb-3"></div>
+                                            <div id="debug-ecart" class="mb-3"></div>
+                                            <h6 class="mt-4">Détails des composantes</h6>
+                                            <div id="debug-stock-section" class="mt-3"></div>
+                                            <div id="debug-ventes-section" class="mt-3"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Section pour l'analyse LLM -->
+                                <div id="llm-analyse-container" class="mt-4" style="display: none;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h5>Analyse des résultats</h5>
+                                        <div>
+                                            <span id="llm-status" class="badge bg-info me-2">En attente</span>
+                                            <button id="demander-analyse-llm" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-robot"></i> Analyser les résultats
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <div id="llm-loading" class="text-center d-none">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Chargement...</span>
+                                                </div>
+                                                <p>Analyse en cours, veuillez patienter...</p>
+                                            </div>
+                                            <div id="llm-result"></div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Alertes de stock -->
+            <div class="card mb-4" id="stock-alerte-section" style="display: none;">
+                <div class="card-header">
+                    <h2>Alertes d'accumulation de stock</h2>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="date-debut-alerte" class="form-label">Date de début</label>
+                            <input type="date" class="form-control" id="date-debut-alerte">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="date-fin-alerte" class="form-label">Date de fin</label>
+                            <input type="date" class="form-control" id="date-fin-alerte">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label for="pourcentage-alerte" class="form-label">Pourcentage de seuil (%)</label>
+                            <input type="number" class="form-control" id="pourcentage-alerte" value="10">
+                        </div>
+                        <div class="col-md-2 mb-3 d-flex align-items-end">
+                            <button class="btn btn-primary w-100" id="btn-rechercher-alertes">Rechercher les alertes</button>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <p>Cet outil recherche:</p>
+                        <ul>
+                            <li><strong>Accumulation</strong>: produits dont le stock soir dépasse 90% du (stock matin + transferts) <strong>et</strong> dont la différence est positive.</li>
+                            <li><strong>Apparition</strong>: produits présents en stock soir mais absents du stock matin.</li>
+                        </ul>
+                        <p>Exemple avec seuil à 10%: accumulation si stock soir > 90% (stock matin + transferts) <strong>et</strong> différence > 0.</p>
+                    </div>
+                    
+                    <div class="text-center my-3" id="loading-indicator-alertes" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                        <p>Recherche des alertes en cours...</p>
+                    </div>
+                    
+                    <div class="alert alert-success" id="no-alertes-message" style="display: none;">
+                        Aucune accumulation de stock significative détectée pour la période sélectionnée.
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped" id="alertes-table">
+                            <thead>
+                                <tr>
+                                    <th>Point de Vente</th>
+                                    <th>Produit</th>
+                                    <th>Date</th>
+                                    <th class="text-end">Stock Matin</th>
+                                    <th class="text-end">Stock Soir</th>
+                                    <th class="text-end">Transferts</th>
+                                    <th class="text-end">Différence</th>
+                                    <th class="text-end">Accumulation (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Les alertes seront ajoutées ici dynamiquement -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -635,6 +730,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="produits.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

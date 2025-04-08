@@ -1,0 +1,54 @@
+{
+    "positif": [
+        "équilibre",
+        "précision",
+        "exactitude",
+        "correspondance",
+        "maîtrise",
+        "contrôle",
+        "efficacité",
+        "gestion",
+        "organisation",
+        "rigueur"
+    ],
+    "negatif": [
+        "écart",
+        "erreur",
+        "perte",
+        "manque",
+        "anomalie",
+        "discordance",
+        "incohérence",
+        "fuite",
+        "déficit",
+        "désorganisation"
+    ],
+    "causes_ecart_positif": [
+        "vente non enregistrée",
+        "stock soir surestimé",
+        "perte non documentée",
+        "vol",
+        "détérioration",
+        "transfert non enregistré",
+        "erreur de comptage"
+    ],
+    "causes_ecart_negatif": [
+        "double saisie",
+        "stock soir sous-estimé",
+        "transfert entrant non enregistré",
+        "stock matin surestimé",
+        "erreur de saisie",
+        "erreur d'inventaire"
+    ],
+    "recommandations": [
+        "formation du personnel",
+        "procédure de contrôle",
+        "double vérification",
+        "audit régulier",
+        "système de validation",
+        "amélioration des outils",
+        "documentation rigoureuse",
+        "contrôle croisé",
+        "standardisation des procédures"
+    ]
+}
