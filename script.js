@@ -1,4 +1,22 @@
-﻿// Vérification de l'authentification
+﻿// Démarrage du script
+document.addEventListener('DOMContentLoaded', function() {
+    // Vérifier si le gestionnaire de réconciliation est disponible
+    if (typeof ReconciliationManager === 'undefined') {
+        console.error('ReconciliationManager non disponible! Assurez-vous que reconciliationManager.js est chargé avant script.js.');
+        alert('Erreur: Module de réconciliation non chargé. Veuillez recharger la page.');
+        return;
+    }
+    
+    console.log('Initialisation de l\'application avec ReconciliationManager');
+    
+    // Surcharger la fonction afficherReconciliation pour utiliser ReconciliationManager
+    window.afficherReconciliation = function(reconciliation, debugInfo) {
+        console.log('Délégation à ReconciliationManager.afficherReconciliation');
+        ReconciliationManager.afficherReconciliation(reconciliation, debugInfo);
+    };
+});
+
+// Vérification de l'authentification
 let currentUser = null;
 
 // Variables globales
@@ -85,8 +103,54 @@ function initReconciliation() {
             defaultDate: new Date(),
             disableMobile: "true",
             onChange: function(selectedDates, dateStr) {
-                console.log('Date sélectionnée pour la réconciliation:', dateStr);
-                viderTableauReconciliation();
+                console.log('Date sélectionnée pour la réconciliation (flatpickr):', dateStr);
+                
+                // Rendre le bouton de calcul plus visible après changement de date
+                const btnCalculer = document.getElementById('calculer-reconciliation');
+                btnCalculer.classList.add('btn-pulse');
+                setTimeout(() => {
+                    btnCalculer.classList.remove('btn-pulse');
+                }, 1500);
+                
+                // Charger automatiquement les données pour la nouvelle date
+                if (dateStr) {
+                    console.log('Chargement automatique des données depuis le handler flatpickr');
+                    
+                    // Réinitialiser les données existantes
+                    const tbody = document.querySelector('#reconciliation-table tbody');
+                    if (tbody) tbody.innerHTML = '';
+                    
+                    // Désactiver le bouton de sauvegarde
+                    const btnSauvegarder = document.getElementById('sauvegarder-reconciliation');
+                    if (btnSauvegarder) btnSauvegarder.disabled = true;
+                    
+                    // Charger les nouvelles données avec le gestionnaire centralisé
+                    if (typeof ReconciliationManager !== 'undefined' && 
+                        typeof ReconciliationManager.chargerReconciliation === 'function') {
+                        ReconciliationManager.chargerReconciliation(dateStr);
+                    } else {
+                        // Fallback en cas de problème avec ReconciliationManager
+                        calculerReconciliation(dateStr);
+                    }
+                }
+            }
+        });
+    }
+    
+    // Peupler le filtre de point de vente s'il n'est pas déjà rempli
+    const pointVenteSelect = document.getElementById('point-vente-filtre');
+    if (pointVenteSelect && pointVenteSelect.options.length <= 1) {
+        POINTS_VENTE_PHYSIQUES.forEach(pv => {
+            const option = document.createElement('option');
+            option.value = pv;
+            option.textContent = pv;
+            pointVenteSelect.appendChild(option);
+        });
+        
+        // Ajouter un écouteur d'événement au filtre pour réactualiser l'affichage
+        pointVenteSelect.addEventListener('change', function() {
+            if (window.currentReconciliation) {
+                afficherReconciliation(window.currentReconciliation.data, window.currentDebugInfo || {});
             }
         });
     }
@@ -159,6 +223,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const copierStockTab = document.getElementById('copier-stock-tab');
     const reconciliationTab = document.getElementById('reconciliation-tab');
     const stockAlerteTab = document.getElementById('stock-alerte-tab');
+    const cashPaymentTab = document.getElementById('cash-payment-tab');
+    const cashPaymentSection = document.getElementById('cash-payment-section');
     
     const saisieSection = document.getElementById('saisie-section');
     const visualisationSection = document.getElementById('visualisation-section');
@@ -177,6 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (copierStockTab) copierStockTab.classList.remove('active');
         if (reconciliationTab) reconciliationTab.classList.remove('active');
         if (stockAlerteTab) stockAlerteTab.classList.remove('active');
+        if (cashPaymentTab) cashPaymentTab.classList.remove('active');
     }
 
     if (saisieTab) {
@@ -263,6 +330,19 @@ document.addEventListener('DOMContentLoaded', function() {
             deactivateAllTabs();
             this.classList.add('active');
             initStockAlerte();
+        });
+    }
+
+    if (cashPaymentTab) {
+        cashPaymentTab.addEventListener('click', function(e) {
+            e.preventDefault();
+            hideAllSections();
+            cashPaymentSection.style.display = 'block';
+            deactivateAllTabs();
+            this.classList.add('active');
+            
+            // Charger les données de paiement
+            loadCashPaymentData();
         });
     }
 
@@ -537,7 +617,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Importer la base de données des produits
-// Note: produits est d�fini dans produits.js et disponible globalement
+// Note: produits est défini dans produits.js et disponible globalement
+console.log('Vérification de la disponibilité de l\'objet produits:', typeof produits, produits ? 'disponible' : 'non disponible');
+
+// S'assurer que l'objet produits est disponible
+if (typeof produits === 'undefined') {
+    console.error('Erreur: L\'objet produits n\'est pas disponible. Vérifiez que produits.js est chargé correctement.');
+    alert('Erreur: Base de données des produits non chargée. Veuillez recharger la page.');
+}
 
 // Gestion des catégories et produits
 document.querySelectorAll('.categorie-select').forEach(select => {
@@ -1791,10 +1878,16 @@ document.getElementById('save-import').addEventListener('click', async function(
 });
 
 // Fonction pour charger les transferts
-async function chargerTransferts() {
+async function chargerTransferts(date) {
     try {
         console.log('Chargement des transferts...');
-        const date = document.getElementById('date-inventaire').value;
+        
+        // Utiliser la date passée en paramètre ou celle de l'interface si disponible
+        const dateSelectionnee = date || (document.getElementById('date-inventaire') ? document.getElementById('date-inventaire').value : null);
+        if (!dateSelectionnee) {
+            console.warn('Aucune date sélectionnée pour charger les transferts');
+            return [];
+        }
         
         // Charger le fichier transferts.json
         let transferts = [];
@@ -1813,211 +1906,171 @@ async function chargerTransferts() {
         }
         
         // Filtrer les transferts par date
-        const transfertsFiltres = Array.isArray(transferts) ? transferts.filter(t => t.date === date) : [];
+        const transfertsFiltres = Array.isArray(transferts) ? transferts.filter(t => t.date === dateSelectionnee) : [];
         console.log('Transferts filtrés par date:', transfertsFiltres);
 
-        // Vider le tableau des transferts
-        const tbody = document.querySelector('#transfertTable tbody');
-        if (!tbody) {
-            console.error('Table des transferts non trouvée');
-            return;
-        }
-        
-        tbody.innerHTML = '';
-        
-        // Afficher les transferts existants
-        if (Array.isArray(transfertsFiltres) && transfertsFiltres.length > 0) {
-            transfertsFiltres.forEach((transfert, index) => {
-                const row = document.createElement('tr');
-                row.dataset.index = index; // Ajouter l'index pour la suppression
-                
-                // Point de vente
-                const tdPointVente = document.createElement('td');
-                const selectPointVente = document.createElement('select');
-                selectPointVente.className = 'form-select form-select-sm point-vente-select';
-                TOUS_POINTS_VENTE.forEach(pv => {
-                    const option = document.createElement('option');
-                    option.value = pv;
-                    option.textContent = pv;
-                    if (pv === transfert.pointVente) {
-                        option.selected = true;
-                    }
-                    selectPointVente.appendChild(option);
-                });
-                tdPointVente.appendChild(selectPointVente);
-                
-                // Produit
-                const tdProduit = document.createElement('td');
-                const selectProduit = document.createElement('select');
-                selectProduit.className = 'form-select form-select-sm produit-select';
-                PRODUITS.forEach(prod => {
-                    const option = document.createElement('option');
-                    option.value = prod;
-                    option.textContent = prod;
-                    if (prod === transfert.produit) {
-                        option.selected = true;
-                    }
-                    selectProduit.appendChild(option);
-                });
-                tdProduit.appendChild(selectProduit);
-                
-                // Impact
-                const tdImpact = document.createElement('td');
-                const selectImpact = document.createElement('select');
-                selectImpact.className = 'form-select form-select-sm impact-select';
-                [
-                    { value: '1', text: '+' },
-                    { value: '-1', text: '-' }
-                ].forEach(({ value, text }) => {
-                    const option = document.createElement('option');
-                    option.value = value;
-                    option.textContent = text;
-                    if (value === transfert.impact.toString()) {
-                        option.selected = true;
-                    }
-                    selectImpact.appendChild(option);
-                });
-                tdImpact.appendChild(selectImpact);
-                
-                // Quantité
-                const tdQuantite = document.createElement('td');
-                const inputQuantite = document.createElement('input');
-                inputQuantite.type = 'number';
-                inputQuantite.className = 'form-control form-control-sm quantite-input';
-                inputQuantite.value = transfert.quantite;
-                tdQuantite.appendChild(inputQuantite);
-                
-                // Prix unitaire
-                const tdPrixUnitaire = document.createElement('td');
-                const inputPrixUnitaire = document.createElement('input');
-                inputPrixUnitaire.type = 'number';
-                inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
-                inputPrixUnitaire.value = transfert.prixUnitaire;
-                tdPrixUnitaire.appendChild(inputPrixUnitaire);
-                
-                // Total
-                const tdTotal = document.createElement('td');
-                tdTotal.className = 'total-cell';
-                tdTotal.textContent = transfert.total.toLocaleString('fr-FR');
-                
-                // Commentaire
-                const tdCommentaire = document.createElement('td');
-                const inputCommentaire = document.createElement('input');
-                inputCommentaire.type = 'text';
-                inputCommentaire.className = 'form-control form-control-sm commentaire-input';
-                inputCommentaire.value = transfert.commentaire || '';
-                tdCommentaire.appendChild(inputCommentaire);
-                
-                // Actions
-                const tdActions = document.createElement('td');
-                const btnSupprimer = document.createElement('button');
-                btnSupprimer.className = 'btn btn-danger btn-sm';
-                btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
-                btnSupprimer.addEventListener('click', async (e) => {
-                    e.preventDefault();
-                    if (confirm('Voulez-vous vraiment supprimer ce transfert ?')) {
-                        try {
-                            // Supprimer le transfert via l'API
-                            const response = await fetch(`http://localhost:3000/api/transferts`, {
-                                method: 'DELETE',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                credentials: 'include',
-                                body: JSON.stringify({
-                                    date: transfert.date,
-                                    pointVente: transfert.pointVente,
-                                    produit: transfert.produit,
-                                    impact: transfert.impact,
-                                    quantite: transfert.quantite,
-                                    prixUnitaire: transfert.prixUnitaire
-                                })
-                            });
-                            
-                            if (response.ok) {
-                                row.remove();
-                                console.log('Transfert supprimé avec succès');
-                            } else {
-                                throw new Error('Erreur lors de la suppression du transfert');
-                            }
-                        } catch (error) {
-                            console.error('Erreur lors de la suppression:', error);
-                            alert('Erreur lors de la suppression : ' + error.message);
-                        }
-                    }
-                });
-                tdActions.appendChild(btnSupprimer);
-                
-                // Ajouter les cellules à la ligne
-                row.append(tdPointVente, tdProduit, tdImpact, tdQuantite, tdPrixUnitaire, tdTotal, tdCommentaire, tdActions);
-                
-                // Ajouter les écouteurs d'événements pour le calcul automatique du total
-                const calculateTotal = () => {
-                    const quantite = parseFloat(inputQuantite.value) || 0;
-                    const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
-                    const impact = parseInt(selectImpact.value) || 1;
-                    const total = quantite * prixUnitaire * impact;
-                    tdTotal.textContent = total.toLocaleString('fr-FR');
-                };
-                
-                inputQuantite.addEventListener('input', calculateTotal);
-                inputPrixUnitaire.addEventListener('input', calculateTotal);
-                selectImpact.addEventListener('change', calculateTotal);
-                
-                tbody.appendChild(row);
-            });
-        } else {
-            console.log('Aucun transfert trouvé pour cette date, ajout d\'une ligne vide');
-            ajouterLigneTransfert();
-        }
-          
-        // Suppression du code qui ajoute un deuxième bouton dans le tfoot
-        /* const tfoot = document.querySelector('#transfertTable tfoot');
-        if (tfoot) {
-            tfoot.innerHTML = `
-              <tr>
-                <td colspan="8" class="text-center">
-                  <button id="ajouterLigne" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Ajouter une ligne
-                  </button>
-                </td>
-              </tr>
-            `;
-            
-            // Réattacher l'événement au bouton
-            document.getElementById('ajouterLigne').addEventListener('click', function() {
-                ajouterLigneTransfert();
-            });
-        } */
-
-        console.log('Transferts chargés avec succès');
-    } catch (error) {
-        console.error('Erreur lors du chargement des transferts:', error);
+        // Si la fonction est appelée depuis la page d'inventaire, mettre à jour l'interface
         const tbody = document.querySelector('#transfertTable tbody');
         if (tbody) {
-            // Ajouter un message d'erreur plus convivial
+            // Vider le tableau des transferts
             tbody.innerHTML = '';
-            ajouterLigneTransfert();
             
-            // Ajouter le bouton d'ajout également en cas d'erreur
-            const tfoot = document.querySelector('#transfertTable tfoot');
-            if (tfoot) {
-                tfoot.innerHTML = `
-                  <tr>
-                    <td colspan="8" class="text-center">
-                      <button id="ajouterLigne" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Ajouter une ligne
-                      </button>
-                    </td>
-                  </tr>
-                `;
-                
-                // Réattacher l'événement au bouton
-                document.getElementById('ajouterLigne').addEventListener('click', function() {
-                    ajouterLigneTransfert();
+            // Afficher les transferts existants
+            if (Array.isArray(transfertsFiltres) && transfertsFiltres.length > 0) {
+                transfertsFiltres.forEach((transfert, index) => {
+                    const row = document.createElement('tr');
+                    row.dataset.index = index; // Ajouter l'index pour la suppression
+                    
+                    // Point de vente
+                    const tdPointVente = document.createElement('td');
+                    const selectPointVente = document.createElement('select');
+                    selectPointVente.className = 'form-select form-select-sm point-vente-select';
+                    TOUS_POINTS_VENTE.forEach(pv => {
+                        const option = document.createElement('option');
+                        option.value = pv;
+                        option.textContent = pv;
+                        if (pv === transfert.pointVente) {
+                            option.selected = true;
+                        }
+                        selectPointVente.appendChild(option);
+                    });
+                    tdPointVente.appendChild(selectPointVente);
+                    
+                    // Produit
+                    const tdProduit = document.createElement('td');
+                    const selectProduit = document.createElement('select');
+                    selectProduit.className = 'form-select form-select-sm produit-select';
+                    PRODUITS.forEach(prod => {
+                        const option = document.createElement('option');
+                        option.value = prod;
+                        option.textContent = prod;
+                        if (prod === transfert.produit) {
+                            option.selected = true;
+                        }
+                        selectProduit.appendChild(option);
+                    });
+                    tdProduit.appendChild(selectProduit);
+                    
+                    // Impact
+                    const tdImpact = document.createElement('td');
+                    const selectImpact = document.createElement('select');
+                    selectImpact.className = 'form-select form-select-sm impact-select';
+                    [
+                        { value: '1', text: '+' },
+                        { value: '-1', text: '-' }
+                    ].forEach(({ value, text }) => {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        option.textContent = text;
+                        if (value === transfert.impact.toString()) {
+                            option.selected = true;
+                        }
+                        selectImpact.appendChild(option);
+                    });
+                    tdImpact.appendChild(selectImpact);
+                    
+                    // Quantité
+                    const tdQuantite = document.createElement('td');
+                    const inputQuantite = document.createElement('input');
+                    inputQuantite.type = 'number';
+                    inputQuantite.className = 'form-control form-control-sm quantite-input';
+                    inputQuantite.value = transfert.quantite;
+                    tdQuantite.appendChild(inputQuantite);
+                    
+                    // Prix unitaire
+                    const tdPrixUnitaire = document.createElement('td');
+                    const inputPrixUnitaire = document.createElement('input');
+                    inputPrixUnitaire.type = 'number';
+                    inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
+                    inputPrixUnitaire.value = transfert.prixUnitaire;
+                    tdPrixUnitaire.appendChild(inputPrixUnitaire);
+                    
+                    // Total
+                    const tdTotal = document.createElement('td');
+                    tdTotal.className = 'total-cell';
+                    tdTotal.textContent = transfert.total.toLocaleString('fr-FR');
+                    
+                    // Commentaire
+                    const tdCommentaire = document.createElement('td');
+                    const inputCommentaire = document.createElement('input');
+                    inputCommentaire.type = 'text';
+                    inputCommentaire.className = 'form-control form-control-sm commentaire-input';
+                    inputCommentaire.value = transfert.commentaire || '';
+                    tdCommentaire.appendChild(inputCommentaire);
+                    
+                    // Actions
+                    const tdActions = document.createElement('td');
+                    const btnSupprimer = document.createElement('button');
+                    btnSupprimer.className = 'btn btn-danger btn-sm';
+                    btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
+                    btnSupprimer.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        if (confirm('Voulez-vous vraiment supprimer ce transfert ?')) {
+                            try {
+                                // Supprimer le transfert via l'API
+                                const response = await fetch(`http://localhost:3000/api/transferts`, {
+                                    method: 'DELETE',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    credentials: 'include',
+                                    body: JSON.stringify({
+                                        date: transfert.date,
+                                        pointVente: transfert.pointVente,
+                                        produit: transfert.produit,
+                                        impact: transfert.impact,
+                                        quantite: transfert.quantite,
+                                        prixUnitaire: transfert.prixUnitaire
+                                    })
+                                });
+                                
+                                if (response.ok) {
+                                    row.remove();
+                                    console.log('Transfert supprimé avec succès');
+                                } else {
+                                    throw new Error('Erreur lors de la suppression du transfert');
+                                }
+                            } catch (error) {
+                                console.error('Erreur lors de la suppression:', error);
+                                alert('Erreur lors de la suppression : ' + error.message);
+                            }
+                        }
+                    });
+                    tdActions.appendChild(btnSupprimer);
+                    
+                    // Ajouter les cellules à la ligne
+                    row.append(tdPointVente, tdProduit, tdImpact, tdQuantite, tdPrixUnitaire, tdTotal, tdCommentaire, tdActions);
+                    
+                    // Ajouter les écouteurs d'événements pour le calcul automatique du total
+                    const calculateTotal = () => {
+                        const quantite = parseFloat(inputQuantite.value) || 0;
+                        const prixUnitaire = parseFloat(inputPrixUnitaire.value) || 0;
+                        const impact = parseInt(selectImpact.value) || 1;
+                        const total = quantite * prixUnitaire * impact;
+                        tdTotal.textContent = total.toLocaleString('fr-FR');
+                    };
+                    
+                    inputQuantite.addEventListener('input', calculateTotal);
+                    inputPrixUnitaire.addEventListener('input', calculateTotal);
+                    selectImpact.addEventListener('change', calculateTotal);
+                    
+                    tbody.appendChild(row);
                 });
+            } else {
+                console.log('Aucun transfert trouvé pour cette date, ajout d\'une ligne vide');
+                ajouterLigneTransfert();
             }
+              
+            console.log('Transferts chargés avec succès');
         }
+        
+        // Toujours retourner un tableau (vide ou filtré)
+        return transfertsFiltres;
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des transferts:', error);
+        // En cas d'erreur, retourner un tableau vide
+        return [];
     }
 }
 
@@ -2372,9 +2425,12 @@ function formaterDonneesVentes(ventes) {
 }
 
 // Fonction pour charger les données de stock d'une date spécifique
-async function chargerStock(date) {
+async function chargerStock(date, type) {
     console.log('%c=== Chargement des données de stock pour la date ' + date + ' ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
-    const typeStock = document.getElementById('type-stock').value;
+    
+    // Vérifier le type passé en paramètre ou utiliser celui sélectionné dans l'interface
+    const typeStock = type || document.getElementById('type-stock').value;
+    
     try {
         console.log('%cRécupération des données depuis le serveur pour le type:', 'color: #00aaff;', typeStock);
         const response = await fetch(`http://localhost:3000/api/stock/${typeStock}?date=${date}`, {
@@ -2393,15 +2449,6 @@ async function chargerStock(date) {
         
         console.log('%cDonnées récupérées:', 'color: #00ff00;', donnees);
 
-        // Vider le tableau AVANT de procéder à l'initialisation
-        const tbody = document.querySelector('#stock-table tbody');
-        if (!tbody) {
-            console.error('%cÉlément tbody non trouvé dans la table de stock', 'color: #ff0000;');
-            return; // On sort de la fonction au lieu de lancer une exception
-        }
-        tbody.innerHTML = '';
-        console.log('%cTableau vidé avant initialisation des nouvelles lignes', 'color: #ff0000;');
-
         // Mise à jour de stockData
         if (typeStock === 'matin') {
             stockData.matin = new Map(Object.entries(donnees));
@@ -2409,22 +2456,41 @@ async function chargerStock(date) {
             stockData.soir = new Map(Object.entries(donnees));
         }
 
-        // Déterminer si aucune donnée n'est disponible
-        const matinEmpty = !donnees || Object.keys(donnees).length === 0;
-        console.log('%cStock vide?', 'color: #ff9900;', matinEmpty);
+        // Si on est dans le contexte d'inventaire (tableau présent)
+        const tbody = document.querySelector('#stock-table tbody');
+        if (tbody) {
+            // Vider le tableau AVANT de procéder à l'initialisation
+            tbody.innerHTML = '';
+            console.log('%cTableau vidé avant initialisation des nouvelles lignes', 'color: #ff0000;');
 
-        if (matinEmpty) {
-            console.log('%cAucune donnée de stock disponible pour cette date, initialisation des valeurs par défaut', 'color: #ff9900;');
-            initTableauStock();
-        } else {
-            console.log('%cDonnées de stock disponibles, peuplement du tableau avec les valeurs existantes', 'color: #00ff00;');
-            onTypeStockChange();
+            // Déterminer si aucune donnée n'est disponible
+            const matinEmpty = !donnees || Object.keys(donnees).length === 0;
+            console.log('%cStock vide?', 'color: #ff9900;', matinEmpty);
+
+            if (matinEmpty) {
+                console.log('%cAucune donnée de stock disponible pour cette date, initialisation des valeurs par défaut', 'color: #ff9900;');
+                initTableauStock();
+            } else {
+                console.log('%cDonnées de stock disponibles, peuplement du tableau avec les valeurs existantes', 'color: #00ff00;');
+                onTypeStockChange();
+            }
         }
+        
+        // Retourner un objet structuré pour la réconciliation
+        return donnees || {};
+        
     } catch (error) {
         console.error('%cErreur lors du chargement des données:', 'color: #ff0000; font-weight: bold;', error);
         // Au lieu d'afficher une alerte d'erreur, on initialise le tableau avec des valeurs par défaut
         console.log('%cInitialisation du tableau avec des valeurs par défaut suite à une erreur', 'color: #ff9900;');
-        initTableauStock();
+        
+        // Si on est dans le contexte d'inventaire
+        if (document.querySelector('#stock-table tbody')) {
+            initTableauStock();
+        }
+        
+        // Retourner un objet vide en cas d'erreur
+        return {};
     }
 }
 
@@ -2896,7 +2962,7 @@ function initTableauStock() {
                 selectPointVente.appendChild(option);
             });
             tdPointVente.appendChild(selectPointVente);
-            tr.appendChild(tdPointVente);
+            row.appendChild(tdPointVente);
 
             // Produit (éditable)
             const tdProduit = document.createElement('td');
@@ -2912,7 +2978,7 @@ function initTableauStock() {
                 selectProduit.appendChild(option);
             });
             tdProduit.appendChild(selectProduit);
-            tr.appendChild(tdProduit);
+            row.appendChild(tdProduit);
 
             // Quantité (éditable)
             const tdQuantite = document.createElement('td');
@@ -3281,6 +3347,28 @@ document.getElementById('reconciliation-tab').addEventListener('click', function
         document.head.appendChild(style);
     }
     
+    // Ajouter un écouteur d'événement direct sur le changement de date
+    // Ceci est nécessaire car le onChange de flatpickr ne déclenche pas toujours le chargement
+    const dateReconciliation = document.getElementById('date-reconciliation');
+    if (dateReconciliation) {
+        // S'assurer que nous n'ajoutons pas l'écouteur multiple fois
+        if (!dateReconciliation._hasChangeListener) {
+            dateReconciliation.addEventListener('change', function(e) {
+                console.log('Changement de date détecté via event listener direct:', this.value);
+                if (this.value) {
+                    if (typeof ReconciliationManager !== 'undefined' && 
+                        typeof ReconciliationManager.chargerReconciliation === 'function') {
+                        ReconciliationManager.chargerReconciliation(this.value);
+                    } else {
+                        calculerReconciliation(this.value);
+                    }
+                }
+            });
+            dateReconciliation._hasChangeListener = true;
+            console.log('Écouteur d\'événement direct ajouté au champ de date');
+        }
+    }
+    
     // Charger les données initiales si une date est déjà sélectionnée
     const date = document.getElementById('date-reconciliation').value;
     if (date) {
@@ -3305,21 +3393,21 @@ async function calculerReconciliation(date) {
         console.log('Calcul de réconciliation pour la date:', date);
         
         // Effacer le tableau des résultats précédents
-                const tbody = document.querySelector('#reconciliation-table tbody');
-                tbody.innerHTML = '';
+        const tbody = document.querySelector('#reconciliation-table tbody');
+        tbody.innerHTML = '';
                 
         // Effacer aussi les détails de débogage
-                const debugTitle = document.getElementById('debug-title');
-                const debugFormule = document.getElementById('debug-formule');
-                const debugEcart = document.getElementById('debug-ecart');
-                const debugStockSection = document.getElementById('debug-stock-section');
-                const debugVentesSection = document.getElementById('debug-ventes-section');
+        const debugTitle = document.getElementById('debug-title');
+        const debugFormule = document.getElementById('debug-formule');
+        const debugEcart = document.getElementById('debug-ecart');
+        const debugStockSection = document.getElementById('debug-stock-section');
+        const debugVentesSection = document.getElementById('debug-ventes-section');
                 
-                if (debugTitle) debugTitle.innerHTML = '';
-                if (debugFormule) debugFormule.innerHTML = '';
-                if (debugEcart) debugEcart.innerHTML = '';
-                if (debugStockSection) debugStockSection.innerHTML = '';
-                if (debugVentesSection) debugVentesSection.innerHTML = '';
+        if (debugTitle) debugTitle.innerHTML = '';
+        if (debugFormule) debugFormule.innerHTML = '';
+        if (debugEcart) debugEcart.innerHTML = '';
+        if (debugStockSection) debugStockSection.innerHTML = '';
+        if (debugVentesSection) debugVentesSection.innerHTML = '';
                 
         // Afficher un indicateur de chargement
         const loadingRow = document.createElement('tr');
@@ -3363,10 +3451,58 @@ async function calculerReconciliation(date) {
         // Calcul de la réconciliation par point de vente
         const reconciliation = await calculerReconciliationParPointVente(stockMatin, stockSoir, transferts, debugInfo);
         console.log('Réconciliation calculée:', reconciliation);
+
+        // NOUVEAU: Fusionner les commentaires chargés (si existants et pour la même date)
+        if (window.currentReconciliation && window.currentReconciliation.date === date && window.currentReconciliation.data) {
+            console.log('Fusion des commentaires chargés dans les données calculées...');
+            Object.keys(reconciliation).forEach(pointVente => {
+                // Vérifier si le point de vente existe dans les données chargées et a un commentaire
+                if (window.currentReconciliation.data[pointVente] && window.currentReconciliation.data[pointVente].commentaire) {
+                    // Copier le commentaire chargé dans l'objet calculé
+                    reconciliation[pointVente].commentaire = window.currentReconciliation.data[pointVente].commentaire;
+                    console.log(`Commentaire pour ${pointVente} fusionné:`, reconciliation[pointVente].commentaire);
+                } else if (reconciliation[pointVente] && reconciliation[pointVente].commentaire === undefined) {
+                    // Si le calcul frais n'a pas initialisé de commentaire
+                    reconciliation[pointVente].commentaire = '';
+                }
+            });
+        } else {
+            // Si pas de données chargées ou date différente, s'assurer que commentaire est initialisé
+            Object.keys(reconciliation).forEach(pointVente => {
+                if (reconciliation[pointVente] && reconciliation[pointVente].commentaire === undefined) {
+                    reconciliation[pointVente].commentaire = '';
+                }
+            });
+        }
         
         // Mettre à jour l'affichage
         console.log('Mise à jour de l\'affichage...');
         afficherReconciliation(reconciliation, debugInfo);
+        
+        // Définir la réconciliation actuelle pour la sauvegarde
+        window.currentReconciliation = {
+            date: date,
+            data: reconciliation
+        };
+        
+        // Intégrer les données de paiement en espèces
+        if (typeof addCashPaymentToReconciliation === 'function') {
+            try {
+                console.log('Début de l\'appel à addCashPaymentToReconciliation...');
+                await addCashPaymentToReconciliation();
+                console.log('Données de paiement en espèces intégrées avec succès');
+            } catch (error) {
+                console.error('Erreur lors de l\'intégration des paiements en espèces:', error);
+            }
+        } else {
+            console.warn('La fonction addCashPaymentToReconciliation n\'est pas disponible, assurez-vous que cash-payment-function.js est correctement chargé');
+        }
+        
+        // Activer le bouton de sauvegarde
+        const btnSauvegarder = document.getElementById('sauvegarder-reconciliation');
+        if (btnSauvegarder) {
+            btnSauvegarder.disabled = false;
+        }
         
         // Masquer l'indicateur de chargement
         document.getElementById('loading-indicator-reconciliation').style.display = 'none';
@@ -3454,6 +3590,20 @@ async function calculerReconciliationParPointVente(stockMatin, stockSoir, transf
     // Récupérer la date sélectionnée pour charger les ventes saisies
     const dateSelectionnee = document.getElementById('date-reconciliation').value;
     
+    // Vérifier si les données de stock sont vides pour cette date
+    console.log("Données de stock pour la date", dateSelectionnee, ":");
+    console.log("Stock matin:", Object.keys(stockMatin).length, "entrées");
+    console.log("Stock soir:", Object.keys(stockSoir).length, "entrées");
+    console.log("Transferts:", transferts.length, "entrées");
+    
+    const dateEstVide = Object.keys(stockMatin).length === 0 && 
+                        Object.keys(stockSoir).length === 0 && 
+                        transferts.length === 0;
+    
+    if (dateEstVide) {
+        console.log(`Aucune donnée trouvée pour la date ${dateSelectionnee}, initialisation avec des valeurs à zéro`);
+    }
+    
     // Récupérer les ventes saisies pour la date sélectionnée
     let ventesSaisies = {};
     try {
@@ -3501,7 +3651,11 @@ async function calculerReconciliationParPointVente(stockMatin, stockSoir, transf
             transferts: 0,
             ventes: 0,
             ventesSaisies: ventesSaisies[pointVente] || 0,
-            difference: 0
+            difference: 0,
+            pourcentageEcart: 0,
+            cashPayment: 0,
+            ecartCash: 0,
+            commentaire: ''
         };
         
         // Initialiser les détails de débogage pour ce point de vente
@@ -3509,13 +3663,23 @@ async function calculerReconciliationParPointVente(stockMatin, stockSoir, transf
             stockMatin: [],
             stockSoir: [],
             transferts: [],
+            ventes: [],
             ventesSaisies: debugInfo.ventesParPointVente ? debugInfo.ventesParPointVente[pointVente] || [] : [],
             totalStockMatin: 0,
             totalStockSoir: 0,
             totalTransferts: 0,
-            totalVentesSaisies: ventesSaisies[pointVente] || 0
+            totalVentesSaisies: ventesSaisies[pointVente] || 0,
+            venteTheoriques: 0,
+            difference: 0,
+            pourcentageEcart: 0
         };
     });
+    
+    // Si la date est vide, retourner directement les données initialisées à zéro
+    if (dateEstVide) {
+        console.log("Retour des données initialisées à zéro pour tous les points de vente");
+        return reconciliation;
+    }
     
     // Calculer les totaux du stock matin
     Object.entries(stockMatin).forEach(([key, item]) => {
@@ -3665,6 +3829,8 @@ async function calculerReconciliationParPointVente(stockMatin, stockSoir, transf
 
 // Fonction pour afficher la réconciliation dans le tableau
 function afficherReconciliation(reconciliation, debugInfo) {
+    console.log('Affichage des données de réconciliation:', reconciliation);
+    
     const table = document.getElementById('reconciliation-table');
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
@@ -3679,6 +3845,11 @@ function afficherReconciliation(reconciliation, debugInfo) {
     POINTS_VENTE_PHYSIQUES.forEach((pointVente, index) => {
         const data = reconciliation[pointVente];
         if (data) {
+            // Assurer que la propriété commentaire existe
+            if (data.commentaire === undefined) {
+                data.commentaire = '';
+            }
+
             // Créer une ligne pour chaque point de vente
             const row = document.createElement('tr');
             row.setAttribute('data-point-vente', pointVente);
@@ -3775,10 +3946,9 @@ function afficherReconciliation(reconciliation, debugInfo) {
             inputCommentaire.placeholder = 'Ajouter un commentaire...';
             inputCommentaire.setAttribute('data-point-vente', pointVente);
             
-            // Charger un commentaire existant s'il y en a un
-            if (data.commentaire) {
-                inputCommentaire.value = data.commentaire;
-            }
+            // Utiliser data.commentaire ou une chaîne vide
+            inputCommentaire.value = data.commentaire || ''; 
+            console.log(`Définition du commentaire pour ${pointVente}:`, inputCommentaire.value); // Log pour vérifier
             
             tdCommentaire.appendChild(inputCommentaire);
             row.appendChild(tdCommentaire);
@@ -3786,113 +3956,23 @@ function afficherReconciliation(reconciliation, debugInfo) {
             tbody.appendChild(row);
         }
     });
-    
-    // Calculer le pourcentage d'écart total
-    let totalPourcentageEcart = 0;
-    if (totalVentesTheoriques !== 0) {
-        totalPourcentageEcart = (totalDifference / totalVentesTheoriques) * 100;
-    }
-    
-    // Créer une ligne pour les totaux
-    const rowTotal = document.createElement('tr');
-    rowTotal.classList.add('total-row');
-    
-    // Label "Total"
-    const tdTotalLabel = document.createElement('td');
-    tdTotalLabel.textContent = 'TOTAL';
-    tdTotalLabel.style.fontWeight = 'bold';
-    rowTotal.appendChild(tdTotalLabel);
-    
-    // Total Stock matin
-    const tdTotalStockMatin = document.createElement('td');
-    tdTotalStockMatin.textContent = formatMonetaire(totalStockMatin);
-    tdTotalStockMatin.classList.add('currency');
-    tdTotalStockMatin.style.fontWeight = 'bold';
-    rowTotal.appendChild(tdTotalStockMatin);
-    
-    // Total Stock soir
-    const tdTotalStockSoir = document.createElement('td');
-    tdTotalStockSoir.textContent = formatMonetaire(totalStockSoir);
-    tdTotalStockSoir.classList.add('currency');
-    tdTotalStockSoir.style.fontWeight = 'bold';
-    rowTotal.appendChild(tdTotalStockSoir);
-    
-    // Total Transferts
-    const tdTotalTransferts = document.createElement('td');
-    tdTotalTransferts.textContent = formatMonetaire(totalTransferts);
-    tdTotalTransferts.classList.add('currency');
-    tdTotalTransferts.style.fontWeight = 'bold';
-    rowTotal.appendChild(tdTotalTransferts);
-    
-    // Total Ventes théoriques
-    const tdTotalVentes = document.createElement('td');
-    tdTotalVentes.textContent = formatMonetaire(totalVentesTheoriques);
-    tdTotalVentes.classList.add('currency');
-    tdTotalVentes.style.fontWeight = 'bold';
-    rowTotal.appendChild(tdTotalVentes);
-    
-    // Total Ventes saisies
-    const tdTotalVentesSaisies = document.createElement('td');
-    tdTotalVentesSaisies.textContent = formatMonetaire(totalVentesSaisies);
-    tdTotalVentesSaisies.classList.add('currency');
-    tdTotalVentesSaisies.style.fontWeight = 'bold';
-    rowTotal.appendChild(tdTotalVentesSaisies);
-    
-    // Total Différence
-    const tdTotalDifference = document.createElement('td');
-    tdTotalDifference.textContent = formatMonetaire(totalDifference);
-    tdTotalDifference.classList.add('currency');
-    tdTotalDifference.style.fontWeight = 'bold';
-    // Ajouter une classe basée sur la différence (positive ou négative)
-    if (totalDifference < 0) {
-        tdTotalDifference.classList.add('negative');
-    } else if (totalDifference > 0) {
-        tdTotalDifference.classList.add('positive');
-    }
-    rowTotal.appendChild(tdTotalDifference);
-    
-    // Total Pourcentage d'écart
-    const tdTotalPourcentage = document.createElement('td');
-    tdTotalPourcentage.textContent = `${totalPourcentageEcart.toFixed(2)}%`;
-    tdTotalPourcentage.classList.add('currency');
-    tdTotalPourcentage.style.fontWeight = 'bold';
-    // Ajouter une classe basée sur la valeur du pourcentage
-    if (Math.abs(totalPourcentageEcart) > 10.5) {
-        tdTotalPourcentage.classList.add('text-danger');
-    } else if (Math.abs(totalPourcentageEcart) > 8) {
-        tdTotalPourcentage.classList.add('text-warning');
-    } else if (Math.abs(totalPourcentageEcart) > 0) {
-        tdTotalPourcentage.classList.add('text-success');
-    }
-    rowTotal.appendChild(tdTotalPourcentage);
-    
-    // Cellule vide pour la colonne commentaire dans la ligne totale
-    const tdTotalCommentaire = document.createElement('td');
-    rowTotal.appendChild(tdTotalCommentaire);
-    
-    tbody.appendChild(rowTotal);
-    
-    // Mettre à jour le total affiché dans l'interface
-    document.getElementById('date-reconciliation-display').textContent = 
-        document.getElementById('date-reconciliation').value;
-        
-    // Enregistrer la réconciliation dans une variable globale pour pouvoir la sauvegarder plus tard
-    window.currentReconciliation = {
-        date: document.getElementById('date-reconciliation').value,
-        data: reconciliation,
-        debug: debugInfo
-    };
-    
-    // Activer le bouton de sauvegarde
-    document.getElementById('sauvegarder-reconciliation').disabled = false;
 }
 
 // Fonction pour sauvegarder les données de réconciliation
 async function sauvegarderReconciliation() {
     try {
+        // Définir un flag global pour éviter les sauvegardes en double
+        if (window.reconciliationBeingSaved) {
+            console.log('Sauvegarde déjà en cours, abandon de cette requête');
+            return;
+        }
+        
+        window.reconciliationBeingSaved = true;
+        
         // Vérifier si les données de réconciliation existent
         if (!window.currentReconciliation) {
             alert('Aucune réconciliation à sauvegarder');
+            window.reconciliationBeingSaved = false;
             return;
         }
         
@@ -3900,6 +3980,7 @@ async function sauvegarderReconciliation() {
         const date = window.currentReconciliation.date;
         if (!date) {
             alert('Date de réconciliation non définie');
+            window.reconciliationBeingSaved = false;
             return;
         }
         
@@ -3916,6 +3997,32 @@ async function sauvegarderReconciliation() {
             }
         });
         
+        // Récupérer les données des paiements en espèces (depuis le tableau)
+        const cashPaymentData = {};
+        const table = document.getElementById('reconciliation-table');
+        if (table) {
+            // Trouver l'index de la colonne "Montant Total Cash"
+            const headerRow = table.querySelector('thead tr');
+            if (headerRow) {
+                const headerCells = Array.from(headerRow.cells).map(cell => cell.textContent.trim());
+                const cashColumnIndex = headerCells.indexOf("Montant Total Cash");
+                
+                if (cashColumnIndex !== -1) {
+                    // Parcourir chaque ligne du tableau pour extraire les valeurs de cash
+                    table.querySelectorAll('tbody tr').forEach(row => {
+                        const pointVente = row.getAttribute('data-point-vente');
+                        if (pointVente && row.cells.length > cashColumnIndex) {
+                            const cashCellText = row.cells[cashColumnIndex].textContent.trim();
+                            const cashValue = extractNumericValue(cashCellText);
+                            if (cashValue) {
+                                cashPaymentData[pointVente] = cashValue;
+                            }
+                        }
+                    });
+                }
+            }
+        }
+        
         // Ajouter les commentaires aux données de réconciliation
         Object.keys(reconciliationData).forEach(pointVente => {
             if (commentaires[pointVente]) {
@@ -3926,8 +4033,11 @@ async function sauvegarderReconciliation() {
         // Préparer les données à envoyer
         const dataToSave = {
             date: date,
-            reconciliation: reconciliationData
+            reconciliation: reconciliationData,
+            cashPaymentData: cashPaymentData
         };
+        
+        console.log('Données de réconciliation à sauvegarder:', dataToSave);
         
         // Envoyer les données au serveur
         const response = await fetch('http://localhost:3000/api/reconciliation/save', {
@@ -3943,10 +4053,28 @@ async function sauvegarderReconciliation() {
         
         if (result.success) {
             alert('Réconciliation sauvegardée avec succès');
+            
+            // Sauvegarder également via ReconciliationManager pour assurer la compatibilité
+            if (typeof ReconciliationManager !== 'undefined' && 
+                typeof ReconciliationManager.sauvegarderReconciliation === 'function') {
+                try {
+                    // Passer les données cashPayment au ReconciliationManager
+                    if (ReconciliationManager.currentReconciliation && cashPaymentData) {
+                        ReconciliationManager.currentReconciliation.cashPaymentData = cashPaymentData;
+                    }
+                } catch (error) {
+                    console.error('Erreur lors de la mise à jour des données dans ReconciliationManager:', error);
+                }
+            }
+            
+            // Réinitialiser le flag
+            window.reconciliationBeingSaved = false;
         } else {
+            window.reconciliationBeingSaved = false;
             throw new Error(result.message || 'Erreur lors de la sauvegarde');
         }
     } catch (error) {
+        window.reconciliationBeingSaved = false;
         console.error('Erreur lors de la sauvegarde de la réconciliation:', error);
         alert('Erreur lors de la sauvegarde: ' + error.message);
     }
@@ -3964,12 +4092,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Fonction pour charger une réconciliation sauvegardée
-async function chargerReconciliationSauvegardee(date) {
+async function chargerReconciliation(date) {
     try {
         // Afficher l'indicateur de chargement
         document.getElementById('loading-indicator-reconciliation').style.display = 'block';
         
-        // Récupérer les données sauvegardées
+        // Tenter de récupérer une réconciliation sauvegardée
         const response = await fetch(`http://localhost:3000/api/reconciliation/load?date=${date}`, {
             method: 'GET',
             credentials: 'include'
@@ -3978,41 +4106,103 @@ async function chargerReconciliationSauvegardee(date) {
         const result = await response.json();
         
         if (result.success && result.data) {
-            // Afficher les données chargées
-            afficherReconciliation(result.data.reconciliation, result.data.debug || {});
+            console.log('Données de réconciliation récupérées:', result);
             
-            // Mettre à jour les commentaires
-            Object.keys(result.data.reconciliation).forEach(pointVente => {
-                const data = result.data.reconciliation[pointVente];
-                if (data.commentaire) {
-                    const input = document.querySelector(`.commentaire-input[data-point-vente="${pointVente}"]`);
-                    if (input) {
-                        input.value = data.commentaire;
-                    }
+            // Extraire les données de réconciliation
+            let reconciliationData = null;
+            if (result.data.reconciliation) {
+                reconciliationData = result.data.reconciliation;
+            } else if (result.data.data) {
+                // Compatibilité avec l'ancien format
+                try {
+                    reconciliationData = JSON.parse(result.data.data);
+                } catch (e) {
+                    console.error('Erreur lors du parsing des données:', e);
+                    reconciliationData = result.data.data;
                 }
-            });
+            }
+            
+            // Si nous avons des données valides
+            if (reconciliationData && typeof reconciliationData === 'object') {
+                // Afficher les données
+                ReconciliationManager.afficherReconciliation(reconciliationData);
+                
+                // Stocker les données dans la variable globale pour la sauvegarde
+                window.currentReconciliation = {
+                    date: date,
+                    data: reconciliationData
+                };
+                
+                // Activer le bouton de sauvegarde
+                document.getElementById('sauvegarder-reconciliation').disabled = false;
+            }
             
             // Masquer l'indicateur de chargement
             document.getElementById('loading-indicator-reconciliation').style.display = 'none';
-        } else {
-            // Si aucune donnée sauvegardée n'est trouvée, effectuer un calcul normal
-            calculerReconciliation(date);
+            return;
         }
+        
+        // Si nous n'avons pas pu charger de données sauvegardées, calculer
+        calculerReconciliation(date);
+        
     } catch (error) {
         console.error('Erreur lors du chargement de la réconciliation:', error);
         
-        // En cas d'erreur, essayer de calculer normalement
+        // En cas d'erreur, essayer de calculer
         calculerReconciliation(date);
     }
 }
 
-// Modifier le gestionnaire d'événements pour le bouton de calcul de réconciliation
-document.addEventListener('DOMContentLoaded', function() {
-                const btnCalculer = document.getElementById('calculer-reconciliation');
-    if (btnCalculer) {
-        // Remplacer l'ancien gestionnaire d'événements
-        btnCalculer.removeEventListener('click', calculerReconciliation);
+// Fonction pour calculer les données de réconciliation
+async function calculerReconciliation(date = null) {
+    try {
+        // Afficher l'indicateur de chargement
+        document.getElementById('loading-indicator-reconciliation').style.display = 'block';
         
+        console.log('Calcul de la réconciliation pour la date:', date);
+        
+        // Récupérer les données de stock pour la date sélectionnée
+        const [stockMatin, stockSoir, transferts] = await Promise.all([
+            chargerStock(date, 'matin'),
+            chargerStock(date, 'soir'),
+            chargerTransferts(date)
+        ]);
+        
+        // Préparer les informations de débogage
+        const debugInfo = {
+            detailsParPointVente: {}
+        };
+        
+        // Calculer la réconciliation
+        const reconciliation = await calculerReconciliationParPointVente(stockMatin, stockSoir, transferts, debugInfo);
+        
+        // Afficher les résultats
+        ReconciliationManager.afficherReconciliation(reconciliation, debugInfo);
+        
+        // Stocker les données dans la variable globale pour la sauvegarde
+        window.currentReconciliation = {
+            date: date,
+            data: reconciliation
+        };
+        window.currentDebugInfo = debugInfo;
+        
+        // Activer le bouton de sauvegarde
+        document.getElementById('sauvegarder-reconciliation').disabled = false;
+        
+        // Masquer l'indicateur de chargement
+        document.getElementById('loading-indicator-reconciliation').style.display = 'none';
+    } catch (error) {
+        console.error('Erreur lors du calcul de la réconciliation:', error);
+        document.getElementById('loading-indicator-reconciliation').style.display = 'none';
+        alert('Erreur lors du calcul: ' + error.message);
+    }
+}
+
+// Bouton pour calculer la réconciliation
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestionnaire pour le bouton de réconciliation
+    const btnCalculer = document.getElementById('calculer-reconciliation');
+    if (btnCalculer) {
         btnCalculer.addEventListener('click', function() {
             const date = document.getElementById('date-reconciliation').value;
             if (!date) {
@@ -4020,1478 +4210,88 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Essayer de charger une réconciliation sauvegardée d'abord
-            chargerReconciliationSauvegardee(date);
-        });
-    }
-});
-
-// Variable globale pour stocker les informations de débogage actuelles
-window.currentDebugInfo = null;
-
-// Fonction pour afficher les détails de débogage pour un point de vente spécifique
-function afficherDetailsDebugging(pointVente, debugInfo) {
-    if (!debugInfo || !debugInfo.detailsParPointVente || !debugInfo.detailsParPointVente[pointVente]) {
-        alert('Aucune information de débogage disponible pour ce point de vente.');
-        return;
-    }
-    
-    // Stocker les informations de débogage dans la variable globale
-    window.currentDebugInfo = debugInfo;
-    
-    // Vérifier que tous les éléments DOM nécessaires existent
-    const debugTitle = document.getElementById('debug-title');
-    const formulaDiv = document.getElementById('debug-formule');
-    const ecartDiv = document.getElementById('debug-ecart');
-    const stockSection = document.getElementById('debug-stock-section');
-    const ventesSection = document.getElementById('debug-ventes-section');
-    
-    if (!debugTitle || !formulaDiv || !ecartDiv || !stockSection || !ventesSection) {
-        console.error('Éléments DOM manquants pour l\'affichage des détails de débogage', {
-            debugTitle, formulaDiv, ecartDiv, stockSection, ventesSection
-        });
-        alert('Erreur lors de l\'affichage des détails. Veuillez rafraîchir la page et réessayer.');
-        return;
-    }
-    
-    const details = debugInfo.detailsParPointVente[pointVente];
-    
-    try {
-        // Titre général
-        debugTitle.innerHTML = `<h4>Détails pour "${pointVente}"</h4>`;
-        
-        // Afficher la formule de calcul utilisée
-        formulaDiv.innerHTML = `
-            <div><strong>Formule Ventes Théoriques:</strong></div>
-            <div class="mt-2">Stock Matin (${formatMonetaire(details.totalStockMatin)}) - 
-            Stock Soir (${formatMonetaire(details.totalStockSoir)}) + 
-            Transferts (${formatMonetaire(details.totalTransferts)}) = 
-            Ventes Théoriques (${formatMonetaire(details.venteTheoriques)})</div>
-        `;
-        
-        // Afficher la formule pour l'écart
-        ecartDiv.innerHTML = `
-            <div><strong>Formule Écart:</strong></div>
-            <div class="mt-2">Ventes Théoriques (${formatMonetaire(details.venteTheoriques)}) - 
-            Ventes Saisies (${formatMonetaire(details.totalVentesSaisies)}) = 
-            Écart (${formatMonetaire(details.difference)})</div>
-            <div class="mt-2"><strong>Pourcentage d'écart:</strong> ${details.pourcentageEcart ? details.pourcentageEcart.toFixed(2) : '0.00'}%</div>
-        `;
-        
-        // Section Stock et Transferts - Tableau unifié
-        stockSection.innerHTML = '';
-        stockSection.appendChild(creerTableauUnifie(details));
-        
-        // Section Ventes Saisies
-        ventesSection.innerHTML = '';
-        
-        if (details.ventesSaisies && details.ventesSaisies.length > 0) {
-            ventesSection.appendChild(creerTableauDetail('Ventes Saisies', details.ventesSaisies, false, true, details.totalVentesSaisies));
-        } else {
-            ventesSection.innerHTML = '<div class="alert alert-warning">Aucune vente saisie pour ce point de vente.</div>';
-        }
-        
-        // Réinitialiser la section d'analyse LLM quand un nouveau point de vente est sélectionné
-        document.getElementById('llm-analyse-container').style.display = 'none';
-        document.getElementById('llm-result').innerHTML = '';
-    } catch (error) {
-        console.error('Erreur lors de l\'affichage des détails de débogage:', error);
-        alert('Une erreur est survenue lors de l\'affichage des détails. Veuillez réessayer.');
-    }
-}
-
-// Fonction pour créer un tableau de détails
-function creerTableauDetail(titre, donnees, estTransfert = false, estVente = false, total = 0) {
-    const container = document.createElement('div');
-    container.classList.add('mb-4');
-    
-    // Titre
-    const titreElement = document.createElement('h5');
-    titreElement.textContent = titre;
-    titreElement.classList.add('mt-3', 'mb-2');
-    container.appendChild(titreElement);
-    
-    if (!donnees || donnees.length === 0) {
-        const emptyMessage = document.createElement('p');
-        emptyMessage.textContent = 'Aucune donnée disponible.';
-        emptyMessage.classList.add('text-muted');
-        container.appendChild(emptyMessage);
-        return container;
-    }
-    
-    // Trier les données selon l'ordre spécifié
-    const donneesTri = trierProduits([...donnees]);
-    
-    // Créer le tableau
-    const table = document.createElement('table');
-    table.classList.add('table', 'table-sm', 'table-striped', 'table-bordered');
-    
-    // En-tête du tableau
-    const thead = document.createElement('thead');
-    thead.classList.add('table-light');
-    const headerRow = document.createElement('tr');
-    
-    // Définir les colonnes en fonction du type de données
-    let colonnes = [];
-    
-    if (estTransfert) {
-        colonnes = [
-            { id: 'produit', label: 'Produit', className: '' },
-            { id: 'impact', label: 'Impact', className: 'text-center' },
-            { id: 'montant', label: 'Montant', className: 'text-end' },
-            { id: 'valeur', label: 'Valeur', className: 'text-end' }
-        ];
-    } else if (estVente) {
-        colonnes = [
-            { id: 'produit', label: 'Produit', className: '' },
-            { id: 'pu', label: 'PU', className: 'text-end' },
-            { id: 'nombre', label: 'Nombre', className: 'text-end' },
-            { id: 'montant', label: 'Montant', className: 'text-end' }
-        ];
-    } else {
-        colonnes = [
-            { id: 'produit', label: 'Produit', className: '' },
-            { id: 'montant', label: 'Montant', className: 'text-end' }
-        ];
-    }
-    
-    // Créer les cellules d'en-tête
-    colonnes.forEach(colonne => {
-        const th = document.createElement('th');
-        th.textContent = colonne.label;
-        if (colonne.className) {
-            th.className = colonne.className;
-        }
-        headerRow.appendChild(th);
-    });
-    
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-    
-    // Corps du tableau
-    const tbody = document.createElement('tbody');
-    
-    donneesTri.forEach(item => {
-        const row = document.createElement('tr');
-        
-        colonnes.forEach(colonne => {
-            const td = document.createElement('td');
+            // Désactiver le bouton pendant le calcul
+            btnCalculer.disabled = true;
             
-            if (colonne.className) {
-                td.className = colonne.className;
-            }
-            
-            if (colonne.id === 'produit') {
-                td.textContent = item.produit || '';
-            } else if (colonne.id === 'impact') {
-                td.textContent = item.impact || '';
-                td.className = 'text-center';
-            } else if (colonne.id === 'montant') {
-                const montant = estTransfert ? item.montant : item.montant;
-                td.textContent = formatMonetaire(montant || 0);
-                td.className = 'text-end';
-            } else if (colonne.id === 'valeur') {
-                td.textContent = formatMonetaire(item.valeur || 0);
-                td.className = 'text-end';
-                if (item.valeur > 0) {
-                    td.classList.add('text-success');
-                } else if (item.valeur < 0) {
-                    td.classList.add('text-danger');
-                }
-            } else if (colonne.id === 'pu') {
-                td.textContent = formatMonetaire(item.pu || 0);
-                td.className = 'text-end';
-            } else if (colonne.id === 'nombre') {
-                td.textContent = item.nombre || '';
-                td.className = 'text-end';
-            }
-            
-            row.appendChild(td);
-        });
-        
-        tbody.appendChild(row);
-    });
-    
-    // Ligne de total
-    const totalRow = document.createElement('tr');
-    totalRow.classList.add('table-secondary', 'fw-bold');
-    
-    // Première cellule: "TOTAL"
-    const tdTotalLabel = document.createElement('td');
-    tdTotalLabel.textContent = 'TOTAL';
-    
-    // Calculer le nombre de colonnes à fusionner
-    let colSpan = 1;
-    if (estTransfert) {
-        colSpan = 3;
-    } else if (estVente) {
-        colSpan = 3;
-    }
-    
-    if (colSpan > 1) {
-        tdTotalLabel.colSpan = colSpan;
-    }
-    
-    totalRow.appendChild(tdTotalLabel);
-    
-    // Cellule du montant total
-    const tdTotal = document.createElement('td');
-    tdTotal.textContent = formatMonetaire(total);
-    tdTotal.className = 'text-end';
-    if (total > 0 && estTransfert) {
-        tdTotal.classList.add('text-success');
-    } else if (total < 0 && estTransfert) {
-        tdTotal.classList.add('text-danger');
-    }
-    totalRow.appendChild(tdTotal);
-    
-    tbody.appendChild(totalRow);
-    table.appendChild(tbody);
-    container.appendChild(table);
-    
-    return container;
-}
-
-// Fonction pour charger les données de réconciliation
-async function chargerReconciliation() {
-    // Afficher l'indicateur de chargement
-    document.getElementById('loading-indicator-reconciliation').style.display = 'block';
-    
-    try {
-        // Récupérer la date sélectionnée
-        const dateReconciliation = document.getElementById('date-reconciliation').value;
-        console.log('Date de réconciliation:', dateReconciliation);
-        
-        // Créer un objet pour stocker les informations de débogage
-        const debugInfo = {
-            detailsParPointVente: {},
-            ventesParPointVente: {}
-        };
-        
-        // Récupérer les données du stock matin
-        console.log('Chargement des données du stock matin...');
-        const stockMatin = await chargerDonneesStock('matin', dateReconciliation);
-        console.log('Données du stock matin chargées:', stockMatin);
-        
-        // Récupérer les données du stock soir
-        console.log('Chargement des données du stock soir...');
-        const stockSoir = await chargerDonneesStock('soir', dateReconciliation);
-        console.log('Données du stock soir chargées:', stockSoir);
-        
-        // Récupérer les données des transferts
-        console.log('Chargement des données des transferts...');
-        const transferts = await chargerDonneesTransferts(dateReconciliation);
-        console.log('Données des transferts chargées:', transferts);
-        
-        // Calculer la réconciliation par point de vente
-        console.log('Calcul de la réconciliation par point de vente...');
-        const reconciliation = await calculerReconciliationParPointVente(stockMatin, stockSoir, transferts, debugInfo);
-        console.log('Réconciliation calculée:', reconciliation);
-        
-        // Mettre à jour l'affichage
-        console.log('Mise à jour de l\'affichage...');
-        afficherReconciliation(reconciliation, debugInfo);
-        
-        // Masquer l'indicateur de chargement
-        document.getElementById('loading-indicator-reconciliation').style.display = 'none';
-        
-        // Activer le mode débogage si nécessaire
-        if (isDebugMode) {
-            document.getElementById('debug-container').style.display = 'block';
-        }
-        
-        return true;
-    } catch (error) {
-        console.error('Erreur lors du chargement des données de réconciliation:', error);
-        
-        // Masquer l'indicateur de chargement
-        document.getElementById('loading-indicator-reconciliation').style.display = 'none';
-        
-        // Afficher un message d'erreur
-        alert('Erreur lors du chargement des données de réconciliation. Veuillez réessayer.');
-        
-        return false;
-    }
-}
-
-// Fonction pour formater les valeurs monétaires
-function formatMonetaire(montant) {
-    return parseFloat(montant || 0).toLocaleString('fr-FR') + ' FCFA';
-}
-
-// Ajouter des styles CSS pour les tableaux et les détails
-function ajouterStylesCSS() {
-    // Vérifier si le style existe déjà
-    if (document.getElementById('reconciliation-styles')) {
-        return;
-    }
-    
-    const style = document.createElement('style');
-    style.id = 'reconciliation-styles';
-    style.textContent = `
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: rgba(0, 0, 0, 0.05);
-        }
-        .currency {
-            font-family: monospace;
-            text-align: right;
-        }
-        .positive {
-            color: #198754;
-        }
-        .negative {
-            color: #dc3545;
-        }
-        .detail-section {
-            margin-bottom: 1.5rem;
-        }
-        .formula {
-            background-color: #f8f9fa;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-        }
-        .debug-toggle {
-            cursor: pointer;
-        }
-        .debug-toggle:hover {
-            background-color: #e9ecef;
-        }
-        .table-sm td, .table-sm th {
-            padding: 0.3rem;
-        }
-    `;
-    
-    document.head.appendChild(style);
-}
-
-// Appeler la fonction lors du chargement de la page
-document.addEventListener('DOMContentLoaded', function() {
-    ajouterStylesCSS();
-    
-    // Initialiser la fonctionnalité de sélection de colonne style Excel
-    if (!window.excelSelectInitialized) {
-        initTableauSelectionnableExcel();
-        window.excelSelectInitialized = true;
-    }
-});
-
-// Fonction pour créer un tableau de détails unifié pour la section Stock et Transferts
-function creerTableauUnifie(details) {
-    const container = document.createElement('div');
-    container.classList.add('mb-4');
-    
-    // Titre
-    const titreElement = document.createElement('h5');
-    titreElement.textContent = "Détails des calculs par produit";
-    titreElement.classList.add('mt-3', 'mb-2');
-    container.appendChild(titreElement);
-    
-    // Créer une map pour combiner les données par produit
-    const produitsMap = new Map();
-    
-    // Structure pour stocker les détails supplémentaires (quantité et prix unitaire)
-    const produitsDetails = new Map();
-    
-    // Traiter le stock matin
-    if (details.stockMatin && details.stockMatin.length > 0) {
-        details.stockMatin.forEach(item => {
-            if (!produitsMap.has(item.produit)) {
-                produitsMap.set(item.produit, {
-                    produit: item.produit,
-                    stockMatin: item.montant || 0,
-                    stockSoir: 0,
-                    transfert: 0,
-                    venteTheorique: 0
-                });
-            } else {
-                const produit = produitsMap.get(item.produit);
-                produit.stockMatin = item.montant || 0;
-            }
-            
-            // Stocker les détails pour le tooltip
-            if (!produitsDetails.has(item.produit)) {
-                produitsDetails.set(item.produit, {});
-            }
-            
-            const details = produitsDetails.get(item.produit);
-            
-            // Vérifier si nous avons des données de quantité et prix
-            if (item.quantite && item.prixUnitaire) {
-                details.stockMatinQuantite = item.quantite;
-                details.stockMatinPrixUnitaire = item.prixUnitaire;
-            } else if (item.montant > 0) {
-                // Calculer à partir du montant en utilisant les prix par défaut
-                const prixUnitaire = PRIX_DEFAUT[item.produit] || 1;
-                const quantite = (item.montant / prixUnitaire).toFixed(2);
-                details.stockMatinQuantite = quantite;
-                details.stockMatinPrixUnitaire = prixUnitaire;
-            }
-        });
-    }
-    
-    // Traiter le stock soir
-    if (details.stockSoir && details.stockSoir.length > 0) {
-        details.stockSoir.forEach(item => {
-            if (!produitsMap.has(item.produit)) {
-                produitsMap.set(item.produit, {
-                    produit: item.produit,
-                    stockMatin: 0,
-                    stockSoir: item.montant || 0,
-                    transfert: 0,
-                    venteTheorique: 0
-                });
-            } else {
-                const produit = produitsMap.get(item.produit);
-                produit.stockSoir = item.montant || 0;
-            }
-            
-            // Stocker les détails pour le tooltip
-            if (!produitsDetails.has(item.produit)) {
-                produitsDetails.set(item.produit, {});
-            }
-            
-            const details = produitsDetails.get(item.produit);
-            
-            // Vérifier si nous avons des données de quantité et prix
-            if (item.quantite && item.prixUnitaire) {
-                details.stockSoirQuantite = item.quantite;
-                details.stockSoirPrixUnitaire = item.prixUnitaire;
-            } else if (item.montant > 0) {
-                // Calculer à partir du montant en utilisant les prix par défaut
-                const prixUnitaire = PRIX_DEFAUT[item.produit] || 1;
-                const quantite = (item.montant / prixUnitaire).toFixed(2);
-                details.stockSoirQuantite = quantite;
-                details.stockSoirPrixUnitaire = prixUnitaire;
-            }
-        });
-    }
-    
-    // Traiter les transferts
-    if (details.transferts && details.transferts.length > 0) {
-        details.transferts.forEach(item => {
-            if (!produitsMap.has(item.produit)) {
-                produitsMap.set(item.produit, {
-                    produit: item.produit,
-                    stockMatin: 0,
-                    stockSoir: 0,
-                    transfert: item.valeur || 0,
-                    venteTheorique: 0
-                });
-            } else {
-                const produit = produitsMap.get(item.produit);
-                produit.transfert = (produit.transfert || 0) + (item.valeur || 0);
-            }
-            
-            // Stocker les détails pour le tooltip
-            if (!produitsDetails.has(item.produit)) {
-                produitsDetails.set(item.produit, {});
-            }
-            
-            const details = produitsDetails.get(item.produit);
-            
-            // Vérifier si nous avons des données de quantité et prix
-            if (item.quantite && item.prixUnitaire) {
-                // Pour les transferts, nous pouvons avoir plusieurs entrées
-                if (!details.transferts) {
-                    details.transferts = [];
-                }
-                details.transferts.push({
-                    quantite: item.quantite,
-                    prixUnitaire: item.prixUnitaire,
-                    valeur: item.valeur
-                });
-            } else if (item.valeur) {
-                // Calculer à partir de la valeur en utilisant les prix par défaut
-                const prixUnitaire = PRIX_DEFAUT[item.produit] || 1;
-                const quantite = (item.valeur / prixUnitaire).toFixed(2);
-                if (!details.transferts) {
-                    details.transferts = [];
-                }
-                details.transferts.push({
-                    quantite: quantite,
-                    prixUnitaire: prixUnitaire,
-                    valeur: item.valeur
-                });
-            }
-        });
-    }
-    
-    // Calculer les ventes théoriques
-    produitsMap.forEach(produit => {
-        produit.venteTheorique = produit.stockMatin - produit.stockSoir + produit.transfert;
-    });
-    
-    // Si la map est vide, afficher un message
-    if (produitsMap.size === 0) {
-        const emptyMessage = document.createElement('p');
-        emptyMessage.textContent = 'Aucune donnée disponible.';
-        emptyMessage.classList.add('text-muted');
-        container.appendChild(emptyMessage);
-        return container;
-    }
-    
-    // Ordre de tri des produits
-    const ordreDesProduits = [
-        "Boeuf en détail", "Boeuf en gros",
-        "Veau en détail", "Veau en gros",
-        "Agneau",
-        "Poulet en détail", "Poulet en gros"
-    ];
-    
-    // Fonction pour normaliser les noms de produits (gérer les variations d'orthographe)
-    const normaliserNomProduit = (nom) => {
-        if (!nom) return "";
-        
-        // Convertir en minuscules pour la comparaison
-        const nomLower = nom.toLowerCase();
-        
-        // Normaliser "Boeuf"
-        if (nomLower.includes("boeuf") && nomLower.includes("détail")) return "Boeuf en détail";
-        if (nomLower.includes("boeuf") && (nomLower.includes("gros") || nomLower === "boeuf")) return "Boeuf en gros";
-        
-        // Normaliser "Veau"
-        if (nomLower.includes("veau") && (nomLower.includes("détail") || nomLower.includes("details"))) return "Veau en détail";
-        if (nomLower.includes("veau") && (nomLower.includes("gros") || nomLower === "veau")) return "Veau en gros";
-        
-        // Normaliser "Agneau"
-        if (nomLower.includes("agneau")) return "Agneau";
-        
-        // Normaliser "Poulet"
-        if (nomLower.includes("poulet") && nomLower.includes("détail")) return "Poulet en détail";
-        if (nomLower.includes("poulet") && (nomLower.includes("gros") || nomLower === "poulet")) return "Poulet en gros";
-        
-        // Si aucune correspondance, retourner le nom d'origine
-        return nom;
-    };
-    
-    // Trier les produits selon l'ordre spécifié
-    const produitsTriesParOrdre = Array.from(produitsMap.values()).sort((a, b) => {
-        const nomA = normaliserNomProduit(a.produit);
-        const nomB = normaliserNomProduit(b.produit);
-        
-        const indexA = ordreDesProduits.indexOf(nomA);
-        const indexB = ordreDesProduits.indexOf(nomB);
-        
-        // Si les deux produits sont dans la liste d'ordre spécifique
-        if (indexA !== -1 && indexB !== -1) {
-            return indexA - indexB;
-        }
-        
-        // Si seulement un des produits est dans la liste
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
-        
-        // Sinon, trier par ordre alphabétique
-        return nomA.localeCompare(nomB);
-    });
-    
-    // Créer le tableau
-    const table = document.createElement('table');
-    table.classList.add('table', 'table-sm', 'table-striped', 'table-bordered');
-    
-    // En-tête du tableau
-    const thead = document.createElement('thead');
-    thead.classList.add('table-light');
-    const headerRow = document.createElement('tr');
-    
-    // Définir les colonnes
-    const colonnes = [
-        { id: 'produit', label: 'Produit', className: '' },
-        { id: 'stockMatin', label: 'Stock Matin', className: 'text-end' },
-        { id: 'stockSoir', label: 'Stock Soir', className: 'text-end' },
-        { id: 'transfert', label: 'Transferts', className: 'text-end' },
-        { id: 'venteTheorique', label: 'Vente Théorique', className: 'text-end' }
-    ];
-    
-    // Créer les cellules d'en-tête
-    colonnes.forEach(colonne => {
-        const th = document.createElement('th');
-        th.textContent = colonne.label;
-        if (colonne.className) {
-            th.className = colonne.className;
-        }
-        headerRow.appendChild(th);
-    });
-    
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-    
-    // Corps du tableau
-    const tbody = document.createElement('tbody');
-    
-    // Totaux
-    let totalStockMatin = 0;
-    let totalStockSoir = 0;
-    let totalTransferts = 0;
-    let totalVentesTheoriques = 0;
-    
-    // Ajouter les lignes
-    produitsTriesParOrdre.forEach(produit => {
-        const row = document.createElement('tr');
-        
-        // Récupérer les détails pour ce produit
-        const produitDetails = produitsDetails.get(produit.produit) || {};
-        
-        // Ajouter les cellules pour chaque colonne
-        colonnes.forEach(colonne => {
-            const td = document.createElement('td');
-            
-            if (colonne.className) {
-                td.className = colonne.className;
-            }
-            
-            if (colonne.id === 'produit') {
-                td.textContent = produit.produit || '';
-            } else {
-                const valeur = produit[colonne.id] || 0;
-                td.textContent = formatMonetaire(valeur);
-                
-                // Ajouter aux totaux
-                if (colonne.id === 'stockMatin') totalStockMatin += valeur;
-                if (colonne.id === 'stockSoir') totalStockSoir += valeur;
-                if (colonne.id === 'transfert') totalTransferts += valeur;
-                if (colonne.id === 'venteTheorique') totalVentesTheoriques += valeur;
-                
-                // Ajouter des classes pour colorer les valeurs
-                if (colonne.id === 'transfert' || colonne.id === 'venteTheorique') {
-                    if (valeur > 0) {
-                        td.classList.add('positive');
-                    } else if (valeur < 0) {
-                        td.classList.add('negative');
-                    }
-                }
-                
-                // Ajouter des tooltips
-                if (colonne.id === 'stockMatin' && produitDetails.stockMatinQuantite && produitDetails.stockMatinPrixUnitaire) {
-                    td.title = `${produitDetails.stockMatinQuantite} kg * ${formatMonetaire(produitDetails.stockMatinPrixUnitaire)}`;
-                    td.style.cursor = 'help';
-                } else if (colonne.id === 'stockSoir' && produitDetails.stockSoirQuantite && produitDetails.stockSoirPrixUnitaire) {
-                    td.title = `${produitDetails.stockSoirQuantite} kg * ${formatMonetaire(produitDetails.stockSoirPrixUnitaire)}`;
-                    td.style.cursor = 'help';
-                } else if (colonne.id === 'transfert' && produitDetails.transferts && produitDetails.transferts.length > 0) {
-                    let tooltipText = produitDetails.transferts.map(t => 
-                        `${t.quantite} kg * ${formatMonetaire(t.prixUnitaire)}`
-                    ).join('\n');
-                    td.title = tooltipText;
-                    td.style.cursor = 'help';
-                } else if (colonne.id === 'venteTheorique') {
-                    td.title = `Stock Matin (${formatMonetaire(produit.stockMatin)}) - Stock Soir (${formatMonetaire(produit.stockSoir)}) + Transferts (${formatMonetaire(produit.transfert)})`;
-                    td.style.cursor = 'help';
-                }
-            }
-            
-            row.appendChild(td);
-        });
-        
-        tbody.appendChild(row);
-    });
-    
-    // Ligne de total
-    const totalRow = document.createElement('tr');
-    totalRow.classList.add('table-secondary', 'fw-bold');
-    
-    // Ajouter les cellules de total
-    colonnes.forEach((colonne, index) => {
-        const td = document.createElement('td');
-        
-        if (index === 0) {
-            td.textContent = 'TOTAL';
-        } else {
-            let total = 0;
-            if (colonne.id === 'stockMatin') total = totalStockMatin;
-            if (colonne.id === 'stockSoir') total = totalStockSoir;
-            if (colonne.id === 'transfert') total = totalTransferts;
-            if (colonne.id === 'venteTheorique') total = totalVentesTheoriques;
-            
-            td.textContent = formatMonetaire(total);
-            td.className = 'text-end';
-            
-            // Ajouter des classes pour colorer les valeurs
-            if (colonne.id === 'transfert' || colonne.id === 'venteTheorique') {
-                if (total > 0) {
-                    td.classList.add('positive');
-                } else if (total < 0) {
-                    td.classList.add('negative');
-                }
-            }
-        }
-        
-        totalRow.appendChild(td);
-    });
-    
-    tbody.appendChild(totalRow);
-    table.appendChild(tbody);
-    container.appendChild(table);
-    
-    return container;
-}
-
-// Fonction pour trier les produits selon un ordre spécifique
-function trierProduits(produits) {
-    // Ordre de tri des produits
-    const ordreDesProduits = [
-        "Boeuf en détail", "Boeuf en gros",
-        "Veau en détail", "Veau en gros",
-        "Agneau",
-        "Poulet en détail", "Poulet en gros"
-    ];
-    
-    // Fonction pour normaliser les noms de produits (gérer les variations d'orthographe)
-    const normaliserNomProduit = (nom) => {
-        if (!nom) return "";
-        
-        // Convertir en minuscules pour la comparaison
-        const nomLower = nom.toLowerCase();
-        
-        // Normaliser "Boeuf"
-        if (nomLower.includes("boeuf") && nomLower.includes("détail")) return "Boeuf en détail";
-        if (nomLower.includes("boeuf") && (nomLower.includes("gros") || nomLower === "boeuf")) return "Boeuf en gros";
-        
-        // Normaliser "Veau"
-        if (nomLower.includes("veau") && (nomLower.includes("détail") || nomLower.includes("details"))) return "Veau en détail";
-        if (nomLower.includes("veau") && (nomLower.includes("gros") || nomLower === "veau")) return "Veau en gros";
-        
-        // Normaliser "Agneau"
-        if (nomLower.includes("agneau")) return "Agneau";
-        
-        // Normaliser "Poulet"
-        if (nomLower.includes("poulet") && nomLower.includes("détail")) return "Poulet en détail";
-        if (nomLower.includes("poulet") && (nomLower.includes("gros") || nomLower === "poulet")) return "Poulet en gros";
-        
-        // Si aucune correspondance, retourner le nom d'origine
-        return nom;
-    };
-    
-    // Trier les produits selon l'ordre spécifié
-    return produits.sort((a, b) => {
-        const produitA = typeof a === 'object' ? (a.produit || '') : a;
-        const produitB = typeof b === 'object' ? (b.produit || '') : b;
-        
-        const nomA = normaliserNomProduit(produitA);
-        const nomB = normaliserNomProduit(produitB);
-        
-        const indexA = ordreDesProduits.indexOf(nomA);
-        const indexB = ordreDesProduits.indexOf(nomB);
-        
-        // Si les deux produits sont dans la liste d'ordre spécifique
-        if (indexA !== -1 && indexB !== -1) {
-            return indexA - indexB;
-        }
-        
-        // Si seulement un des produits est dans la liste
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
-        
-        // Sinon, trier par ordre alphabétique
-        return nomA.localeCompare(nomB);
-    });
-}
-
-// Fonction pour demander une analyse LLM des résultats de réconciliation
-async function analyserReconciliationAvecLLM(pointVente, debugInfo) {
-    // Afficher l'indicateur de chargement
-    document.getElementById('llm-loading').style.display = 'block';
-    document.getElementById('llm-analyse-container').style.display = 'block';
-    document.getElementById('llm-result').innerHTML = '';
-    
-    try {
-        // Préparer les données pour l'API LLM
-        const details = debugInfo.detailsParPointVente[pointVente];
-        
-        if (!details) {
-            throw new Error('Aucune donnée disponible pour ce point de vente.');
-        }
-        
-        // Créer un résumé des données pour le prompt
-        const donnees = {
-            pointVente: pointVente,
-            date: debugInfo.date || new Date().toLocaleDateString('fr-FR'),
-            stockMatin: details.totalStockMatin,
-            stockSoir: details.totalStockSoir,
-            transferts: details.totalTransferts,
-            ventesTheoriques: details.venteTheoriques,
-            ventesSaisies: details.totalVentesSaisies,
-            ecart: details.ecart,
-            stockMatinDetails: details.stockMatin,
-            stockSoirDetails: details.stockSoir,
-            transfertsDetails: details.transferts,
-            ventesSaisiesDetails: details.ventesSaisies
-        };
-        
-        // Construire le prompt pour le LLM
-        const prompt = `
-            Je suis un gestionnaire de boucherie et j'ai besoin d'analyser les résultats de réconciliation pour le point de vente "${pointVente}" à la date du ${donnees.date}.
-            
-            Voici les données de réconciliation :
-            - Stock Matin: ${formatMonetaire(donnees.stockMatin)}
-            - Stock Soir: ${formatMonetaire(donnees.stockSoir)}
-            - Transferts: ${formatMonetaire(donnees.transferts)}
-            - Ventes Théoriques (Stock Matin - Stock Soir + Transferts): ${formatMonetaire(donnees.ventesTheoriques)}
-            - Ventes Saisies: ${formatMonetaire(donnees.ventesSaisies)}
-            - Écart (Ventes Théoriques - Ventes Saisies): ${formatMonetaire(donnees.ecart)}
-            
-            Détail des produits en stock le matin :
-            ${donnees.stockMatinDetails.map(item => `- ${item.produit}: ${formatMonetaire(item.montant)}`).join('\n')}
-            
-            Détail des produits en stock le soir :
-            ${donnees.stockSoirDetails.map(item => `- ${item.produit}: ${formatMonetaire(item.montant)}`).join('\n')}
-            
-            Détail des transferts :
-            ${donnees.transfertsDetails.map(item => `- ${item.produit}: Impact ${item.impact}, Valeur ${formatMonetaire(item.valeur)}`).join('\n')}
-            
-            Détail des ventes saisies :
-            ${donnees.ventesSaisiesDetails.map(item => `- ${item.produit}: Nombre ${item.nombre}, PU ${formatMonetaire(item.pu)}, Montant ${formatMonetaire(item.montant)}`).join('\n')}
-            
-            Pourriez-vous analyser ces données et me fournir :
-            1. Une interprétation des écarts observés
-            2. Des explications possibles pour ces écarts
-            3. Des recommandations pour améliorer la gestion du stock et des ventes
-            4. Des points d'attention ou anomalies particulières à surveiller
-            
-            Merci de fournir une analyse concise mais détaillée.
-        `;
-        
-        // Ici, nous simulons une réponse LLM pour la démonstration
-        // Dans une implémentation réelle, vous feriez un appel à une API comme OpenAI
-        const analysis = await simulerReponseAPI(prompt, donnees);
-        
-        // Afficher la réponse
-        document.getElementById('llm-result').innerHTML = formatAnalyseLLM(analysis);
-    } catch (error) {
-        console.error('Erreur lors de l\'analyse LLM:', error);
-        document.getElementById('llm-result').innerHTML = `
-            <div class="alert alert-danger">
-                <strong>Erreur :</strong> ${error.message || 'Une erreur est survenue lors de l\'analyse des données.'}
-            </div>
-        `;
-    } finally {
-        // Masquer l'indicateur de chargement
-        document.getElementById('llm-loading').style.display = 'none';
-    }
-}
-
-// Fonction pour simuler une réponse d'API LLM (à remplacer par un vrai appel API dans une implémentation réelle)
-async function simulerReponseAPI(prompt, donnees) {
-    return new Promise((resolve) => {
-        // Simuler un délai d'API
-        setTimeout(() => {
-            const ecart = donnees.ecart;
-            const isEcartPositif = ecart > 0;
-            const isEcartNegatif = ecart < 0;
-            const isEcartZero = ecart === 0;
-            const absEcart = Math.abs(ecart);
-            
-            // Calculer le pourcentage d'écart par rapport aux ventes théoriques
-            const pourcentageEcart = donnees.ventesTheoriques !== 0 ? 
-                (absEcart / Math.abs(donnees.ventesTheoriques)) * 100 : 0;
-            
-            // Déterminer si l'écart est tolérable (inférieur ou égal à 8%)
-            const isEcartTolerable = pourcentageEcart <= 8;
-            
-            let analysis = `
-                <h5>Analyse des résultats de réconciliation pour ${donnees.pointVente} - ${donnees.date}</h5>
-                
-                <h6 class="mt-3">1. Interprétation des écarts</h6>
-                <p>
-                    ${isEcartZero ? 
-                        `<span class="badge bg-success">Parfait équilibre</span> Les ventes théoriques correspondent exactement aux ventes saisies.` :
-                        isEcartTolerable ? 
-                            `<span class="badge bg-success">Écart tolérable</span> L'écart de ${pourcentageEcart.toFixed(2)}% (${formatMonetaire(absEcart)}) est inférieur au seuil de tolérance de 8%. Les ventes théoriques (${formatMonetaire(donnees.ventesTheoriques)}) et les ventes saisies (${formatMonetaire(donnees.ventesSaisies)}) sont considérées comme cohérentes.` :
-                            isEcartPositif ? 
-                                `<span class="badge bg-warning">Écart positif significatif</span> Les ventes théoriques (${formatMonetaire(donnees.ventesTheoriques)}) sont supérieures aux ventes saisies (${formatMonetaire(donnees.ventesSaisies)}), avec un écart de ${formatMonetaire(absEcart)} (${pourcentageEcart.toFixed(2)}%). Cet écart dépasse le seuil de tolérance de 8% et indique que des ventes potentielles n'ont pas été saisies dans le système.` :
-                                `<span class="badge bg-danger">Écart négatif significatif</span> Les ventes saisies (${formatMonetaire(donnees.ventesSaisies)}) sont supérieures aux ventes théoriques (${formatMonetaire(donnees.ventesTheoriques)}), avec un écart de ${formatMonetaire(absEcart)} (${pourcentageEcart.toFixed(2)}%). Cet écart dépasse le seuil de tolérance de 8% et peut indiquer des problèmes de saisie ou d'inventaire.`
-                    }
-                </p>
-                
-                <h6 class="mt-3">2. Explications possibles</h6>
-                <ul>
-                    ${isEcartZero ? `
-                        <li>Excellente gestion et suivi précis des stocks et des ventes.</li>
-                        <li>Processus de saisie des ventes efficace et rigoureux.</li>
-                    ` : isEcartTolerable ? `
-                        <li>Légères variations normales dans un contexte commercial.</li>
-                        <li>Petites différences acceptables dans le comptage ou la saisie.</li>
-                        <li>Variations mineures liées à la manipulation des produits.</li>
-                    ` : isEcartPositif ? `
-                        <li>Des ventes ont pu être réalisées sans être correctement enregistrées dans le système.</li>
-                        <li>Erreurs possibles dans le comptage du stock du soir (surestimation).</li>
-                        <li>Des pertes de stock non documentées (détérioration, vol, etc.).</li>
-                        <li>Transferts de stock qui n'ont pas été correctement enregistrés.</li>
-                    ` : `
-                        <li>Des ventes ont pu être saisies en double ou avec des quantités incorrectes.</li>
-                        <li>Le stock du soir a pu être sous-estimé.</li>
-                        <li>Des transferts entrants n'ont pas été correctement comptabilisés.</li>
-                        <li>Le stock du matin a pu être surestimé.</li>
-                    `}
-                </ul>
-                
-                <h6 class="mt-3">3. Recommandations</h6>
-                <ul>
-                    ${isEcartZero ? `
-                        <li>Continuer avec les bonnes pratiques actuelles.</li>
-                        <li>Documenter les procédures pour maintenir cette précision dans le temps.</li>
-                    ` : isEcartTolerable ? `
-                        <li>Maintenir les bonnes pratiques actuelles.</li>
-                        <li>Aucune action corrective nécessaire, la situation est dans les normes acceptables.</li>
-                    ` : `
-                        <li>Revoir les procédures de saisie des ventes ${isEcartPositif ? 'pour éviter les oublis' : 'pour éviter les doublons'}.</li>
-                        <li>Optimiser les processus d'inventaire et de comptage du stock pour plus de précision.</li>
-                        <li>Former le personnel à une documentation rigoureuse des transferts de stock.</li>
-                        <li>Mettre en place des contrôles croisés pour la validation des entrées de stock.</li>
-                    `}
-                </ul>
-                
-                <h6 class="mt-3">4. Points d'attention spécifiques</h6>
-            `;
-            
-            // Analyser les produits
-            const produitAnalyses = [];
-            
-            // Fonction pour ajouter un produit à la map
-            const ajouterProduitAMap = (produit, montant, type) => {
-                // Trouver ou créer une entrée pour ce produit
-                let produitAnalyse = produitAnalyses.find(p => p.produit === produit);
-                if (!produitAnalyse) {
-                    produitAnalyse = {
-                        produit: produit,
-                        stockMatin: 0,
-                        stockSoir: 0,
-                        transferts: 0,
-                        ventesTheoriques: 0,
-                        ventesSaisies: 0
-                    };
-                    produitAnalyses.push(produitAnalyse);
-                }
-                
-                // Mettre à jour la valeur en fonction du type
-                if (type === 'stockMatin') {
-                    produitAnalyse.stockMatin += montant;
-                } else if (type === 'stockSoir') {
-                    produitAnalyse.stockSoir += montant;
-                } else if (type === 'transferts') {
-                    produitAnalyse.transferts += montant;
-                } else if (type === 'ventesSaisies') {
-                    produitAnalyse.ventesSaisies += montant;
-                }
-            };
-            
-            // Parcourir les données de stock matin
-            if (donnees.detailsStockMatin) {
-                donnees.detailsStockMatin.forEach(item => {
-                    ajouterProduitAMap(item.produit, item.montant, 'stockMatin');
-                });
-            }
-            
-            // Parcourir les données de stock soir
-            if (donnees.detailsStockSoir) {
-                donnees.detailsStockSoir.forEach(item => {
-                    ajouterProduitAMap(item.produit, item.montant, 'stockSoir');
-                });
-            }
-            
-            // Parcourir les transferts
-            if (donnees.detailsTransferts) {
-                donnees.detailsTransferts.forEach(item => {
-                    ajouterProduitAMap(item.produit, item.valeur, 'transferts');
-                });
-            }
-            
-            // Parcourir les ventes saisies
-            if (donnees.detailsVentesSaisies) {
-                donnees.detailsVentesSaisies.forEach(item => {
-                    ajouterProduitAMap(item.produit, parseFloat(item.montant), 'ventesSaisies');
-                });
-            }
-            
-            // Calculer les ventes théoriques et les écarts pour chaque produit
-            produitAnalyses.forEach(produit => {
-                produit.ventesTheoriques = produit.stockMatin - produit.stockSoir + produit.transferts;
-                produit.ecart = produit.ventesTheoriques - produit.ventesSaisies;
-                
-                // Calculer le pourcentage d'écart pour ce produit
-                produit.pourcentageEcart = produit.ventesTheoriques !== 0 ? 
-                    (Math.abs(produit.ecart) / Math.abs(produit.ventesTheoriques)) * 100 : 0;
-                
-                produit.estTolerable = produit.pourcentageEcart <= 8;
+            // Charger la réconciliation (d'abord essayer de charger une existante)
+            ReconciliationManager.chargerReconciliation(date).finally(() => {
+                btnCalculer.disabled = false;
             });
-            
-            // Trier par écart absolu décroissant
-            produitAnalyses.sort((a, b) => Math.abs(b.ecart) - Math.abs(a.ecart));
-            
-            // Ajouter les 3 produits avec les plus grands écarts
-            const topProduits = produitAnalyses.slice(0, 3);
-            
-            if (topProduits.length > 0) {
-                analysis += `<p>Les produits suivants présentent les écarts les plus significatifs :</p><ul>`;
-                
-                topProduits.forEach(item => {
-                    // Déterminer la classe CSS en fonction du pourcentage d'écart
-                    let ecartClass;
-                    if (item.ecart === 0) {
-                        ecartClass = 'text-success';
-                    } else if (item.estTolerable) {
-                        ecartClass = 'text-success';
-                    } else if (item.ecart > 0) {
-                        ecartClass = 'text-warning';
-                    } else {
-                        ecartClass = 'text-danger';
-                    }
-                    
-                    analysis += `
-                        <li>
-                            <strong>${item.produit}</strong> : 
-                            Ventes théoriques ${formatMonetaire(item.ventesTheoriques)}, 
-                            Ventes saisies ${formatMonetaire(item.ventesSaisies)}, 
-                            <span class="${ecartClass}">Écart ${formatMonetaire(item.ecart)} (${item.pourcentageEcart.toFixed(2)}%)</span>
-                            ${item.estTolerable && item.ecart !== 0 ? '<span class="badge bg-success">Tolérable</span>' : ''}
-                        </li>
-                    `;
-                });
-                
-                analysis += `</ul>`;
-            }
-            
-            // Conclusion
-            analysis += `
-                <h6 class="mt-3">Conclusion</h6>
-                <p>
-                    ${isEcartZero ? 
-                        `La réconciliation est parfaite pour cette journée. Continuez à maintenir cette rigueur dans la gestion des stocks et des ventes.` :
-                        isEcartTolerable ? 
-                            `L'écart de ${pourcentageEcart.toFixed(2)}% (${formatMonetaire(absEcart)}) est considéré comme acceptable car inférieur au seuil de tolérance de 8%. Aucune action corrective n'est nécessaire.` :
-                            isEcartPositif ? 
-                                `Un écart positif significatif de ${formatMonetaire(absEcart)} (${pourcentageEcart.toFixed(2)}%) dépasse le seuil de tolérance de 8%. Une attention particulière aux procédures de saisie et d'inventaire est recommandée.` :
-                                `Un écart négatif significatif de ${formatMonetaire(absEcart)} (${pourcentageEcart.toFixed(2)}%) dépasse le seuil de tolérance de 8%. Un contrôle approfondi des procédures d'entrée de stock et de saisie des ventes est recommandé.`
-                    }
-                </p>
-            `;
-            
-            resolve(analysis);
-        }, 1500); // Simuler un délai de 1,5 secondes
-    });
-}
-
-// Fonction utilitaire pour simuler une analyse locale en cas d'erreur
-function simulerAnalyseLocale(donnees) {
-    return new Promise((resolve) => {
-        // Préparer les données pour l'analyse
-        const ecart = donnees.ecart;
-        const isEcartPositif = ecart > 0;
-        const isEcartNegatif = ecart < 0;
-        const isEcartZero = ecart === 0;
-        const absEcart = Math.abs(ecart);
-        
-        // Calculer le pourcentage d'écart par rapport aux ventes théoriques
-        const pourcentageEcart = donnees.ventesTheoriques !== 0 ? 
-            (absEcart / Math.abs(donnees.ventesTheoriques)) * 100 : 0;
-        
-        // Déterminer si l'écart est tolérable (inférieur ou égal à 8%)
-        const isEcartTolerable = pourcentageEcart <= 8;
-        
-        // Simuler l'analyse statistique
-        let analysis = `**Analyse statistique des résultats de réconciliation**\n\n`;
-        
-        analysis += `**Point de vente:** ${donnees.pointVente}\n`;
-        analysis += `**Date:** ${donnees.date}\n\n`;
-        
-        analysis += `**Résumé des données financières:**\n`;
-        analysis += `- Stock Matin: ${formatMonetaire(donnees.stockMatin)}\n`;
-        analysis += `- Stock Soir: ${formatMonetaire(donnees.stockSoir)}\n`;
-        analysis += `- Transferts: ${formatMonetaire(donnees.transferts)}\n`;
-        analysis += `- Ventes Théoriques: ${formatMonetaire(donnees.ventesTheoriques)}\n`;
-        analysis += `- Ventes Saisies: ${formatMonetaire(donnees.ventesSaisies)}\n`;
-        analysis += `- Écart: ${formatMonetaire(donnees.ecart)} (${pourcentageEcart.toFixed(2)}%)\n\n`;
-        
-        if (isEcartZero) {
-            analysis += `**Analyse:** Réconciliation parfaite! Félicitations pour votre gestion rigoureuse.\n\n`;
-        } else if (isEcartTolerable) {
-            analysis += `**Analyse:** L'écart de ${pourcentageEcart.toFixed(2)}% est inférieur au seuil de tolérance de 8%. La réconciliation est considérée comme acceptable.\n\n`;
-        } else if (isEcartPositif) {
-            analysis += `**Analyse:** L'écart positif de ${pourcentageEcart.toFixed(2)}% dépasse le seuil de tolérance de 8%. Cela suggère des ventes non enregistrées ou des erreurs de stock.\n\n`;
-        } else {
-            analysis += `**Analyse:** L'écart négatif de ${pourcentageEcart.toFixed(2)}% dépasse le seuil de tolérance de 8%. Cela suggère des erreurs de saisie ou d'inventaire.\n\n`;
-        }
-        
-        analysis += `**Recommandation principale:** ${isEcartZero || isEcartTolerable ? 
-            'Maintenir la qualité actuelle de gestion' : 
-            'Vérifier les procédures de saisie et de comptage'}\n`;
-        
-        resolve(analysis);
-    });
-}
-
-// Fonction pour formatter la réponse LLM en HTML
-function formatAnalyseLLM(analysisHtml) {
-    return `
-        <div class="llm-analysis">
-            ${analysisHtml}
-        </div>
-    `;
-}
-
-// Ajouter un gestionnaire d'événement pour le bouton d'analyse LLM
-document.addEventListener('DOMContentLoaded', function() {
-    const btnAnalyseLLM = document.getElementById('btn-analyse-llm');
-    if (btnAnalyseLLM) {
-        btnAnalyseLLM.addEventListener('click', function() {
-            // Récupérer le point de vente et les données de débogage actuellement affichés
-            const debugTitle = document.getElementById('debug-title');
-            if (!debugTitle || !debugTitle.textContent) {
-                alert('Veuillez d\'abord sélectionner un point de vente dans le tableau pour voir les détails.');
-                return;
-            }
-            
-            // Extraire le nom du point de vente à partir du titre
-            const titleText = debugTitle.textContent || '';
-            const match = titleText.match(/Détails pour "([^"]+)"/);
-            
-            if (!match || !match[1]) {
-                alert('Impossible de déterminer le point de vente actuel. Veuillez sélectionner un point de vente dans le tableau.');
-                return;
-            }
-            
-            const pointVenteActuel = match[1];
-            
-            // Récupérer les données de débogage de la variable globale
-            if (!window.currentDebugInfo || !window.currentDebugInfo.detailsParPointVente) {
-                alert('Aucune donnée disponible pour l\'analyse. Veuillez recalculer la réconciliation.');
-                return;
-            }
-            
-            // Lancer l'analyse LLM
-            analyserReconciliationAvecLLM(pointVenteActuel, window.currentDebugInfo);
         });
     }
-});
-
-// Fonction pour filtrer le tableau de stock par point de vente et produit
-function filtrerStock() {
-    const pointVenteFiltre = document.getElementById('filtre-point-vente').value;
-    const produitFiltre = document.getElementById('filtre-produit').value;
-    const rows = document.querySelectorAll('#stock-table tbody tr');
-
-    console.log(`Filtrage du stock - Point de vente: ${pointVenteFiltre}, Produit: ${produitFiltre}`);
     
-    rows.forEach(row => {
-        const pointVenteCell = row.querySelector('td:first-child select');
-        const produitCell = row.querySelector('td:nth-child(2) select');
+    // Gestionnaire pour le bouton de sauvegarde
+    const btnSauvegarder = document.getElementById('sauvegarder-reconciliation');
+    if (btnSauvegarder) {
+        // Remplacer tous les écouteurs d'événements
+        const newBtn = btnSauvegarder.cloneNode(true);
+        btnSauvegarder.parentNode.replaceChild(newBtn, btnSauvegarder);
         
-        if (!pointVenteCell || !produitCell) return;
-        
-        const pointVente = pointVenteCell.value;
-        const produit = produitCell.value;
-        
-        const matchPointVente = pointVenteFiltre === 'tous' || pointVente === pointVenteFiltre;
-        const matchProduit = produitFiltre === 'tous' || produit === produitFiltre;
-        
-        if (matchPointVente && matchProduit) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
-    });
-}
-
-// Fonction pour initialiser les filtres de stock
-function initFilterStock() {
-    const filtrePointVente = document.getElementById('filtre-point-vente');
-    const filtreProduit = document.getElementById('filtre-produit');
-    
-    if (filtrePointVente) {
-        filtrePointVente.addEventListener('change', filtrerStock);
-    }
-    
-    if (filtreProduit) {
-        filtreProduit.addEventListener('change', filtrerStock);
-    }
-}
-
-// Remplacer la fonction dupliquée initInventaire par une version correcte
-async function initInventaire() {
-    console.log('%c=== Initialisation de la page inventaire ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
-    
-    // Initialiser les filtres de stock
-    initFilterStock();
-    
-    // Initialiser le datepicker
-    const dateInput = document.getElementById('date-inventaire');
-    flatpickr(dateInput, {
-        dateFormat: "d/m/Y",
-        defaultDate: "today",
-        disableMobile: "true",
-        onChange: function(selectedDates, dateStr) {
-            // Recharger les transferts quand la date change
-            chargerTransferts();
-            // Recharger les données de stock quand la date change
-            chargerStock(dateStr);
-        }
-    });
-    
-    // Initialiser le type de stock
-    const typeStockSelect = document.getElementById('type-stock');
-    if (typeStockSelect) {
-        typeStockSelect.addEventListener('change', onTypeStockChange);
-    }
-    
-    // Initialiser les boutons
-    const btnAjouterLigneStock = document.getElementById('add-stock-row');
-    if (btnAjouterLigneStock) {
-        btnAjouterLigneStock.addEventListener('click', ajouterLigneStock);
-    }
-    
-    const btnSaveStock = document.getElementById('save-stock');
-    if (btnSaveStock) {
-        btnSaveStock.addEventListener('click', sauvegarderDonneesStock);
-    }
-    
-    // Charger les données initiales
-    try {
-        const dateInitiale = dateInput.value;
-        console.log('%cChargement initial des données pour la date:', 'color: #00aaff;', dateInitiale);
-        
-        await chargerStock(dateInitiale);
-        await chargerTransferts();
-        
-    } catch (error) {
-        console.error('%cErreur lors du chargement initial des données:', 'color: #ff0000;', error);
-        // En cas d'erreur, initialiser quand même le tableau
-        ajouterLigneStock();
-    }
-    
-    console.log('%c=== Initialisation terminée ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
-}
-
-// ... existing code ...
-// Fonction pour analyser les résultats avec DeepSeek en local
-async function analyserReconciliationAvecDeepSeek(pointVente, debugInfo) {
-    // Afficher l'indicateur de chargement
-    document.getElementById('deepseek-loading').style.display = 'block';
-    document.getElementById('deepseek-analyse-container').style.display = 'block';
-    document.getElementById('deepseek-result').innerHTML = '';
-    
-    try {
-        // Préparer les données pour l'API DeepSeek
-        const details = debugInfo.detailsParPointVente[pointVente];
-        
-        if (!details) {
-            throw new Error('Aucune donnée disponible pour ce point de vente.');
-        }
-        
-        // Créer un résumé des données pour le prompt (même structure que pour LLM)
-        const donnees = {
-            pointVente: pointVente,
-            date: debugInfo.date || new Date().toLocaleDateString('fr-FR'),
-            stockMatin: details.totalStockMatin,
-            stockSoir: details.totalStockSoir,
-            transferts: details.totalTransferts,
-            ventesTheoriques: details.venteTheoriques,
-            ventesSaisies: details.totalVentesSaisies,
-            ecart: details.ecart,
-            stockMatinDetails: details.stockMatin,
-            stockSoirDetails: details.stockSoir,
-            transfertsDetails: details.transferts,
-            ventesSaisiesDetails: details.ventesSaisies
-        };
-        
-        // Appeler l'API pour analyser les données avec DeepSeek
-        const result = await analyserAvecDeepSeekLocal(donnees);
-        
-        // Afficher la réponse
-        document.getElementById('deepseek-result').innerHTML = formatDeepSeekAnalysis(result);
-    } catch (error) {
-        console.error('Erreur lors de l\'analyse DeepSeek:', error);
-        document.getElementById('deepseek-result').innerHTML = `
-            <div class="alert alert-danger">
-                <strong>Erreur :</strong> ${error.message || 'Une erreur est survenue lors de l\'analyse des données avec DeepSeek.'}
-            </div>
-        `;
-    } finally {
-        // Masquer l'indicateur de chargement
-        document.getElementById('deepseek-loading').style.display = 'none';
-    }
-}
-
-// Fonction pour formatter la réponse DeepSeek en HTML
-function formatDeepSeekAnalysis(analysisText) {
-    // Convertir le texte brut en HTML avec formatage
-    const formattedText = analysisText
-        .replace(/\n\n/g, '</p><p>') // Paragraphes
-        .replace(/\n/g, '<br>') // Sauts de ligne
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Gras
-        .replace(/\*(.*?)\*/g, '<em>$1</em>'); // Italique
-    
-    return `
-        <div class="deepseek-analysis">
-            <p>${formattedText}</p>
-        </div>
-    `;
-}
-
-// Fonction pour analyser les données avec DeepSeek localement
-async function analyserAvecDeepSeekLocal(donnees) {
-    return new Promise((resolve, reject) => {
-        // Simuler un petit délai pour montrer le chargement
-        setTimeout(async () => {
+        // Ajouter notre nouvel écouteur qui appelle les deux implémentations
+        newBtn.addEventListener('click', async function() {
             try {
-                console.log('Exécution de l\'analyse statistique...');
-                
-                // Passage direct à simulerAnalyseLocale car window.require n'est pas disponible dans le navigateur
-                simulerAnalyseLocale(donnees).then(resolve).catch(reject);
+                // Utiliser d'abord notre implémentation personnalisée
+                await sauvegarderReconciliation();
             } catch (error) {
-                console.error("Erreur lors de l'analyse statistique:", error);
-                // En cas d'erreur, utiliser l'analyse de secours
-                simulerAnalyseLocale(donnees).then(resolve).catch(reject);
+                console.error('Erreur lors de la sauvegarde:', error);
+                
+                // En cas d'échec de notre méthode, tenter d'utiliser ReconciliationManager comme fallback
+                try {
+                    await ReconciliationManager.sauvegarderReconciliation();
+                } catch (fallbackError) {
+                    console.error('Erreur avec ReconciliationManager:', fallbackError);
+                    alert('Erreur lors de la sauvegarde. Vérifiez la console pour plus de détails.');
+                }
             }
-        }, 1500);
-    });
-}
-
-// Fonction utilitaire pour simuler une analyse locale en cas d'erreur
-function simulerAnalyseLocale(donnees) {
-    return new Promise((resolve) => {
-        // Préparer les données pour l'analyse
-        const ecart = donnees.ecart;
-        const isEcartPositif = ecart > 0;
-        const isEcartNegatif = ecart < 0;
-        const isEcartZero = ecart === 0;
-        
-        // Simuler l'analyse statistique
-        let analysis = `**Analyse statistique des résultats de réconciliation**\n\n`;
-        
-        analysis += `**Point de vente:** ${donnees.pointVente}\n`;
-        analysis += `**Date:** ${donnees.date}\n\n`;
-        
-        analysis += `**Résumé des données financières:**\n`;
-        analysis += `- Stock Matin: ${formatMonetaire(donnees.stockMatin)}\n`;
-        analysis += `- Stock Soir: ${formatMonetaire(donnees.stockSoir)}\n`;
-        analysis += `- Transferts: ${formatMonetaire(donnees.transferts)}\n`;
-        analysis += `- Ventes Théoriques: ${formatMonetaire(donnees.ventesTheoriques)}\n`;
-        analysis += `- Ventes Saisies: ${formatMonetaire(donnees.ventesSaisies)}\n`;
-        analysis += `- Écart: ${formatMonetaire(donnees.ecart)}\n\n`;
-        
-        if (isEcartZero) {
-            analysis += `**Analyse:** Réconciliation parfaite! Félicitations pour votre gestion rigoureuse.\n\n`;
-        } else if (isEcartPositif) {
-            analysis += `**Analyse:** L'écart positif suggère des ventes non enregistrées ou des erreurs de stock.\n\n`;
-        } else {
-            analysis += `**Analyse:** L'écart négatif suggère des erreurs de saisie ou d'inventaire.\n\n`;
-        }
-        
-        analysis += `**Recommandation principale:** ${isEcartZero ? 
-            'Maintenir la qualité actuelle de gestion' : 
-            'Vérifier les procédures de saisie et de comptage'}\n`;
-        
-        resolve(analysis);
-    });
-}
-
-// Fonction utilitaire pour mélanger un tableau
-function shuffleArray(array) {
-    const newArray = [...array];
-    for (let i = newArray.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-    }
-    return newArray;
-}
-
-// ... existing code ...
-
-// Fonction pour initialiser l'environnement DeepSeek-Local
-async function initDeepSeekLocal() {
-    try {
-        console.log('Initialisation du module d\'analyse statistique...');
-        console.log('Mode d\'analyse simplifiée activé pour les statistiques.');
-        return true;
-    } catch (error) {
-        console.error('Erreur lors de l\'initialisation du module d\'analyse statistique:', error);
-        return false;
-    }
-}
-
-// Ajouter des gestionnaires d'événements pour les boutons d'analyse
-document.addEventListener('DOMContentLoaded', function() {
-    // Vérifier si les éléments existent pour éviter les erreurs
-    const btnAnalyseLLM = document.getElementById('btn-analyse-llm');
-    const btnAnalyseDeepSeek = document.getElementById('btn-analyse-deepseek');
-    
-    // Gestionnaire pour le bouton LLM
-    if (btnAnalyseLLM) {
-        btnAnalyseLLM.addEventListener('click', function() {
-            // Récupérer le point de vente et les données de débogage actuellement affichés
-            const debugTitle = document.getElementById('debug-title');
-            if (!debugTitle || !debugTitle.textContent) {
-                alert('Veuillez d\'abord sélectionner un point de vente dans le tableau pour voir les détails.');
-                return;
-            }
-            
-            // Extraire le nom du point de vente à partir du titre
-            const titleText = debugTitle.textContent || '';
-            const match = titleText.match(/Détails pour "([^"]+)"/);
-            
-            if (!match || !match[1]) {
-                alert('Impossible de déterminer le point de vente actuel. Veuillez sélectionner un point de vente dans le tableau.');
-                return;
-            }
-            
-            const pointVenteActuel = match[1];
-            
-            // Récupérer les données de débogage de la variable globale
-            if (!window.currentDebugInfo || !window.currentDebugInfo.detailsParPointVente) {
-                alert('Aucune donnée disponible pour l\'analyse. Veuillez recalculer la réconciliation.');
-                return;
-            }
-            
-            // Lancer l'analyse LLM
-            analyserReconciliationAvecLLM(pointVenteActuel, window.currentDebugInfo);
         });
     }
     
-    // Gestionnaire pour le bouton DeepSeek
-    if (btnAnalyseDeepSeek) {
-        btnAnalyseDeepSeek.addEventListener('click', function() {
-            // Récupérer le point de vente et les données de débogage actuellement affichés
-            const debugTitle = document.getElementById('debug-title');
-            if (!debugTitle || !debugTitle.textContent) {
-                alert('Veuillez d\'abord sélectionner un point de vente dans le tableau pour voir les détails.');
-                return;
-            }
-            
-            // Extraire le nom du point de vente à partir du titre
-            const titleText = debugTitle.textContent || '';
-            const match = titleText.match(/Détails pour "([^"]+)"/);
-            
-            if (!match || !match[1]) {
-                alert('Impossible de déterminer le point de vente actuel. Veuillez sélectionner un point de vente dans le tableau.');
-                return;
-            }
-            
-            const pointVenteActuel = match[1];
-            
-            // Récupérer les données de débogage de la variable globale
-            if (!window.currentDebugInfo || !window.currentDebugInfo.detailsParPointVente) {
-                alert('Aucune donnée disponible pour l\'analyse. Veuillez recalculer la réconciliation.');
-                return;
-            }
-            
-            // Lancer l'analyse avec DeepSeek-Local
-            analyserReconciliationAvecDeepSeek(pointVenteActuel, window.currentDebugInfo);
+    // Initialisation du datepicker pour la date de réconciliation
+    const dateReconciliation = document.getElementById('date-reconciliation');
+    if (dateReconciliation) {
+        flatpickr(dateReconciliation, {
+            dateFormat: "d/m/Y",
+            locale: "fr",
+            defaultDate: new Date()
         });
     }
-    
-    // Initialiser l'environnement DeepSeek-Local
-    initDeepSeekLocal().then(success => {
-        if (success) {
-            console.log('Le module d\'analyse statistique est prêt.');
-        } else {
-            console.warn('Le module d\'analyse statistique n\'a pas pu être initialisé correctement. L\'analyse utilisera le mode de secours.');
-        }
-    }).catch(error => {
-        console.error('Erreur lors de l\'initialisation du module d\'analyse statistique:', error);
-    });
 });
-// ... existing code ...
+
+// Si une réconciliation est active, l'afficher
+if (window.currentReconciliation && window.currentReconciliation.data) {
+    // Utiliser le gestionnaire centralisé pour afficher les données
+    ReconciliationManager.afficherReconciliation(window.currentReconciliation.data, window.currentDebugInfo || {});
+}
+
+// Fonction pour formatter les valeurs monétaires
+function formatMonetaire(valeur) {
+    return new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'XOF',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(valeur);
+}
+
+// Fonction pour extraire une valeur numérique d'un texte formaté
+function extractNumericValue(formattedText) {
+    if (!formattedText) return 0;
+    
+    // Supprimer tous les caractères non numériques sauf le point et la virgule
+    const numericString = formattedText.replace(/[^\d.,]/g, '')
+        // Remplacer la virgule par un point pour la conversion
+        .replace(',', '.');
+    
+    return parseFloat(numericString) || 0;
+}
+
+// Vérifier que la fonction d'intégration des paiements en espèces est disponible
+console.log('Vérification de la disponibilité de addCashPaymentToReconciliation:', 
+    typeof addCashPaymentToReconciliation === 'function' ? 'Disponible' : 'Non disponible');
+
+// Exposer la fonction calculerReconciliation au niveau global pour permettre
+// à reconciliationManager.js de l'utiliser comme méthode de fallback
+window.calculerReconciliation = calculerReconciliation;
 
 // ... existing code ...
 
@@ -5544,88 +4344,7 @@ function initStockAlerte() {
     }
 }
 
-// Fonction pour formater une date en format dd/mm/yyyy
-function formatDate(date) {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-}
-
-// Fonction pour générer une liste de dates entre deux dates
-function generateDateRange(startDate, endDate) {
-    const dateArray = [];
-    let currentDate = new Date(startDate);
-    
-    // Convertir les dates en objets Date si elles sont des chaînes
-    if (typeof startDate === 'string') {
-        currentDate = parseDate(startDate);
-    }
-    
-    const endDateTime = typeof endDate === 'string' ? parseDate(endDate) : new Date(endDate);
-    
-    while (currentDate <= endDateTime) {
-        dateArray.push(formatDate(new Date(currentDate)));
-        currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    return dateArray;
-}
-
-// Fonction pour convertir une date du format dd/mm/yyyy en objet Date
-function parseDate(dateString) {
-    const parts = dateString.split('/');
-    // Note: le mois est 0-indexed dans JavaScript Date
-    return new Date(parts[2], parts[1] - 1, parts[0]);
-}
-
-// Fonction pour récupérer les données de stock pour une date spécifique
-async function getStockForDate(date, type) {
-    try {
-        const response = await fetch(`http://localhost:3000/api/stock/${type}?date=${date}`, {
-            method: 'GET',
-            credentials: 'include'
-        });
-        
-        if (!response.ok) {
-            console.log(`Aucune donnée de stock ${type} disponible pour ${date}`);
-            return {};
-        }
-        
-        return await response.json();
-    } catch (error) {
-        console.error(`Erreur lors de la récupération du stock ${type} pour ${date}:`, error);
-        return {};
-    }
-}
-
-// Fonction pour charger les transferts pour une date spécifique
-async function getTransfersForDate(date) {
-    try {
-        console.log(`Récupération des transferts pour la date: ${date}`);
-        
-        const response = await fetch(`http://localhost:3000/api/transferts?date=${date}`, {
-            method: 'GET',
-            credentials: 'include'
-        });
-        
-        if (!response.ok) {
-            console.log(`Aucun transfert disponible pour ${date}`);
-            return [];
-        }
-        
-        const data = await response.json();
-        const transferts = data.success && data.transferts ? data.transferts : [];
-        
-        // Déboguer les données de transferts reçues
-        console.log(`Transferts reçus pour ${date}:`, transferts);
-        
-        return transferts;
-    } catch (error) {
-        console.error(`Erreur lors de la récupération des transferts pour ${date}:`, error);
-        return [];
-    }
-}
+// ... existing code ...
 
 // Fonction pour rechercher les alertes d'accumulation de stock
 async function rechercherAlertesAccumulation() {
@@ -5635,6 +4354,8 @@ async function rechercherAlertesAccumulation() {
     const dateDebut = document.getElementById('date-debut-alerte').value;
     const dateFin = document.getElementById('date-fin-alerte').value;
     const pourcentageSeuil = parseFloat(document.getElementById('pourcentage-alerte').value) || 10;
+    
+    console.log(`Paramètres de recherche - Début: ${dateDebut}, Fin: ${dateFin}, Seuil: ${pourcentageSeuil}%`);
     
     if (!dateDebut || !dateFin) {
         alert('Veuillez sélectionner une période valide');
@@ -5667,6 +4388,11 @@ async function rechercherAlertesAccumulation() {
             const stockMatin = await getStockForDate(date, 'matin');
             const stockSoir = await getStockForDate(date, 'soir');
             const transferts = await getTransfersForDate(date);
+            
+            console.log(`[DEBUG] Données pour ${date}:`);
+            console.log(`[DEBUG] - Stock Matin: ${Object.keys(stockMatin).length} entrées`);
+            console.log(`[DEBUG] - Stock Soir: ${Object.keys(stockSoir).length} entrées`);
+            console.log(`[DEBUG] - Transferts: ${transferts.length} entrées`);
             
             // Vérifier si nous avons des données pour cette date
             if (Object.keys(stockMatin).length === 0 && Object.keys(stockSoir).length === 0) {
@@ -5737,12 +4463,20 @@ async function rechercherAlertesAccumulation() {
             
             // Parcourir tous les produits dans le stock matin
             const keysTraitees = new Set(); // Pour éviter les doublons
+            let candidatsExamines = 0;
+            let candidatsIgnores = 0;
             
+            console.log(`[DEBUG] ===== Analyse du stock matin pour ${date} =====`);
             for (const key in stockMatin) {
+                candidatsExamines++;
                 const [pointVente, produitBrut] = key.split('-');
                 
                 // Vérifier si c'est un point de vente physique
-                if (!POINTS_VENTE_PHYSIQUES.includes(pointVente)) continue;
+                if (!POINTS_VENTE_PHYSIQUES.includes(pointVente)) {
+                    console.log(`[DEBUG] Point de vente "${pointVente}" non physique pour ${produitBrut}, ignoré`);
+                    candidatsIgnores++;
+                    continue;
+                }
                 
                 // Normaliser le nom du produit et recréer la clé
                 const produit = produitBrut.trim();
@@ -5755,13 +4489,17 @@ async function rechercherAlertesAccumulation() {
                 
                 // Récupérer la valeur des transferts pour ce produit
                 const transfertMontant = transfertsMap.has(keyNorm) ? transfertsMap.get(keyNorm) : 0;
-                console.log(`Vérification transfert pour ${keyNorm}: ${transfertMontant}`);
+                console.log(`[DEBUG] Produit: ${produit} à ${pointVente} - Stock Matin: ${stockMatinMontant}, Transfert: ${transfertMontant}`);
                 
                 // Calculer le stock attendu (stock matin + transferts)
                 const stockAttendu = stockMatinMontant + transfertMontant;
                 
                 // Ignorer les stocks nuls ou négatifs
-                if (stockAttendu <= 0) continue;
+                if (stockAttendu <= 0) {
+                    console.log(`[DEBUG] Stock attendu <= 0 (${stockAttendu}) pour ${keyNorm}, ignoré`);
+                    candidatsIgnores++;
+                    continue;
+                }
                 
                 // Vérifier s'il y a un stock soir correspondant
                 if (stockSoir[key]) {
@@ -5775,9 +4513,17 @@ async function rechercherAlertesAccumulation() {
                     // Si seuil = 10%, on cherche si stockSoir > 90% * stockAttendu (ce qui indique une accumulation)
                     const pourcentageAccumulation = (difference / stockAttendu) * 100;
                     
+                    console.log(`[DEBUG] Produit ${produit} à ${pointVente} - Stock Soir: ${stockSoirMontant}, Différence: ${difference}, % Accumulation: ${pourcentageAccumulation.toFixed(2)}%, Seuil: -${pourcentageSeuil}%`);
+                    
                     // Si le stock soir dépasse le stock attendu moins le seuil, c'est une accumulation
                     // NOUVEAU: On ajoute la condition difference > 0 pour ne montrer que les accumulations positives
-                    if (pourcentageAccumulation > -pourcentageSeuil && difference > 0) {
+                    const conditionSeuil = pourcentageAccumulation > -pourcentageSeuil;
+                    const conditionDifference = difference > 0;
+                    
+                    console.log(`[DEBUG] Conditions: % > -seuil: ${conditionSeuil}, différence > 0: ${conditionDifference}`);
+                    
+                    if (conditionSeuil && conditionDifference) {
+                        console.log(`[DEBUG] *** ALERTE DÉTECTÉE: Accumulation pour ${produit} à ${pointVente} (${pourcentageAccumulation.toFixed(2)}%) ***`);
                         // Extraire les détails du stock matin
                         const stockMatinQuantite = parseFloat(stockMatinItem.Quantite || stockMatinItem.Nombre || 0);
                         const stockMatinPU = parseFloat(stockSoirItem.PU || stockSoirItem.prixUnitaire || 0);
@@ -5826,89 +4572,54 @@ async function rechercherAlertesAccumulation() {
                             },
                             transfertDetails: transfertDetails
                         });
+                    } else {
+                        console.log(`[DEBUG] Aucune alerte pour ${produit} à ${pointVente} - conditions non satisfaites`);
+                        candidatsIgnores++;
                     }
+                } else {
+                    console.log(`[DEBUG] Pas de stock soir correspondant pour ${produit} à ${pointVente}`);
+                    candidatsIgnores++;
                 }
             }
             
-            // Traiter les produits qui sont dans le stock soir mais pas dans le stock matin
+            console.log(`[DEBUG] Candidats examinés: ${candidatsExamines}, ignorés: ${candidatsIgnores}`);
+            
+            // Parcourir tous les produits du stock soir pour détecter les apparitions
+            console.log(`[DEBUG] ===== Analyse du stock soir (apparitions) pour ${date} =====`);
+            let apparitionsExaminees = 0;
+            let apparitionsDetectees = 0;
+            
             for (const key in stockSoir) {
-                // Extraire et normaliser
+                apparitionsExaminees++;
                 const [pointVente, produitBrut] = key.split('-');
+                
+                // Vérifier si c'est un point de vente physique
+                if (!POINTS_VENTE_PHYSIQUES.includes(pointVente)) {
+                    console.log(`[DEBUG] Point de vente "${pointVente}" non physique pour ${produitBrut}, ignoré`);
+                    continue;
+                }
+                
+                // Normaliser le nom du produit et recréer la clé
                 const produit = produitBrut.trim();
                 const keyNorm = `${pointVente}-${produit}`;
                 
-                // Ignorer les produits déjà traités
-                if (keysTraitees.has(keyNorm)) continue;
+                // Vérifier si ce produit a déjà été traité
+                if (keysTraitees.has(keyNorm)) {
+                    console.log(`[DEBUG] Produit ${produit} à ${pointVente} déjà traité, ignoré`);
+                    continue;
+                }
                 
-                // Vérifier si c'est un point de vente physique
-                if (!POINTS_VENTE_PHYSIQUES.includes(pointVente)) continue;
-                
+                // Récupérer les montants
                 const stockSoirItem = stockSoir[key];
                 const stockSoirMontant = parseFloat(stockSoirItem.Montant || stockSoirItem.total || 0);
                 
-                // Récupérer la valeur des transferts pour ce produit
-                const transfertMontant = transfertsMap.has(keyNorm) ? transfertsMap.get(keyNorm) : 0;
-                console.log(`Vérification transfert pour ${keyNorm} (stock soir sans matin): ${transfertMontant}`);
+                console.log(`[DEBUG] Apparition potentielle: ${produit} à ${pointVente}, Stock Soir: ${stockSoirMontant}`);
                 
-                // Stock matin est 0, mais il pourrait y avoir des transferts
-                const stockAttendu = transfertMontant;
-                
-                // Si le stock attendu est positif, vérifier s'il y a une accumulation
-                if (stockAttendu > 0) {
-                    const difference = stockSoirMontant - stockAttendu;
-                    const pourcentageAccumulation = (difference / stockAttendu) * 100;
-                    
-                    // NOUVEAU: On ajoute la condition difference > 0 pour ne montrer que les accumulations positives
-                    if (pourcentageAccumulation > -pourcentageSeuil && difference > 0) {
-                        // Extraire les détails du stock soir
-                        const stockSoirQuantite = parseFloat(stockSoirItem.Quantite || stockSoirItem.Nombre || 0);
-                        const stockSoirPU = parseFloat(stockSoirItem.PU || stockSoirItem.prixUnitaire || 0);
-                        
-                        // Rechercher les transferts pour ce produit
-                        const transfertDetails = {
-                            quantite: 0,
-                            prixUnitaire: 0
-                        };
-                        
-                        // Chercher dans les transferts pour trouver les détails
-                        transferts.forEach(transfert => {
-                            const transfertPV = transfert.pointVente || transfert["Point de Vente"];
-                            const transfertProduitBrut = transfert.produit || transfert.Produit;
-                            const transfertProduit = transfertProduitBrut ? transfertProduitBrut.trim() : '';
-                            
-                            if (transfertPV === pointVente && transfertProduit === produit) {
-                                transfertDetails.quantite += parseFloat(transfert.quantite || transfert.Quantite || transfert.Nombre || transfert.nombre || 0);
-                                if (transfertDetails.prixUnitaire === 0) {
-                                    transfertDetails.prixUnitaire = parseFloat(transfert.prixUnitaire || transfert.PU || transfert.pu || 0);
-                                }
-                            }
-                        });
-                        
-                        alertes.push({
-                            pointVente,
-                            produit,
-                            date,
-                            stockMatin: 0,
-                            stockSoir: stockSoirMontant,
-                            transfert: transfertMontant,
-                            difference,
-                            pourcentage: pourcentageAccumulation,
-                            type: 'accumulation',
-                            // Ajouter les détails pour les tooltips
-                            stockMatinDetails: {
-                                quantite: 0,
-                                prixUnitaire: 0
-                            },
-                            stockSoirDetails: {
-                                quantite: stockSoirQuantite,
-                                prixUnitaire: stockSoirPU
-                            },
-                            transfertDetails: transfertDetails
-                        });
-                    }
-                }
                 // Si stock attendu est 0, mais stock soir > 0, c'est une apparition
-                else if (stockSoirMontant > 0) {
+                if (stockSoirMontant > 0) {
+                    console.log(`[DEBUG] *** ALERTE DÉTECTÉE: Apparition pour ${produit} à ${pointVente} ***`);
+                    apparitionsDetectees++;
+                    
                     // Extraire les détails du stock soir
                     const stockSoirQuantite = parseFloat(stockSoirItem.Quantite || stockSoirItem.Nombre || 0);
                     const stockSoirPU = parseFloat(stockSoirItem.PU || stockSoirItem.prixUnitaire || 0);
@@ -5936,6 +4647,15 @@ async function rechercherAlertesAccumulation() {
                     });
                 }
             }
+            
+            console.log(`[DEBUG] Apparitions examinées: ${apparitionsExaminees}, détectées: ${apparitionsDetectees}`);
+        }
+        
+        console.log(`[DEBUG] ===== Résumé final =====`);
+        console.log(`[DEBUG] Nombre total d'alertes détectées: ${alertes.length}`);
+        
+        if (alertes.length > 0) {
+            console.log(`[DEBUG] Premières alertes détectées:`, alertes.slice(0, 3));
         }
         
         // Trier les alertes
@@ -5969,6 +4689,7 @@ async function rechercherAlertesAccumulation() {
         });
         
         // Afficher les résultats
+        console.log(`[DEBUG] Appel à afficherAlertesAccumulation avec ${alertes.length} alertes`);
         afficherAlertesAccumulation(alertes);
         
     } catch (error) {
@@ -5980,7 +4701,103 @@ async function rechercherAlertesAccumulation() {
     }
 }
 
-// Fonction pour afficher les alertes d'accumulation de stock
+// ... existing code ...
+
+// Fonction pour générer une séquence de dates au format dd/mm/yyyy
+function generateDateRange(startDate, endDate) {
+    const dateRange = [];
+    
+    const start = parseDate(startDate);
+    const end = parseDate(endDate);
+    
+    let current = new Date(start);
+    while (current <= end) {
+        dateRange.push(formatDate(current));
+        current.setDate(current.getDate() + 1);
+    }
+    
+    return dateRange;
+}
+
+// Fonction pour parser une date au format dd/mm/yyyy
+function parseDate(dateStr) {
+    const parts = dateStr.split('/');
+    // Format dd/mm/yyyy -> new Date(yyyy, mm-1, dd)
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+}
+
+// Fonction pour formater une date au format dd/mm/yyyy
+function formatDate(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${day}/${month}/${year}`;
+}
+
+// Fonction pour récupérer les données de stock pour une date donnée
+async function getStockForDate(date, type) {
+    try {
+        const response = await fetch(`http://localhost:3000/api/stock/${type}?date=${date}`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.items) {
+            // On reçoit un objet d'objets
+            const normalizedData = {};
+            
+            for (const key in data.items) {
+                const item = data.items[key];
+                const pointVente = item["Point de Vente"] || "";
+                const produit = item.Produit || "";
+                
+                if (pointVente && produit) {
+                    const newKey = `${pointVente}-${produit}`;
+                    normalizedData[newKey] = item;
+                }
+            }
+            
+            return normalizedData;
+        }
+        
+        return {};
+    } catch (error) {
+        console.error(`Erreur lors de la récupération du stock ${type} pour ${date}:`, error);
+        return {};
+    }
+}
+
+// Fonction pour récupérer les transferts pour une date donnée
+async function getTransfersForDate(date) {
+    try {
+        const response = await fetch(`http://localhost:3000/api/transferts?date=${date}`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && Array.isArray(data.items)) {
+            return data.items;
+        }
+        
+        return [];
+    } catch (error) {
+        console.error(`Erreur lors de la récupération des transferts pour ${date}:`, error);
+        return [];
+    }
+}
+
+// Fonction pour afficher les alertes d'accumulation dans le tableau
 function afficherAlertesAccumulation(alertes) {
     console.log('Alertes trouvées:', alertes);
     
@@ -6069,10 +4886,11 @@ function afficherAlertesAccumulation(alertes) {
         tdDifference.textContent = formatMonetaire(alerte.difference);
         tdDifference.classList.add('text-end');
         
+        // Colorer selon la différence
         if (alerte.difference > 0) {
-            tdDifference.classList.add('text-danger', 'fw-bold');
+            tdDifference.classList.add('text-danger');
         } else if (alerte.difference < 0) {
-            tdDifference.classList.add('text-success', 'fw-bold');
+            tdDifference.classList.add('text-success');
         }
         
         tr.appendChild(tdDifference);
@@ -6082,10 +4900,13 @@ function afficherAlertesAccumulation(alertes) {
         tdPourcentage.textContent = `${alerte.pourcentage.toFixed(2)}%`;
         tdPourcentage.classList.add('text-end');
         
-        if (alerte.pourcentage > 0) {
+        // Colorer selon le pourcentage
+        if (alerte.pourcentage > 50) {
             tdPourcentage.classList.add('text-danger', 'fw-bold');
-        } else if (alerte.pourcentage < 0) {
-            tdPourcentage.classList.add('text-success', 'fw-bold');
+        } else if (alerte.pourcentage > 20) {
+            tdPourcentage.classList.add('text-warning', 'fw-bold');
+        } else {
+            tdPourcentage.classList.add('text-primary');
         }
         
         tr.appendChild(tdPourcentage);
@@ -6094,194 +4915,4 @@ function afficherAlertesAccumulation(alertes) {
     });
 }
 
-// Ajouter après les styles CSS existants dans la fonction ajouterStylesCSS
-function ajouterStylesCSS() {
-    // Styles existants...
-    
-    // Ajouter des styles pour les colonnes sélectionnées
-    const styleElement = document.createElement('style');
-    styleElement.textContent = `
-        .currency {
-            text-align: right;
-        }
-        .negative {
-            color: red;
-        }
-        .positive {
-            color: green;
-        }
-        .debug-toggle {
-            cursor: pointer;
-            color: #0d6efd;
-            text-decoration: underline;
-        }
-        #debug-container {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-        .column-selected {
-            background-color: rgba(0, 123, 255, 0.1);
-        }
-        .column-tooltip {
-            position: fixed;
-            background-color: #333;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            z-index: 1000;
-            font-size: 0.9rem;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            pointer-events: none;
-        }
-    `;
-    document.head.appendChild(styleElement);
-}
-
-// Ajouter à la fin du fichier
-function initTableauSelectionnableExcel() {
-    // Identifier tous les tableaux à rendre sélectionnables
-    const tableaux = [
-        'reconciliation-table',
-        'stock-table',
-        'alertes-table',
-        'transfertTable',
-        'tableau-ventes',
-        'dernieres-ventes'
-    ];
-    
-    tableaux.forEach(tableId => {
-        const table = document.getElementById(tableId);
-        if (table) {
-            rendreTableauSelectionnable(table);
-        }
-    });
-}
-
-function rendreTableauSelectionnable(table) {
-    let selectedColIndex = -1;
-    let tooltip = null;
-    
-    // Fonction pour créer l'infobulle
-    function creerTooltip() {
-        if (!tooltip) {
-            tooltip = document.createElement('div');
-            tooltip.className = 'column-tooltip';
-            tooltip.style.display = 'none';
-            document.body.appendChild(tooltip);
-        }
-        return tooltip;
-    }
-    
-    // Fonction pour calculer la somme d'une colonne
-    function calculerSommeColonne(colIndex) {
-        let somme = 0;
-        let count = 0;
-        let estNumerique = true;
-        
-        // Parcourir toutes les cellules de la colonne (sauf l'en-tête)
-        const rows = table.querySelectorAll('tbody tr');
-        rows.forEach(row => {
-            // Ignorer les lignes de titre ou de total
-            if (row.classList.contains('total-row')) return;
-            
-            const cell = row.cells[colIndex];
-            if (cell) {
-                // Extraire le texte et le convertir en nombre
-                let texte = cell.textContent.trim();
-                // Supprimer les formatages monétaires (FCFA, espaces, etc.)
-                texte = texte.replace(/\s+/g, '').replace(/FCFA/g, '').replace(/,/g, '.');
-                
-                // Si la cellule contient un nombre valide
-                if (!isNaN(texte) && texte !== '') {
-                    somme += parseFloat(texte);
-                    count++;
-                } else {
-                    estNumerique = false;
-                }
-            }
-        });
-        
-        return { somme, count, estNumerique };
-    }
-    
-    // Fonction pour mettre à jour le tooltip
-    function mettreAJourTooltip(e, colIndex) {
-        const tooltip = creerTooltip();
-        const { somme, count, estNumerique } = calculerSommeColonne(colIndex);
-        
-        if (estNumerique && count > 0) {
-            // Formater la somme pour l'affichage
-            const sommeFormatee = formatMonetaire(somme);
-            tooltip.textContent = `Somme: ${sommeFormatee} | Nombre: ${count}`;
-            tooltip.style.display = 'block';
-            
-            // Positionner le tooltip sous le curseur
-            tooltip.style.left = `${e.pageX}px`;
-            tooltip.style.top = `${e.pageY + 20}px`;
-            
-            // Ajuster si le tooltip dépasse du bord droit
-            const tooltipRect = tooltip.getBoundingClientRect();
-            if (tooltipRect.right > window.innerWidth) {
-                tooltip.style.left = `${window.innerWidth - tooltipRect.width - 10}px`;
-            }
-        } else {
-            // Masquer le tooltip si la colonne n'est pas numérique
-            tooltip.style.display = 'none';
-        }
-    }
-    
-    // Écouteur pour le clic sur les en-têtes de colonnes
-    table.addEventListener('click', function(e) {
-        const th = e.target.closest('th');
-        if (!th) return;
-        
-        const headerRow = th.parentElement;
-        const colIndex = Array.from(headerRow.children).indexOf(th);
-        
-        // Désélectionner la colonne précédente
-        if (selectedColIndex >= 0) {
-            const previousCells = table.querySelectorAll(`tr > :nth-child(${selectedColIndex + 1})`);
-            previousCells.forEach(cell => cell.classList.remove('column-selected'));
-        }
-        
-        // Sélectionner une nouvelle colonne (ou désélectionner si on reclique sur la même)
-        if (selectedColIndex !== colIndex) {
-            selectedColIndex = colIndex;
-            const cells = table.querySelectorAll(`tr > :nth-child(${colIndex + 1})`);
-            cells.forEach(cell => cell.classList.add('column-selected'));
-            
-            // Afficher le tooltip
-            mettreAJourTooltip(e, colIndex);
-        } else {
-            selectedColIndex = -1;
-            if (tooltip) tooltip.style.display = 'none';
-        }
-    });
-    
-    // Écouteur pour le survol lorsqu'une colonne est sélectionnée
-    table.addEventListener('mousemove', function(e) {
-        if (selectedColIndex >= 0) {
-            mettreAJourTooltip(e, selectedColIndex);
-        }
-    });
-    
-    // Masquer le tooltip quand on quitte le tableau
-    table.addEventListener('mouseleave', function() {
-        if (tooltip) tooltip.style.display = 'none';
-    });
-}
-
-// Initialiser la fonctionnalité après le chargement du document
-document.addEventListener('DOMContentLoaded', function() {
-    // Si déjà initialisé, ne rien faire
-    if (window.excelSelectInitialized) return;
-    
-    // Initialiser la fonctionnalité de sélection de colonne
-    initTableauSelectionnableExcel();
-    
-    // Marquer comme initialisé pour éviter les initialisations multiples
-    window.excelSelectInitialized = true;
-});
+// ... existing code ...
