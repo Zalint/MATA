@@ -828,6 +828,7 @@ function creerNouvelleEntree() {
                     <option value="Ovin">Ovin</option>
                     <option value="Volaille">Volaille</option>
                     <option value="Pack">Pack</option>
+                    <option value="Autres">Autres</option>
                 </select>
             </div>
             <div class="col-md-3">
@@ -2679,11 +2680,15 @@ function afficherOngletsSuivantDroits(userData) {
 async function initInventaire() {
     console.log('%c=== Initialisation de la page inventaire ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
     
+    // Initialiser les filtres de stock
+    initFilterStock();
+    
     // Initialiser le datepicker
     const dateInput = document.getElementById('date-inventaire');
     flatpickr(dateInput, {
         dateFormat: "d/m/Y",
         defaultDate: "today",
+        disableMobile: "true",
         onChange: function(selectedDates, dateStr) {
             // Recharger les transferts quand la date change
             chargerTransferts();
@@ -2707,6 +2712,13 @@ async function initInventaire() {
     const btnSaveStock = document.getElementById('save-stock');
     if (btnSaveStock) {
         btnSaveStock.addEventListener('click', sauvegarderDonneesStock);
+    }
+    
+    // Appliquer le filtre initial
+    const masquerQuantiteZero = document.getElementById('masquer-quantite-zero');
+    if (masquerQuantiteZero) {
+        // Par défaut, ne pas masquer les quantités à zéro
+        masquerQuantiteZero.checked = false;
     }
     
     // Charger les données initiales
@@ -2770,6 +2782,13 @@ function ajouterLigneStock() {
     inputQuantite.className = 'form-control form-control-sm quantite-input';
     inputQuantite.step = '0.1';
     inputQuantite.value = '0';
+    // Ajouter l'écouteur d'événement pour appliquer le filtre quand la quantité change
+    inputQuantite.addEventListener('change', function() {
+        // Appliquer le filtre si le masquage des quantités à zéro est activé
+        if (document.getElementById('masquer-quantite-zero').checked) {
+            filtrerStock();
+        }
+    });
     tdQuantite.appendChild(inputQuantite);
     
     // Prix unitaire
@@ -4916,3 +4935,214 @@ function afficherAlertesAccumulation(alertes) {
 }
 
 // ... existing code ...
+
+// Fonction pour filtrer le tableau de stock par point de vente et produit
+function filtrerStock() {
+    const pointVenteFiltre = document.getElementById('filtre-point-vente').value;
+    const produitFiltre = document.getElementById('filtre-produit').value;
+    const masquerQuantiteZero = document.getElementById('masquer-quantite-zero').checked;
+    const rows = document.querySelectorAll('#stock-table tbody tr');
+
+    console.log(`Filtrage du stock - Point de vente: ${pointVenteFiltre}, Produit: ${produitFiltre}, Masquer quantité zéro: ${masquerQuantiteZero}`);
+    
+    rows.forEach(row => {
+        const pointVenteCell = row.querySelector('td:first-child select');
+        const produitCell = row.querySelector('td:nth-child(2) select');
+        const quantiteInput = row.querySelector('td:nth-child(3) input');
+        
+        if (!pointVenteCell || !produitCell) return;
+        
+        const pointVente = pointVenteCell.value;
+        const produit = produitCell.value;
+        const quantite = quantiteInput ? parseFloat(quantiteInput.value) || 0 : 0;
+        
+        const matchPointVente = pointVenteFiltre === 'tous' || pointVente === pointVenteFiltre;
+        const matchProduit = produitFiltre === 'tous' || produit === produitFiltre;
+        const matchQuantite = !masquerQuantiteZero || quantite > 0;
+        
+        if (matchPointVente && matchProduit && matchQuantite) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Fonction pour initialiser les filtres de stock
+function initFilterStock() {
+    const filtrePointVente = document.getElementById('filtre-point-vente');
+    const filtreProduit = document.getElementById('filtre-produit');
+    const masquerQuantiteZero = document.getElementById('masquer-quantite-zero');
+    
+    if (filtrePointVente) {
+        filtrePointVente.addEventListener('change', filtrerStock);
+    }
+    
+    if (filtreProduit) {
+        filtreProduit.addEventListener('change', filtrerStock);
+    }
+    
+    if (masquerQuantiteZero) {
+        masquerQuantiteZero.addEventListener('change', filtrerStock);
+    }
+}
+
+// ... existing code ...
+
+// Fonction pour initialiser les écouteurs d'événements des onglets
+function initTabListeners() {
+    // Écouter les changements d'onglets
+    const tabLinks = document.querySelectorAll('.nav-link');
+    tabLinks.forEach(tab => {
+        tab.addEventListener('click', function(e) {
+            const tabId = this.id;
+            console.log(`Navigation vers l'onglet: ${tabId}`);
+            
+            // Gestion spécifique pour l'onglet inventaire
+            if (tabId === 'stock-inventaire-tab') {
+                // Vérifier s'il y a des filtres à appliquer depuis la section réconciliation
+                const pointVente = sessionStorage.getItem('inventaire_filter_point_vente');
+                const date = sessionStorage.getItem('inventaire_filter_date');
+                const periode = sessionStorage.getItem('inventaire_filter_periode');
+                
+                if (pointVente && date) {
+                    console.log(`Filtrage de l'inventaire pour: ${pointVente}, date: ${date}, période: ${periode}`);
+                    
+                    // Définir la date dans le sélecteur de date
+                    const dateInput = document.getElementById('date-inventaire');
+                    if (dateInput) {
+                        dateInput.value = date;
+                        // Déclencher l'événement de changement pour charger les données
+                        const event = new Event('change');
+                        dateInput.dispatchEvent(event);
+                    }
+                    
+                    // Définir le type de stock (matin ou soir)
+                    const typeStockSelect = document.getElementById('type-stock');
+                    if (typeStockSelect && periode) {
+                        typeStockSelect.value = periode === 'matin' ? 'matin' : 'soir';
+                        // Déclencher l'événement de changement
+                        const event = new Event('change');
+                        typeStockSelect.dispatchEvent(event);
+                    }
+                    
+                    // Définir le point de vente dans le filtre
+                    setTimeout(() => {
+                        const filtrePointVente = document.getElementById('filtre-point-vente');
+                        if (filtrePointVente) {
+                            filtrePointVente.value = pointVente;
+                            // Déclencher l'événement de changement pour filtrer
+                            filtrerStock();
+                        }
+                        
+                        // Effacer les filtres stockés pour éviter de les réappliquer à la prochaine ouverture
+                        sessionStorage.removeItem('inventaire_filter_point_vente');
+                        sessionStorage.removeItem('inventaire_filter_date');
+                        sessionStorage.removeItem('inventaire_filter_periode');
+                    }, 1000); // Attendre 1 seconde pour s'assurer que les données sont chargées
+                }
+            }
+        });
+    });
+}
+
+// Fonction pour initialiser le bouton "Aller à la rec."
+function initBoutonReconciliation() {
+    const btnAllerRec = document.getElementById('btn-aller-rec');
+    if (btnAllerRec) {
+        btnAllerRec.addEventListener('click', function() {
+            // Récupérer la date sélectionnée dans l'inventaire
+            const dateInventaire = document.getElementById('date-inventaire').value;
+            
+            if (!dateInventaire) {
+                alert('Veuillez sélectionner une date avant de naviguer vers la réconciliation.');
+                return;
+            }
+            
+            console.log(`Navigation vers réconciliation avec date: ${dateInventaire}`);
+            
+            // Stocker la date pour l'utiliser dans la page de réconciliation
+            sessionStorage.setItem('reconciliation_date', dateInventaire);
+            
+            // Naviguer vers l'onglet réconciliation
+            const reconciliationTab = document.getElementById('reconciliation-tab');
+            if (reconciliationTab) {
+                reconciliationTab.click();
+            } else {
+                console.error("L'onglet Réconciliation n'a pas été trouvé");
+                alert("Impossible de naviguer vers l'onglet Réconciliation. L'élément n'existe pas.");
+            }
+        });
+    }
+}
+
+// Modifier la fonction initInventaire pour initialiser le bouton
+async function initInventaire() {
+    console.log('%c=== Initialisation de la page inventaire ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+    
+    // Initialiser les filtres de stock
+    initFilterStock();
+    
+    // Initialiser le bouton "Aller à la rec."
+    initBoutonReconciliation();
+    
+    // Initialiser le datepicker
+    const dateInput = document.getElementById('date-inventaire');
+    flatpickr(dateInput, {
+        dateFormat: "d/m/Y",
+        defaultDate: "today",
+        disableMobile: "true",
+        onChange: function(selectedDates, dateStr) {
+            // Recharger les transferts quand la date change
+            chargerTransferts();
+            // Recharger les données de stock quand la date change
+            chargerStock(dateStr);
+        }
+    });
+    
+    // ... reste du code existant ...
+}
+
+// Modifier la fonction qui gère le clic sur l'onglet reconciliation
+document.addEventListener('DOMContentLoaded', function() {
+    const reconciliationTab = document.getElementById('reconciliation-tab');
+    if (reconciliationTab) {
+        const originalClickHandler = reconciliationTab.onclick;
+        
+        reconciliationTab.onclick = function(e) {
+            // Appeler le gestionnaire original si disponible
+            if (typeof originalClickHandler === 'function') {
+                originalClickHandler.call(this, e);
+            }
+            
+            // Vérifier s'il y a une date stockée depuis la page d'inventaire
+            const dateFromInventaire = sessionStorage.getItem('reconciliation_date');
+            if (dateFromInventaire) {
+                console.log(`Date trouvée depuis l'inventaire: ${dateFromInventaire}`);
+                
+                // Définir la date dans le sélecteur de date de réconciliation
+                setTimeout(() => {
+                    const dateReconciliation = document.getElementById('date-reconciliation');
+                    if (dateReconciliation) {
+                        dateReconciliation.value = dateFromInventaire;
+                        
+                        // Déclencher l'événement de changement pour charger les données
+                        const event = new Event('change');
+                        dateReconciliation.dispatchEvent(event);
+                        
+                        // Effacer la date stockée
+                        sessionStorage.removeItem('reconciliation_date');
+                    }
+                }, 500); // Court délai pour s'assurer que la page est chargée
+            }
+            
+            // Empêcher la propagation par défaut si nécessaire
+            return true;
+        };
+    }
+    
+    // ... autre code existant ...
+    
+    // Initialiser les écouteurs d'onglets
+    initTabListeners();
+});

@@ -9,9 +9,65 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Container and layout fixes */
+        .navbar-container, .main-content {
+            padding-left: 0;
+            padding-right: 0;
+        }
+        .container-fluid {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+        .content {
+            padding-left: 0;
+            padding-right: 0;
+            margin-top: 1rem !important;
+        }
+        /* Remove unnecessary margins that cause misalignment */
+        .row {
+            margin-left: 0;
+            margin-right: 0;
+        }
+        
+        /* Card styling */
+        .card {
+            border-radius: 0;
+            margin-bottom: 1rem;
+        }
+        .card-header {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+        
+        /* Table styling */
+        .table-responsive {
+            margin-top: 0.5rem;
+        }
+        .table {
+            margin-bottom: 0;
+        }
+        .table th, .table td {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+        
+        /* Section-specific fixes */
+        #reconciliation-section .card-body,
+        #saisie-section .card-body,
+        #visualisation-section .card-body,
+        #import-section .card-body,
+        #stock-inventaire-section .card-body,
+        #copier-stock-section .card-body,
+        #stock-alerte-section .card-body,
+        #cash-payment-section .card-body {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+    </style>
 </head>
 <body>
-    <div class="container-fluid">
+    <div class="container-fluid navbar-container">
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
             <div class="container-fluid">
                 <a class="navbar-brand" href="#">Gestion des Ventes</a>
@@ -41,6 +97,9 @@
                         <li class="nav-item" id="stock-alerte-item">
                             <a class="nav-link" href="#" id="stock-alerte-tab">Accumulation de stock alerte</a>
                         </li>
+                        <li class="nav-item" id="cash-payment-item">
+                            <a class="nav-link" href="#" id="cash-payment-tab">Cash Paiement</a>
+                        </li>
                     </ul>
                     <div class="navbar-nav">
                         <span class="nav-item nav-link" id="user-info"></span>
@@ -49,7 +108,9 @@
                 </div>
             </div>
         </nav>
+    </div>
 
+    <div class="container-fluid main-content">
         <div class="content mt-4">
             <!-- Formulaire de saisie -->
             <div id="saisie-section">
@@ -89,6 +150,7 @@
                                                 <option value="Ovin">Ovin</option>
                                                 <option value="Volaille">Volaille</option>
                                                 <option value="Pack">Pack</option>
+                                                <option value="Autres">Autres</option>
                                             </select>
                                         </div>
                                         <div class="col-md-3">
@@ -437,6 +499,21 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Filtre pour masquer les quantités à zéro -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="masquer-quantite-zero">
+                            <label class="form-check-label" for="masquer-quantite-zero">
+                                Masquer les produits avec quantité à zéro
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <button id="btn-aller-rec" class="btn btn-primary">Aller à la rec.</button>
+                    </div>
+                </div>
 
                 <!-- Tableau de stock -->
                 <div class="card mb-4">
@@ -477,6 +554,31 @@
                         <h5>Transfert</h5>
                     </div>
                     <div class="card-body">
+                        <!-- Filtres pour les transferts -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="filtre-point-vente-transfert" class="form-label">Filtrer par Point de Vente</label>
+                                    <select id="filtre-point-vente-transfert" class="form-select">
+                                        <option value="">Tous les points de vente</option>
+                                        <option value="Mbao">Mbao</option>
+                                        <option value="O.Foire">O.Foire</option>
+                                        <option value="Linguere">Linguere</option>
+                                        <option value="Dahra">Dahra</option>
+                                        <option value="Touba">Touba</option>
+                                        <option value="Keur Massar">Keur Massar</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="filtre-produit-transfert" class="form-label">Filtrer par Produit</label>
+                                    <select id="filtre-produit-transfert" class="form-select">
+                                        <option value="">Tous les produits</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
                         <table class="table" id="transfertTable">
                             <thead>
                                 <tr>
@@ -573,16 +675,22 @@
                             </div>
                             <div class="card-body">
                                 <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <div class="input-group">
-                                            <span class="input-group-text">Date</span>
-                                            <input type="text" id="date-reconciliation" class="form-control" placeholder="Sélectionner une date" onchange="viderTableauReconciliation(); setTimeout(() => calculerReconciliation(this.value), 100);">
-                                            <button class="btn btn-primary" id="calculer-reconciliation">Calculer</button>
-                                            <button class="btn btn-success ms-2" id="sauvegarder-reconciliation" disabled>Sauvegarder</button>
-                                        </div>
+                                    <div class="col-md-3">
+                                        <label for="date-reconciliation" class="form-label">Date</label>
+                                        <input type="text" class="form-control" id="date-reconciliation" placeholder="Sélectionner une date">
+                                        <div id="date-reconciliation-display" class="form-text"></div>
                                     </div>
-                                    <div class="col-md-6 text-md-end">
-                                        <div>Réconciliation pour le <strong id="date-reconciliation-display">--/--/----</strong></div>
+                                    <div class="col-md-3">
+                                        <label for="point-vente-filtre" class="form-label">Point de Vente</label>
+                                        <select class="form-select" id="point-vente-filtre">
+                                            <option value="">Tous les points de vente</option>
+                                            <!-- Options will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 d-flex align-items-end">
+                                        <button class="btn btn-primary me-2" id="calculer-reconciliation">Calculer</button>
+                                        <button class="btn btn-success" id="sauvegarder-reconciliation" disabled>Sauvegarder</button>
+                                        <button class="btn btn-secondary ms-2" id="charger-commentaires" onclick="ReconciliationManager.chargerCommentaires(); return false;">Charger les commentaires</button>
                                     </div>
                                 </div>
                                 
@@ -604,7 +712,9 @@
                                                 <th class="text-end">Ventes Théoriques</th>
                                                 <th class="text-end">Ventes Saisies</th>
                                                 <th class="text-end">Écart</th>
+                                                <th class="text-end">Montant Total Cash</th>
                                                 <th class="text-end">Écart %</th>
+                                                <th class="text-end">Ecart Cash</th>
                                                 <th>Commentaire</th>
                                             </tr>
                                         </thead>
@@ -723,14 +833,137 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Section Cash Paiement -->
+            <div id="cash-payment-section" class="container-fluid mt-4" style="display: none;">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">Importation et Analyse des Paiements en Espèces</h5>
+                                <span class="small text-muted" id="sync-status-cash-payment"></span>
+                            </div>
+                            <div class="card-body">
+                                <div class="row mb-4">
+                                    <div class="col-md-12">
+                                        <div class="card bg-light">
+                                            <div class="card-body">
+                                                <h6 class="card-title">Importer des Données de Paiement</h6>
+                                                <p class="small text-muted mb-3">
+                                                    Importez un fichier CSV avec les en-têtes suivants: name, created_at, amount, merchant_fee, customer_fee, customer_name, customer_phone, Entete_Trans_Type, psp_name, payment_category, payment_means, payment_reference, merchant_reference, trn-status, tr_id, cust_country, AggregationMT, Total_Nom_Marchand, Total_Marchand, merchant_id, NameFirst
+                                                </p>
+                                                <div class="row">
+                                                    <div class="col-md-9">
+                                                        <input type="file" class="form-control" id="cash-payment-file" accept=".csv">
+                                                    </div>
+                                                    <div class="col-md-3 d-flex gap-2">
+                                                        <button class="btn btn-primary flex-grow-1" id="import-cash-payment">Importer</button>
+                                                        <button class="btn btn-success flex-grow-1" id="save-cash-payment">Sauvegarder</button>
+                                                    </div>
+                                                </div>
+                                                <div class="mt-3">
+                                                    <div class="alert alert-info">
+                                                        <p class="mb-1"><strong>Mapping des références de paiement:</strong></p>
+                                                        <div class="row small">
+                                                            <div class="col-md-3">V_TB = Touba</div>
+                                                            <div class="col-md-3">V_DHR = Dahra</div>
+                                                            <div class="col-md-3">V_ALS = Aliou Sow</div>
+                                                            <div class="col-md-3">V_LGR = Linguere</div>
+                                                            <div class="col-md-3">V_MBA = Mbao</div>
+                                                            <div class="col-md-3">V_KM = Keur Massar</div>
+                                                            <div class="col-md-3">V_OSF = O.Foire</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="loading-indicator-cash-payment" class="text-center my-4" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Chargement...</span>
+                                    </div>
+                                    <p>Traitement des données en cours...</p>
+                                </div>
+                                
+                                <div class="row mt-4">
+                                    <div class="col-md-12">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <h5>Données Agrégées par Date et Point de Vente</h5>
+                                            <button class="btn btn-outline-danger btn-sm" id="clear-cash-payment-data">
+                                                <i class="bi bi-trash"></i> Effacer les données
+                                            </button>
+                                        </div>
+                                        
+                                        <div class="row mb-3">
+                                            <div class="col-md-4">
+                                                <label for="date-filter-cash" class="form-label">Filtrer par date</label>
+                                                <input type="text" class="form-control" id="date-filter-cash" placeholder="Toutes les dates">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label for="point-vente-filter-cash" class="form-label">Filtrer par point de vente</label>
+                                                <select class="form-select" id="point-vente-filter-cash">
+                                                    <option value="">Tous les points de vente</option>
+                                                    <!-- Options will be populated dynamically -->
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4 d-flex align-items-end">
+                                                <div class="d-flex w-100 gap-2">
+                                                    <button class="btn btn-outline-primary flex-grow-1" id="apply-filters-cash">
+                                                        <i class="bi bi-funnel"></i> Appliquer les filtres
+                                                    </button>
+                                                    <div class="form-check align-self-center">
+                                                        <input class="form-check-input" type="checkbox" id="auto-apply-filter" checked>
+                                                        <label class="form-check-label small" for="auto-apply-filter">Auto</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="table-responsive">
+                                            <table id="cash-payment-table" class="table table-striped table-bordered">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Date</th>
+                                                        <th>Point de Vente</th>
+                                                        <th class="text-end">Montant Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="cash-payment-table-body">
+                                                    <!-- Les données agrégées seront ajoutées ici dynamiquement -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        
+                                        <div id="no-cash-payment-data" class="alert alert-warning mt-3" style="display: none;">
+                                            Aucune donnée de paiement n'est disponible. Veuillez importer des données.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- Scripts externes -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <!-- Scripts locaux -->
     <script src="produits.js"></script>
+    <script src="reconciliationManager.js"></script>
+    <script src="cash-payment-function.js"></script>
     <script src="script.js"></script>
+    <script src="cash-payment.js"></script>
+    <script src="transfert.js"></script>
+    <!-- La fonctionnalité de cash-payment-function.js a été intégrée dans reconciliationManager.js -->
+    
+    <!-- Script de débogage des filtres -->
+    <script src="filter-debug.js"></script>
 </body>
 </html>
