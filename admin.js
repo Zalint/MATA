@@ -1,7 +1,7 @@
 // Vérification de l'authentification et des droits
 async function checkAuth() {
     try {
-        const response = await fetch('http://localhost:3000/api/check-session', {
+        const response = await fetch('/api/check-session', {
             credentials: 'include'
         });
         const data = await response.json();
@@ -30,7 +30,7 @@ async function checkAuth() {
 document.getElementById('logout-btn').addEventListener('click', async function(e) {
     e.preventDefault();
     try {
-        const response = await fetch('http://localhost:3000/api/logout', {
+        const response = await fetch('/api/logout', {
             method: 'POST',
             credentials: 'include'
         });
@@ -71,7 +71,7 @@ document.querySelectorAll('.nav-link[data-section]').forEach(link => {
 async function chargerPointsVente() {
     try {
         console.log('Chargement des points de vente...'); // Log de débogage
-        const response = await fetch('http://localhost:3000/api/admin/points-vente', {
+        const response = await fetch('/api/admin/points-vente', {
             credentials: 'include'
         });
         const data = await response.json();
@@ -121,7 +121,7 @@ document.getElementById('addPointVenteForm').addEventListener('submit', async fu
     const nom = document.getElementById('newPointVente').value;
     
     try {
-        const response = await fetch('http://localhost:3000/api/admin/points-vente', {
+        const response = await fetch('/api/admin/points-vente', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -150,7 +150,7 @@ document.getElementById('addPointVenteForm').addEventListener('submit', async fu
 // Gérer l'activation/désactivation d'un point de vente
 async function togglePointVente(nom) {
     try {
-        const response = await fetch('http://localhost:3000/api/admin/points-vente', {
+        const response = await fetch('/api/admin/points-vente', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -178,7 +178,7 @@ async function togglePointVente(nom) {
 // Charger les produits dans les menus déroulants
 async function chargerProduits() {
     try {
-        const response = await fetch('http://localhost:3000/api/admin/produits', {
+        const response = await fetch('/api/admin/produits', {
             credentials: 'include'
         });
         const data = await response.json();
@@ -272,7 +272,7 @@ document.getElementById('modifier-prix').addEventListener('click', async functio
     }
     
     try {
-        const response = await fetch('http://localhost:3000/api/admin/prix', {
+        const response = await fetch('/api/admin/prix', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -313,7 +313,7 @@ document.getElementById('corriger-total').addEventListener('click', async functi
     }
     
     try {
-        const response = await fetch('http://localhost:3000/api/admin/corriger-total', {
+        const response = await fetch('/api/admin/corriger-total', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('logout-btn').addEventListener('click', async function(e) {
                 e.preventDefault();
                 try {
-                    const response = await fetch('http://localhost:3000/api/logout', {
+                    const response = await fetch('/api/logout', {
                         method: 'POST',
                         credentials: 'include'
                     });
@@ -392,7 +392,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const nom = document.getElementById('newPointVente').value;
                 
                 try {
-                    const response = await fetch('http://localhost:3000/api/admin/points-vente', {
+                    const response = await fetch('/api/admin/points-vente', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     try {
-                        const response = await fetch('http://localhost:3000/api/admin/prix', {
+                        const response = await fetch('/api/admin/prix', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -520,7 +520,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     try {
-                        const response = await fetch('http://localhost:3000/api/admin/corriger-total', {
+                        const response = await fetch('/api/admin/corriger-total', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'

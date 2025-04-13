@@ -21,7 +21,7 @@ async function loadCashPaymentData() {
         document.getElementById('cash-payment-table-body').innerHTML = '';
         document.getElementById('no-cash-payment-data').style.display = 'none';
         
-        const response = await fetch('http://localhost:3000/api/cash-payments/aggregated', {
+        const response = await fetch('/api/cash-payments/aggregated', {
             method: 'GET',
             credentials: 'include'
         });
@@ -386,7 +386,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     // Envoyer les données au serveur
-                    const response = await fetch('http://localhost:3000/api/cash-payments/import', {
+                    const response = await fetch('/api/cash-payments/import', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -428,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 loadingIndicator.style.display = 'block';
                 
-                const response = await fetch('http://localhost:3000/api/cash-payments/clear', {
+                const response = await fetch('/api/cash-payments/clear', {
                     method: 'DELETE',
                     credentials: 'include'
                 });
