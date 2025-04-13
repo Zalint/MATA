@@ -52,7 +52,7 @@ async function addCashPaymentToReconciliation() {
     // Récupérer les données de paiement
     try {
         console.log("Récupération des données de paiement depuis l'API...");
-        const response = await fetch(`http://localhost:3000/api/cash-payments/aggregated`, {
+        const response = await fetch(`/api/cash-payments/aggregated`, {
             method: 'GET',
             credentials: 'include'
         });
