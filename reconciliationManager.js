@@ -528,7 +528,8 @@ const ReconciliationManager = (function() {
         let cashPaymentData = {};
         try {
             console.log("Récupération des données de paiement depuis l'API...");
-            const response = await fetch(`http://localhost:3000/api/cash-payments/aggregated`, {
+            // Utiliser un chemin relatif
+            const response = await fetch(`/api/cash-payments/aggregated`, {
                 method: 'GET',
                 credentials: 'include'
             });
@@ -870,7 +871,8 @@ const ReconciliationManager = (function() {
             
             // Récupérer les données sauvegardées
             try {
-                const response = await fetch(`http://localhost:3000/api/reconciliation?date=${date}`, {
+                // Utiliser un chemin relatif
+                const response = await fetch(`/api/reconciliation/load?date=${date}`, {
                     method: 'GET',
                     credentials: 'include'
                 });
@@ -949,7 +951,7 @@ const ReconciliationManager = (function() {
                 console.log('Calcul de la réconciliation pour la date:', date);
                 
                 try {
-                    const response = await fetch('http://localhost:3000/api/reconciliation/calculate', {
+                    const response = await fetch('/api/reconciliation/calculate', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -1099,7 +1101,7 @@ const ReconciliationManager = (function() {
             };
             
             // Envoyer les données au serveur
-            const response = await fetch('http://localhost:3000/api/reconciliation/save', {
+            const response = await fetch('/api/reconciliation/save', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

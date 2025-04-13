@@ -46,7 +46,7 @@
         async function checkSession() {
             try {
                 console.log('Vérification de la session...');
-                const response = await fetch('http://localhost:3000/api/check-session', {
+                const response = await fetch('/api/check-session', {
                     credentials: 'include',
                     headers: {
                         'Accept': 'application/json'
@@ -114,8 +114,27 @@
             }
         });
 
+        // Vérifier l'authentification au chargement de la page
+        async function checkInitialAuth() {
+            try {
+                // Utiliser un chemin relatif
+                const response = await fetch('/api/check-session', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                console.log('Données de session:', data);
+                
+                if (data.success) {
+                    console.log('Redirection vers la page appropriée');
+                    window.location.href = '/redirect';
+                }
+            } catch (error) {
+                console.error('Erreur lors de la vérification de la session:', error);
+            }
+        }
+
         // Vérifier la session au chargement de la page
-        checkSession();
+        checkInitialAuth();
     </script>
 </body>
 </html> 
