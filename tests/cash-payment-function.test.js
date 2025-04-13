@@ -100,7 +100,7 @@ const addCashPaymentToReconciliation = async () => {
   }
   
   try {
-    const response = await fetch(`http://localhost:3000/api/cash-payments/aggregated`, {
+    const response = await fetch(`/api/cash-payments/aggregated`, {
       method: 'GET',
       credentials: 'include'
     });
@@ -340,7 +340,7 @@ describe('Tests des fonctions de paiement en espèces pour la réconciliation', 
       await moduleAddCashPaymentToReconciliation();
 
       expect(fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/api/cash-payments/aggregated',
+        '/api/cash-payments/aggregated',
         expect.objectContaining({
           method: 'GET',
           credentials: 'include'
@@ -522,7 +522,7 @@ describe('Tests des fonctions de paiement en espèces pour la réconciliation', 
 
       // Vérifier que fetch a été appelé correctement
       expect(fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/api/cash-payments/aggregated',
+        '/api/cash-payments/aggregated',
         expect.objectContaining({
           method: 'GET',
           credentials: 'include'
