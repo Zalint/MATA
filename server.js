@@ -19,23 +19,24 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+// Allow all origins in production for Render
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: true, // Allow any origin
     credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '50mb' })); // Increase JSON payload limit
+app.use(express.urlencoded({ limit: '50mb', extended: true })); // Increase URL-encoded payload limit
 app.use(express.static(path.join(__dirname))); // Servir les fichiers statiques (HTML, CSS, JS)
 
 // Configuration des sessions
 app.use(session({
-    secret: 'votre_secret_key',
+    secret: process.env.SESSION_SECRET || 'votre_secret_key_par_defaut', // Use environment variable for secret
     resave: false,
     saveUninitialized: true,
     cookie: {
-        secure: false,
+        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
         sameSite: 'lax'
     }
 }));
@@ -1818,19 +1819,12 @@ app.get('/api/achats-boeuf/stats/monthly', checkAuth, async (req, res) => {
 });
 
 // Démarrer le serveur
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Serveur démarré sur le port ${PORT}`);
-    
     try {
-        await sequelize.authenticate();
-        console.log('Connecté à la base de données PostgreSQL');
-        
-        // Sync database (create tables if they don't exist) - FOR DEVELOPMENT ONLY
-        await sequelize.sync({ alter: true }); // Using alter: true can help update tables, use with caution
-        console.log('Database synced successfully.');
-
+        console.log('Attempting DB connection with URL:', process.env.DATABASE_URL);
+        await testConnection();
     } catch (error) {
-        // Updated error message to be more specific
-        console.error('Erreur lors de la connexion ou de la synchronisation de la base de données:', error);
+        console.error("Erreur lors du test de la connexion DB au démarrage:", error);
     }
 });
