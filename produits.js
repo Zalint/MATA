@@ -17,7 +17,7 @@ const produits = {
             alternatives: [4000] 
         },
         "Yell": { 
-            default: 2500, 
+            default: 2000, 
             alternatives: [2000, 2500] 
         },
         "Jarret": { 
@@ -46,11 +46,11 @@ const produits = {
         },
         "Veau en détail": { 
             default: 3800, 
-            alternatives: [3700, 3800] 
+            alternatives: [3800, 3800] 
         },
         "Veau en gros": { 
             default: 3600, 
-            alternatives: [3500, 3600] 
+            alternatives: [3600, 3600] 
         },
         "Veau sur pied": { 
             default: 0, 
@@ -90,7 +90,7 @@ const produits = {
         },
         "Oeuf": { 
             default: 2800, 
-            alternatives: [2500, 2800, 2900] 
+            alternatives: [2800, 2800, 2900] 
         },
         "Pack Pigeon": { 
             default: 2500, 
@@ -133,6 +133,20 @@ const produits = {
         "Pack20000": { 
             default: 20000, 
             alternatives: [20000] 
+        }
+    },
+    "Autres": {
+        "Produit divers": { 
+            default: 0, 
+            alternatives: [0] 
+        },
+        "Autre viande": { 
+            default: 3000, 
+            alternatives: [3000, 4000, 5000] 
+        },
+        "Service": { 
+            default: 1000, 
+            alternatives: [1000, 2000, 5000, 10000] 
         }
     }
 };

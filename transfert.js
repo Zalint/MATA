@@ -27,22 +27,55 @@ class TransfertManager {
 
     populateProductFilter() {
         const filterSelect = document.getElementById('filtre-produit-transfert');
-        const allProducts = new Set();
+        // Ensure the default "Tous les produits" option remains
+        if (filterSelect.options.length === 1 && filterSelect.options[0].value === "") {
+             // Default option already exists, do nothing extra here or clear if needed first
+             // For now, let's assume we just append to the existing static list in HTML
+        } else {
+             // Clear existing options if they were dynamically added previously or if HTML is empty
+             // filterSelect.innerHTML = '<option value="">Tous les produits</option>'; // Uncomment if needed
+        }
 
-        // Parcourir toutes les catégories et produits
-        Object.keys(produits).forEach(categorie => {
-            Object.keys(produits[categorie]).forEach(produit => {
-                allProducts.add(produit);
-            });
+        // Define the specific list of products for the transfer filter
+        const allowedProducts = [
+            "Boeuf",
+            "Veau",
+            "Poulet",
+            "Tete De Mouton", // Use the value from HTML which is "Tete De Mouton"
+            "Tablette",
+            "Foie",
+            "Yell",
+            "Agneau",
+            "Autres" // Add the new option
+        ];
+
+        // Add the allowed products to the select
+        allowedProducts.sort().forEach(produit => {
+             // Check if the option already exists from the static HTML
+             let exists = false;
+             for (let i = 0; i < filterSelect.options.length; i++) {
+                 if (filterSelect.options[i].value === produit) {
+                     exists = true;
+                     break;
+                 }
+             }
+             // Add only if it doesn't exist (prevents duplicates if HTML is correct)
+             if (!exists) {
+                const option = document.createElement('option');
+                option.value = produit;
+                // Use specific display text if needed, e.g., "Tête de Mouton"
+                option.textContent = (produit === "Tete De Mouton") ? "Tête de Mouton" : produit;
+                filterSelect.appendChild(option);
+             }
         });
 
-        // Ajouter les options au select
-        Array.from(allProducts).sort().forEach(produit => {
-            const option = document.createElement('option');
-            option.value = produit;
-            option.textContent = produit;
-            filterSelect.appendChild(option);
-        });
+        // Remove any options that are NOT in the allowed list + the default "" option
+        for (let i = filterSelect.options.length - 1; i >= 0; i--) {
+            const option = filterSelect.options[i];
+            if (option.value !== "" && !allowedProducts.includes(option.value)) {
+                filterSelect.remove(i);
+            }
+        }
     }
 
     handleProduitChange(selectElement) {

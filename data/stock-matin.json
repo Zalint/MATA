@@ -1,82 +1,12 @@
 {
-  "Mbao-Foie": {
-    "date": "07/04/2025",
+  "Mbao-Boeuf": {
+    "date": "03/04/2025",
     "typeStock": "matin",
     "Point de Vente": "Mbao",
-    "Produit": "Foie",
-    "Nombre": "4",
-    "PU": "4000",
-    "Montant": "16000",
-    "Commentaire": ""
-  },
-  "Mbao-Yell": {
-    "date": "07/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "Mbao",
-    "Produit": "Yell",
-    "Nombre": "17",
-    "PU": "2500",
-    "Montant": "42500",
-    "Commentaire": ""
-  },
-  "Mbao-Agneau": {
-    "date": "07/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "Mbao",
-    "Produit": "Agneau",
-    "Nombre": "10",
-    "PU": "4500",
-    "Montant": "45000",
-    "Commentaire": ""
-  },
-  "O.Foire-Tablette": {
-    "date": "07/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "O.Foire",
-    "Produit": "Tablette",
-    "Nombre": "15",
-    "PU": "2800",
-    "Montant": "42000",
-    "Commentaire": ""
-  },
-  "O.Foire-Yell": {
-    "date": "07/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "O.Foire",
-    "Produit": "Yell",
-    "Nombre": "28",
-    "PU": "2500",
-    "Montant": "70000",
-    "Commentaire": ""
-  },
-  "Linguere-Poulet": {
-    "date": "07/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "Linguere",
-    "Produit": "Poulet",
-    "Nombre": "35",
-    "PU": "3500",
-    "Montant": "122500",
-    "Commentaire": ""
-  },
-  "Dahra-Poulet": {
-    "date": "07/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "Dahra",
-    "Produit": "Poulet",
-    "Nombre": "6",
-    "PU": "3500",
-    "Montant": "21000",
-    "Commentaire": ""
-  },
-  "Dahra-Tablette": {
-    "date": "07/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "Dahra",
-    "Produit": "Tablette",
-    "Nombre": "48",
-    "PU": "2800",
-    "Montant": "134400",
+    "Produit": "Boeuf",
+    "Nombre": "0.01",
+    "PU": "3600",
+    "Montant": "36",
     "Commentaire": ""
   }
 }

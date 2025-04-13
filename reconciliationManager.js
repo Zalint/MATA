@@ -12,6 +12,7 @@ const ReconciliationManager = (function() {
     
     // Configuration de la structure du tableau
     const TABLE_COLUMNS = [
+        { id: 'date', label: 'Date', isHeader: true },
         { id: 'pointVente', label: 'Point de Vente', isHeader: true },
         { id: 'stockMatin', label: 'Stock Matin', isNumeric: true },
         { id: 'stockSoir', label: 'Stock Soir', isNumeric: true },
@@ -98,6 +99,52 @@ const ReconciliationManager = (function() {
                         chargerReconciliation(this.value);
                     }
                 });
+                
+                // Vérifier si une date est stockée dans sessionStorage (venant du Stock inventaire)
+                console.log("Clés disponibles dans sessionStorage:", Object.keys(sessionStorage));
+                const storedDate = sessionStorage.getItem('reconciliation_date');
+                console.log('Date stockée dans sessionStorage (reconciliation_date):', storedDate);
+                console.log('Type de la date stockée:', typeof storedDate);
+                
+                if (storedDate) {
+                    console.log('Une date a été trouvée dans sessionStorage');
+                    
+                    // Définir la date dans le champ de date
+                    console.log('Valeur actuelle du champ date:', dateInput.value);
+                    dateInput.value = storedDate;
+                    console.log('Nouvelle valeur du champ date après mise à jour:', dateInput.value);
+                    
+                    // Mettre à jour également l'élément d'affichage de la date
+                    const dateDisplay = document.getElementById('date-reconciliation-display');
+                    if (dateDisplay) {
+                        console.log('Mise à jour de l\'élément d\'affichage de la date:', storedDate);
+                        dateDisplay.textContent = storedDate;
+                    } else {
+                        console.warn('L\'élément date-reconciliation-display n\'a pas été trouvé');
+                    }
+                    
+                    // Vérifier si l'élément flatpickr est initialisé
+                    const hasFlatpickr = typeof dateInput._flatpickr !== 'undefined';
+                    console.log('L\'élément date a-t-il flatpickr?', hasFlatpickr);
+                    
+                    if (hasFlatpickr) {
+                        console.log('Mise à jour de la date via flatpickr...');
+                        dateInput._flatpickr.setDate(storedDate);
+                        console.log('Valeur après mise à jour flatpickr:', dateInput.value);
+                    }
+                    
+                    // Déclencher l'événement change pour charger les données
+                    console.log('Déclenchement de l\'événement change...');
+                    const event = new Event('change');
+                    dateInput.dispatchEvent(event);
+                    console.log('Événement change déclenché');
+                    
+                    // Supprimer la date de sessionStorage pour éviter de l'utiliser à nouveau
+                    sessionStorage.removeItem('reconciliation_date');
+                    console.log('Date supprimée de sessionStorage');
+                } else {
+                    console.log('Aucune date trouvée dans sessionStorage');
+                }
             } else {
                 console.warn('Input date NON TROUVÉ dans le DOM');
             }
@@ -220,24 +267,20 @@ const ReconciliationManager = (function() {
     
     // Configurer l'en-tête du tableau
     function setupTableHeader(table) {
-        const thead = table.querySelector('thead');
+        // S'assurer que l'en-tête existe, sinon le créer
+        let thead = table.querySelector('thead');
         if (!thead) {
-            console.error('En-tête de table non trouvé');
-            return;
+            thead = document.createElement('thead');
+            table.appendChild(thead);
+        } else {
+            // Vider l'en-tête existant
+            thead.innerHTML = '';
         }
         
-        // Obtenir ou créer l'en-tête
-        let headerRow = thead.querySelector('tr');
-        if (!headerRow) {
-            headerRow = document.createElement('tr');
-            thead.appendChild(headerRow);
-        }
+        // Créer la ligne d'en-tête
+        const headerRow = document.createElement('tr');
         
-        // Toujours réinitialiser l'en-tête pour éviter les problèmes d'alignement
-        headerRow.innerHTML = '';
-        console.log('Réinitialisation de l\'en-tête du tableau pour assurer l\'alignement des colonnes');
-        
-        // Créer chaque colonne selon la définition dans TABLE_COLUMNS
+        // Ajouter les cellules d'en-tête
         TABLE_COLUMNS.forEach(column => {
             const th = document.createElement('th');
             th.textContent = column.label;
@@ -247,10 +290,8 @@ const ReconciliationManager = (function() {
             headerRow.appendChild(th);
         });
         
-        // Vérifier le résultat
-        const newColumns = Array.from(headerRow.querySelectorAll('th')).map((th, idx) => 
-            `${idx}: ${th.textContent.trim()}`);
-        console.log('Structure finale de l\'en-tête:', newColumns);
+        // Ajouter la ligne d'en-tête au tableau
+        thead.appendChild(headerRow);
     }
     
     // Initialiser les totaux pour toutes les colonnes numériques
@@ -268,40 +309,47 @@ const ReconciliationManager = (function() {
     function addRowToTable(tbody, pointVente, data, totals) {
         // Créer une nouvelle ligne
         const row = document.createElement('tr');
+        
+        // Ajouter l'ID du point de vente comme attribut de données
         row.setAttribute('data-point-vente', pointVente);
         
         // Appliquer une couleur de fond basée sur le pourcentage d'écart
         applyRowStyling(row, data.pourcentageEcart);
-        
+
         // Créer les cellules
         TABLE_COLUMNS.forEach(column => {
             const cell = document.createElement('td');
-            
+
             switch (column.id) {
+                case 'date': // Add case for date
+                    cell.textContent = document.getElementById('date-reconciliation').value;
+                    break;
+
                 case 'pointVente':
                     cell.textContent = pointVente;
                     cell.setAttribute('data-point-vente', pointVente);
                     cell.classList.add('debug-toggle');
-                    
+                    cell.style.cursor = 'pointer'; // Add cursor pointer style here
+
                     // Ajouter un écouteur pour afficher les détails de débogage
                     cell.addEventListener('click', () => {
                         console.log("Clic sur le point de vente:", pointVente);
                         console.log("Current Debug Info:", currentDebugInfo);
-                        
+
                         // Afficher les détails même si currentDebugInfo est null ou undefined
                         if (currentDebugInfo) {
                             afficherDetailsDebugging(pointVente, currentDebugInfo);
                         } else {
                             // Si les informations de débogage ne sont pas disponibles, montrer une vue simplifiée
                             console.log("Aucune information de débogage disponible, affichage des données simplifiées");
-                            
+
                             // Récupérer les données du point de vente depuis le tableau actuel
                             const simplifiedDebugInfo = createSimplifiedDebugInfo(pointVente);
-                            
+
                             // Afficher ces données simplifiées
                             afficherDetailsDebugging(pointVente, simplifiedDebugInfo);
                         }
-                        
+
                         // S'assurer que le conteneur de débogage est visible
                         const debugContainer = document.getElementById('debug-container');
                         if (debugContainer) {
@@ -309,7 +357,7 @@ const ReconciliationManager = (function() {
                         }
                     });
                     break;
-                    
+
                 case 'stockMatin':
                     cell.textContent = formatMonetaire(data.stockMatin);
                     cell.classList.add('currency');
@@ -715,26 +763,31 @@ const ReconciliationManager = (function() {
     
     // Mettre à jour les commentaires dans le tableau
     function updateComments(comments) {
+        // console.log('Entering updateComments function. Received comments:', comments); // REMOVED log
         if (!comments || typeof comments !== 'object') {
             console.warn('Pas de commentaires valides à mettre à jour');
             return;
         }
-        
-        console.log('Mise à jour des commentaires dans le tableau:', comments);
-        
+
+        // console.log('Mise à jour des commentaires dans le tableau:', comments); // REMOVED log
+
         // Mettre à jour chaque input de commentaire dans le tableau
         document.querySelectorAll('.commentaire-input').forEach(input => {
             const pointVente = input.getAttribute('data-point-vente');
-            if (pointVente && comments[pointVente]) {
-                input.value = comments[pointVente];
-                console.log(`Commentaire mis à jour pour ${pointVente}: "${comments[pointVente]}"`);
-                
-                // Mettre à jour également les données de réconciliation
-                if (currentReconciliation && currentReconciliation.data && currentReconciliation.data[pointVente]) {
-                    currentReconciliation.data[pointVente].commentaire = comments[pointVente];
-                }
-            }
+            if (pointVente && comments[pointVente] !== undefined) { // Check for undefined specifically
+                 // console.log(`Found input for ${pointVente}. Setting value to: "${comments[pointVente]}"`); // REMOVED log
+                 input.value = comments[pointVente];
+                 // console.log(`Commentaire mis à jour pour ${pointVente}: "${comments[pointVente]}"`); // REMOVED log
+
+                 // Mettre à jour également les données de réconciliation
+                 if (currentReconciliation && currentReconciliation.data && currentReconciliation.data[pointVente]) {
+                     currentReconciliation.data[pointVente].commentaire = comments[pointVente];
+                 }
+             } else { // Added log for missing comments or inputs
+                 // console.log(`Skipping update for input (PointVente: ${pointVente}, Comment Exists: ${comments && comments.hasOwnProperty(pointVente)})`); // REMOVED log
+             }
         });
+        // console.log('Exiting updateComments function.'); // REMOVED log
     }
     
     /**
@@ -784,31 +837,8 @@ const ReconciliationManager = (function() {
                 
                 console.log("Commentaires extraits:", comments);
                 
-                // Mettre à jour les commentaires dans le tableau
-                const table = document.getElementById('reconciliation-table');
-                if (table) {
-                    const rows = table.getElementsByTagName('tr');
-                    
-                    // Commencer à 1 pour ignorer l'en-tête
-                    for (let i = 1; i < rows.length; i++) {
-                        const row = rows[i];
-                        const cells = row.getElementsByTagName('td');
-                        
-                        if (cells.length > 0) {
-                            const pointVenteCell = cells[0];
-                            const pointVente = pointVenteCell.textContent.trim();
-                            
-                            // Trouver la dernière cellule (commentaire)
-                            const commentCell = cells[cells.length - 1];
-                            const commentInput = commentCell.querySelector('input');
-                            
-                            if (commentInput && comments[pointVente]) {
-                                commentInput.value = comments[pointVente];
-                                console.log(`Commentaire mis à jour pour ${pointVente}: ${comments[pointVente]}`);
-                            }
-                        }
-                    }
-                }
+                // Mettre à jour les commentaires en utilisant la fonction dédiée
+                updateComments(comments);
             } else {
                 console.log("Structure de données incorrecte ou aucun commentaire trouvé dans les données reçues");
             }
@@ -830,6 +860,13 @@ const ReconciliationManager = (function() {
             }
             
             console.log(`Chargement de la réconciliation pour ${date}`);
+            
+            // Mettre à jour l'affichage de la date
+            const dateDisplay = document.getElementById('date-reconciliation-display');
+            if (dateDisplay) {
+                console.log('Mise à jour de l\'affichage de la date pour la réconciliation:', date);
+                dateDisplay.textContent = date;
+            }
             
             // Récupérer les données sauvegardées
             try {
@@ -1157,6 +1194,7 @@ const ReconciliationManager = (function() {
             
             // Sécuriser les valeurs pour éviter les undefined
             const safeDetails = {
+                pointVente: pointVente,
                 totalStockMatin: data.totalStockMatin || data.stockMatin || 0,
                 totalStockSoir: data.totalStockSoir || data.stockSoir || 0,
                 totalTransferts: data.totalTransferts || data.transferts || 0,
@@ -1167,8 +1205,15 @@ const ReconciliationManager = (function() {
                 stockMatin: data.stockMatin || [],
                 stockSoir: data.stockSoir || [],
                 transferts: data.transferts || [],
-                ventes: data.ventes || data.ventesSaisies || []
+                ventes: data.ventes || []
             };
+            
+            // Log pour déboguer les données disponibles
+            console.log("Details pour le debugging:", {
+                data: data,
+                safeDetails: safeDetails,
+                currentDebugInfo: currentDebugInfo
+            });
             
             // Formule ventes théoriques
             const formulaDiv = document.getElementById('debug-formule');
@@ -1217,14 +1262,31 @@ const ReconciliationManager = (function() {
             const ventesSection = document.getElementById('debug-ventes-section');
             ventesSection.innerHTML = '';
             
-            // Use the ventes data already in safeDetails
-            const ventesData = safeDetails.ventes && safeDetails.ventes.length > 0 ? 
-                               safeDetails.ventes : genererVentesSimulees(safeDetails);
+            // Vérifier si nous avons des données dans ventesSaisies
+            let ventesData = [];
+            
+            // Priorité 1: Utiliser data.ventesSaisies s'il existe et a des éléments
+            if (data.ventesSaisies && Array.isArray(data.ventesSaisies) && data.ventesSaisies.length > 0) {
+                console.log("Utilisation de data.ventesSaisies:", data.ventesSaisies);
+                ventesData = data.ventesSaisies;
+            } 
+            // Priorité 2: Chercher dans currentDebugInfo.ventesParPointVente
+            else if (currentDebugInfo && currentDebugInfo.ventesParPointVente && currentDebugInfo.ventesParPointVente[pointVente]) {
+                console.log("Utilisation de currentDebugInfo.ventesParPointVente:", currentDebugInfo.ventesParPointVente[pointVente]);
+                ventesData = currentDebugInfo.ventesParPointVente[pointVente];
+            }
+            // Sinon vérifier dans safeDetails.ventes
+            else if (safeDetails.ventes && safeDetails.ventes.length > 0) {
+                console.log("Utilisation de safeDetails.ventes:", safeDetails.ventes);
+                ventesData = safeDetails.ventes;
+            }
+            
+            console.log("Données de vente finales:", ventesData);
             
             if (ventesData && ventesData.length > 0) {
                 ventesSection.appendChild(creerTableauDetail('Ventes Saisies', ventesData, false, true, safeDetails.venteReelles));
             } else {
-                ventesSection.innerHTML = '<div class="alert alert-warning">Aucune vente saisie pour ce point de vente.</div>';
+                ventesSection.innerHTML = '<div class="alert alert-info">Aucune vente saisie pour ce point de vente à cette date.</div>';
             }
             
         } catch (error) {
@@ -1303,27 +1365,8 @@ const ReconciliationManager = (function() {
     
     // Générer des ventes simulées pour un point de vente
     function genererVentesSimulees(details) {
-        // Simuler des ventes basées sur la valeur totale des ventes réelles
-        return [
-            { 
-                produit: 'Boeuf en détail', 
-                pu: 3600, 
-                nombre: Math.round(details.venteReelles * 0.65 / 3600), 
-                montant: details.venteReelles * 0.65 
-            },
-            { 
-                produit: 'Boeuf en gros', 
-                pu: 3400, 
-                nombre: Math.round(details.venteReelles * 0.30 / 3400), 
-                montant: details.venteReelles * 0.30 
-            },
-            { 
-                produit: 'Foie', 
-                pu: 4000, 
-                nombre: Math.round(details.venteReelles * 0.05 / 4000), 
-                montant: details.venteReelles * 0.05 
-            }
-        ];
+        // Ne plus générer de données simulées, retourner un tableau vide
+        return [];
     }
     
     // Créer un tableau de détails pour stock, transferts ou ventes
@@ -1338,9 +1381,8 @@ const ReconciliationManager = (function() {
         container.appendChild(titreElement);
         
         if (!donnees || donnees.length === 0) {
-            const emptyMessage = document.createElement('p');
-            emptyMessage.textContent = 'Aucune donnée disponible.';
-            emptyMessage.classList.add('text-muted');
+            const emptyMessage = document.createElement('div');
+            emptyMessage.innerHTML = '<div class="alert alert-info">Aucune donnée disponible pour cette catégorie.</div>';
             container.appendChild(emptyMessage);
             return container;
         }
@@ -1488,6 +1530,18 @@ const ReconciliationManager = (function() {
         titreElement.textContent = 'Détails des calculs par produit';
         titreElement.classList.add('mt-3', 'mb-2');
         container.appendChild(titreElement);
+        
+        // Vérifier s'il y a des données pour au moins un des ensembles de données
+        const hasStockMatin = details.stockMatin && details.stockMatin.length > 0;
+        const hasStockSoir = details.stockSoir && details.stockSoir.length > 0;
+        const hasTransferts = details.transferts && details.transferts.length > 0;
+        
+        if (!hasStockMatin && !hasStockSoir && !hasTransferts) {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.innerHTML = '<div class="alert alert-info">Aucune donnée détaillée disponible pour ce point de vente.</div>';
+            container.appendChild(emptyMessage);
+            return container;
+        }
         
         // Créer le tableau
         const table = document.createElement('table');
@@ -1877,14 +1931,10 @@ const ReconciliationManager = (function() {
             pourcentage = (difference / ventesTheoriques) * 100;
         }
         
-        // Créer des données fictives pour les produits si on n'a pas de données détaillées
+        // Ne plus créer de données fictives pour les produits
         // Cela garantit que l'affichage ne sera pas vide
-        const produitsFictifs = [
-            { produit: 'Boeuf', valeur: stockMatin * 0.4 },
-            { produit: 'Agneau', valeur: stockMatin * 0.3 },
-            { produit: 'Foie', valeur: stockMatin * 0.2 },
-            { produit: 'Yell', valeur: stockMatin * 0.1 }
-        ];
+        let produitsFictifs = [];
+        let ventesProduits = [];
         
         // Créer une structure simplifiée compatible avec afficherDetailsDebugging
         const debugInfo = {
@@ -1897,12 +1947,11 @@ const ReconciliationManager = (function() {
             totalStockMatin: stockMatin,
             totalStockSoir: stockSoir,
             totalTransferts: transferts,
-            // Ajouter des données de produits fictives pour que l'affichage ne soit pas vide
-            stockMatin: produitsFictifs,
-            stockSoir: produitsFictifs.map(p => ({ produit: p.produit, valeur: p.valeur * 0.8 })),
-            transferts: [{ produit: 'Boeuf', valeur: transferts }],
-            ventes: [{ produit: 'Boeuf en détail', valeur: ventesSaisies * 0.6 }, 
-                     { produit: 'Boeuf en gros', valeur: ventesSaisies * 0.4 }]
+            // Données vides pour éviter les données fictives
+            stockMatin: [],
+            stockSoir: [],
+            transferts: [],
+            ventes: []
         };
         
         console.log("Informations de débogage simplifiées créées:", debugInfo);

@@ -1,32 +1,12 @@
 {
-  "Keur Massar-Boeuf": {
+  "Mbao-Boeuf": {
     "date": "03/04/2025",
     "typeStock": "matin",
-    "Point de Vente": "Keur Massar",
+    "Point de Vente": "Mbao",
     "Produit": "Boeuf",
-    "Nombre": "10",
+    "Nombre": "0.01",
     "PU": "3600",
-    "Montant": "36000",
-    "Commentaire": ""
-  },
-  "Keur Massar-Veau": {
-    "date": "03/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "Keur Massar",
-    "Produit": "Veau",
-    "Nombre": "10",
-    "PU": "3800",
-    "Montant": "38000",
-    "Commentaire": ""
-  },
-  "Keur Massar-Poulet": {
-    "date": "03/04/2025",
-    "typeStock": "matin",
-    "Point de Vente": "Keur Massar",
-    "Produit": "Poulet",
-    "Nombre": "100",
-    "PU": "3500",
-    "Montant": "350000",
+    "Montant": "36",
     "Commentaire": ""
   }
 }

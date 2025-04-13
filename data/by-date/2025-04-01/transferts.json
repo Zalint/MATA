@@ -2,21 +2,11 @@
   {
     "date": "01/04/2025",
     "pointVente": "Mbao",
-    "produit": "Veau",
-    "impact": 1,
-    "quantite": 10,
-    "prixUnitaire": 3800,
-    "total": 38000,
-    "commentaire": ""
-  },
-  {
-    "date": "01/04/2025",
-    "pointVente": "Mbao",
     "produit": "Boeuf",
     "impact": 1,
-    "quantite": 10,
-    "prixUnitaire": 3600,
-    "total": 36000,
+    "quantite": 0.01,
+    "prixUnitaire": 0,
+    "total": 0,
     "commentaire": ""
   }
 ]

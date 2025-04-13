@@ -2,6 +2,8 @@ const Vente = require('./Vente');
 const Stock = require('./Stock');
 const Transfert = require('./Transfert');
 const Reconciliation = require('./Reconciliation');
+const CashPayment = require('./CashPayment');
+const AchatBoeuf = require('./AchatBoeuf');
 const { sequelize } = require('../index');
 
 // Définir les relations entre les modèles si nécessaire
@@ -23,5 +25,7 @@ module.exports = {
   Stock,
   Transfert,
   Reconciliation,
+  CashPayment,
+  AchatBoeuf,
   syncDatabase
 }; 

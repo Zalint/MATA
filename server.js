@@ -10,9 +10,9 @@ const pointsVente = require('./points-vente');
 const produits = require('./produits');
 const bcrypt = require('bcrypt');
 const fsPromises = require('fs').promises;
-const { Vente, Stock, Transfert } = require('./db/models');
+const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf } = require('./db/models');
 const { testConnection, sequelize } = require('./db');
-const { Op } = require('sequelize');
+const { Op, fn, col, literal } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -87,6 +87,17 @@ if (!fs.existsSync(stockCsvPath)) {
 const STOCK_MATIN_PATH = path.join(__dirname, 'data', 'stock-matin.json');
 const STOCK_SOIR_PATH = path.join(__dirname, 'data', 'stock-soir.json');
 const TRANSFERTS_PATH = path.join(__dirname, 'data', 'transferts.json');
+
+// Constantes pour le mappage des références de paiement aux points de vente
+const PAYMENT_REF_TO_PDV = {
+  'V_TB': 'Touba',
+  'V_DHR': 'Dahra',
+  'V_ALS': 'Aliou Sow',
+  'V_LGR': 'Linguere',
+  'V_MBA': 'Mbao',
+  'V_KM': 'Keur Massar',
+  'V_OSF': 'O.Foire'
+};
 
 // Fonction pour obtenir le chemin du fichier en fonction de la date
 function getPathByDate(baseFile, date) {
@@ -1334,49 +1345,41 @@ async function loadVentesWithIds() {
 // Routes pour la réconciliation
 app.post('/api/reconciliation/save', checkAuth, async (req, res) => {
     try {
-        const { date, reconciliation } = req.body;
+        const { date, reconciliation, cashPaymentData, comments } = req.body;
         
         if (!date || !reconciliation) {
             return res.status(400).json({ success: false, message: 'Date et données de réconciliation requises' });
         }
         
         // Vérifier si une réconciliation existe déjà pour cette date
-        const existingReconciliation = await sequelize.query(
-            'SELECT * FROM reconciliations WHERE date = :date',
-            {
-                replacements: { date },
-                type: sequelize.QueryTypes.SELECT
-            }
-        );
+        let existingReconciliation = await Reconciliation.findOne({ where: { date } });
         
-        if (existingReconciliation.length > 0) {
-            // Mettre à jour la réconciliation existante
-            await sequelize.query(
-                'UPDATE reconciliations SET data = :data, "updatedAt" = NOW() WHERE date = :date',
-                {
-                    replacements: { 
-                        date,
-                        data: JSON.stringify({ reconciliation })
-                    }
-                }
-            );
+        // Préparer les données à sauvegarder
+        const dataToSave = {
+            date,
+            data: JSON.stringify(reconciliation),
+            cashPaymentData: cashPaymentData ? JSON.stringify(cashPaymentData) : null,
+            comments: comments ? JSON.stringify(comments) : null,
+            version: 1
+        };
+        
+        // Mettre à jour ou créer l'enregistrement
+        if (existingReconciliation) {
+            await existingReconciliation.update(dataToSave);
+            console.log(`Réconciliation mise à jour pour la date ${date}`);
         } else {
-            // Créer une nouvelle réconciliation
-            await sequelize.query(
-                'INSERT INTO reconciliations (date, data, "createdAt", "updatedAt") VALUES (:date, :data, NOW(), NOW())',
-                {
-                    replacements: { 
-                        date,
-                        data: JSON.stringify({ reconciliation })
-                    }
-                }
-            );
+            await Reconciliation.create(dataToSave);
+            console.log(`Nouvelle réconciliation créée pour la date ${date}`);
         }
         
         res.json({ success: true, message: 'Réconciliation sauvegardée avec succès' });
     } catch (error) {
         console.error('Erreur lors de la sauvegarde de la réconciliation:', error);
-        res.status(500).json({ success: false, message: 'Erreur serveur: ' + error.message });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la sauvegarde de la réconciliation',
+            error: error.message
+        });
     }
 });
 
@@ -1388,26 +1391,429 @@ app.get('/api/reconciliation/load', checkAuth, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Date requise' });
         }
         
-        // Récupérer la réconciliation pour la date spécifiée
-        const reconciliationData = await sequelize.query(
-            'SELECT * FROM reconciliations WHERE date = :date',
-            {
-                replacements: { date },
-                type: sequelize.QueryTypes.SELECT
-            }
-        );
+        const reconciliation = await Reconciliation.findOne({ where: { date } });
         
-        if (reconciliationData.length === 0) {
-            return res.json({ success: false, message: 'Aucune réconciliation trouvée pour cette date' });
+        if (!reconciliation) {
+            return res.json({ 
+                success: true, 
+                message: 'Aucune réconciliation trouvée pour cette date',
+                data: null
+            });
         }
         
-        // Renvoyer les données
-        const data = JSON.parse(reconciliationData[0].data);
+        // Préparer la réponse avec toutes les données
+        const response = {
+            id: reconciliation.id,
+            date: reconciliation.date,
+            createdAt: reconciliation.createdAt,
+            updatedAt: reconciliation.updatedAt
+        };
         
-        res.json({ success: true, data });
+        // Données de réconciliation principales
+        try {
+            response.data = JSON.parse(reconciliation.data);
+        } catch (e) {
+            console.error('Erreur lors du parsing des données de réconciliation:', e);
+            response.data = reconciliation.data;
+        }
+        
+        // Format de compatibilité avec l'ancien système
+        response.reconciliation = response.data;
+        
+        // Données de paiement en espèces
+        if (reconciliation.cashPaymentData) {
+            try {
+                response.cashPaymentData = JSON.parse(reconciliation.cashPaymentData);
+            } catch (e) {
+                console.error('Erreur lors du parsing des données de paiement:', e);
+                response.cashPaymentData = null;
+            }
+        }
+        
+        // Commentaires
+        if (reconciliation.comments) {
+            try {
+                response.comments = JSON.parse(reconciliation.comments);
+            } catch (e) {
+                console.error('Erreur lors du parsing des commentaires:', e);
+                response.comments = null;
+            }
+        }
+        
+        // Métadonnées
+        response.version = reconciliation.version || 1;
+        response.calculated = reconciliation.calculated !== false;
+        
+        res.json({ success: true, data: response });
     } catch (error) {
         console.error('Erreur lors du chargement de la réconciliation:', error);
-        res.status(500).json({ success: false, message: 'Erreur serveur: ' + error.message });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors du chargement de la réconciliation',
+            error: error.message
+        });
+    }
+});
+
+// Route pour importer des données de paiement en espèces
+app.post('/api/cash-payments/import', checkAuth, async (req, res) => {
+    try {
+        const { data } = req.body;
+        
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            return res.status(400).json({ success: false, message: 'Données invalides' });
+        }
+        
+        // Mapping des références de paiement aux points de vente
+        const paymentRefToPointDeVente = {
+            'V_TB': 'Touba',
+            'V_DHR': 'Dahra',
+            'V_ALS': 'Aliou Sow',
+            'V_LGR': 'Linguere',
+            'V_MBA': 'Mbao',
+            'V_KM': 'Keur Massar',
+            'V_OSF': 'O.Foire',
+            'V_ABATS': 'Autres'
+        };
+        
+        // Convertir les dates du format "1 avr. 2025, 16:18" en format standard
+        const processedData = data.map(item => {
+            // Conversion de la date française en format ISO
+            let createdAt = item.created_at;
+            if (createdAt) {
+                // Extraire juste la partie date (avant la virgule)
+                const dateParts = createdAt.split(',');
+                if (dateParts.length > 0) {
+                    const dateStr = dateParts[0].trim();
+                    const timePart = dateParts.length > 1 ? dateParts[1].trim() : '';
+                    
+                    // Remplacer les noms de mois français par leurs numéros
+                    const monthMap = {
+                        'janv.': '01', 'févr.': '02', 'mars': '03', 'avr.': '04',
+                        'mai': '05', 'juin': '06', 'juil.': '07', 'août': '08',
+                        'sept.': '09', 'oct.': '10', 'nov.': '11', 'déc.': '12'
+                    };
+                    
+                    let day, month, year;
+                    
+                    // Format: "1 avr. 2025"
+                    const dateMatch = dateStr.match(/(\d+)\s+([a-zéû.]+)\s+(\d{4})/i);
+                    if (dateMatch) {
+                        day = dateMatch[1].padStart(2, '0');
+                        const monthName = dateMatch[2].toLowerCase();
+                        month = monthMap[monthName] || '01'; // default to January if not found
+                        year = dateMatch[3];
+                        
+                        // Créer la date ISO
+                        createdAt = `${year}-${month}-${day}`;
+                        
+                        // Ajouter l'heure si disponible
+                        if (timePart) {
+                            createdAt += `T${timePart}:00`;
+                        }
+                    }
+                }
+            }
+            
+            // Mapper le payment_reference au point de vente
+            const pointDeVente = paymentRefToPointDeVente[item.payment_reference] || 'Non spécifié';
+            
+            // Extraire juste la date (sans l'heure) pour le champ date
+            const dateOnly = createdAt ? createdAt.split('T')[0] : null;
+            
+            return {
+                ...item,
+                created_at: createdAt,
+                point_de_vente: pointDeVente,
+                date: dateOnly
+            };
+        });
+        
+        // S'assurer que la table existe
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS cash_payments (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255),
+                created_at TIMESTAMP NOT NULL,
+                amount FLOAT NOT NULL,
+                merchant_fee FLOAT,
+                customer_fee FLOAT,
+                customer_name VARCHAR(255),
+                customer_phone VARCHAR(255),
+                entete_trans_type VARCHAR(255),
+                psp_name VARCHAR(255),
+                payment_category VARCHAR(255),
+                payment_means VARCHAR(255),
+                payment_reference VARCHAR(255),
+                merchant_reference VARCHAR(255),
+                trn_status VARCHAR(255),
+                tr_id VARCHAR(255),
+                cust_country VARCHAR(255),
+                aggregation_mt VARCHAR(255),
+                total_nom_marchand VARCHAR(255),
+                total_marchand VARCHAR(255),
+                merchant_id VARCHAR(255),
+                name_first VARCHAR(255),
+                point_de_vente VARCHAR(255),
+                date DATE,
+                "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Insérer les données dans la base de données
+        const insertedRecords = await CashPayment.bulkCreate(processedData);
+        
+        res.json({ 
+            success: true, 
+            message: `${insertedRecords.length} paiements importés avec succès` 
+        });
+    } catch (error) {
+        console.error('Erreur lors de l\'importation des paiements en espèces:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: `Erreur lors de l'importation des paiements en espèces: ${error.message}` 
+        });
+    }
+});
+
+app.get('/api/cash-payments/aggregated', checkAuth, async (req, res) => {
+    try {
+        // S'assurer que la table existe
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS cash_payments (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255),
+                created_at TIMESTAMP NOT NULL,
+                amount FLOAT NOT NULL,
+                merchant_fee FLOAT,
+                customer_fee FLOAT,
+                customer_name VARCHAR(255),
+                customer_phone VARCHAR(255),
+                entete_trans_type VARCHAR(255),
+                psp_name VARCHAR(255),
+                payment_category VARCHAR(255),
+                payment_means VARCHAR(255),
+                payment_reference VARCHAR(255),
+                merchant_reference VARCHAR(255),
+                trn_status VARCHAR(255),
+                tr_id VARCHAR(255),
+                cust_country VARCHAR(255),
+                aggregation_mt VARCHAR(255),
+                total_nom_marchand VARCHAR(255),
+                total_marchand VARCHAR(255),
+                merchant_id VARCHAR(255),
+                name_first VARCHAR(255),
+                point_de_vente VARCHAR(255),
+                date DATE,
+                "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Obtenir les données agrégées par date et point de vente
+        const result = await sequelize.query(`
+            SELECT date, point_de_vente, SUM(amount) as total
+            FROM cash_payments
+            GROUP BY date, point_de_vente
+            ORDER BY date DESC, point_de_vente
+        `, { type: sequelize.QueryTypes.SELECT });
+        
+        // Restructurer les données pour le format attendu par le frontend
+        const aggregatedData = [];
+        const dateMap = new Map();
+        
+        result.forEach(row => {
+            if (!dateMap.has(row.date)) {
+                dateMap.set(row.date, {
+                    date: row.date,
+                    points: []
+                });
+                aggregatedData.push(dateMap.get(row.date));
+            }
+            
+            dateMap.get(row.date).points.push({
+                point: row.point_de_vente,
+                total: row.total
+            });
+        });
+        
+        res.json({
+            success: true,
+            data: aggregatedData
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des données de paiement agrégées:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: `Erreur lors de la récupération des données: ${error.message}` 
+        });
+    }
+});
+
+app.delete('/api/cash-payments/clear', checkAuth, async (req, res) => {
+    try {
+        // S'assurer que la table existe
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS cash_payments (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255),
+                created_at TIMESTAMP NOT NULL,
+                amount FLOAT NOT NULL,
+                merchant_fee FLOAT,
+                customer_fee FLOAT,
+                customer_name VARCHAR(255),
+                customer_phone VARCHAR(255),
+                entete_trans_type VARCHAR(255),
+                psp_name VARCHAR(255),
+                payment_category VARCHAR(255),
+                payment_means VARCHAR(255),
+                payment_reference VARCHAR(255),
+                merchant_reference VARCHAR(255),
+                trn_status VARCHAR(255),
+                tr_id VARCHAR(255),
+                cust_country VARCHAR(255),
+                aggregation_mt VARCHAR(255),
+                total_nom_marchand VARCHAR(255),
+                total_marchand VARCHAR(255),
+                merchant_id VARCHAR(255),
+                name_first VARCHAR(255),
+                point_de_vente VARCHAR(255),
+                date DATE,
+                "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Supprimer toutes les données de la table
+        await CashPayment.destroy({ where: {} });
+        
+        res.json({
+            success: true,
+            message: 'Toutes les données de paiement ont été supprimées'
+        });
+    } catch (error) {
+        console.error('Erreur lors de la suppression des données de paiement:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: `Erreur lors de la suppression des données: ${error.message}` 
+        });
+    }
+});
+
+// ===========================================================================
+// SUIVI ACHAT BOEUF - PostgreSQL Implementation
+// ===========================================================================
+
+// GET endpoint to retrieve beef purchase data
+app.get('/api/achats-boeuf', checkAuth, async (req, res) => {
+    try {
+        const achats = await AchatBoeuf.findAll({
+            order: [['date', 'DESC']],
+        });
+        res.json(achats);
+    } catch (err) {
+        console.error('Error fetching beef purchases:', err);
+        res.status(500).json({ error: 'Failed to fetch beef purchases' });
+    }
+});
+
+// POST endpoint to save purchase data
+app.post('/api/achats-boeuf', checkAuth, async (req, res) => {
+    try {
+        // Use original field names matching the updated model
+        const { mois, date, bete, prix, abats, frais_abattage, nbr_kg, prix_achat_kg, commentaire } = req.body;
+        
+        // Basic validation
+        if (!date || !bete) { // Adjust validation as needed
+            return res.status(400).json({ error: 'Champs requis manquants (date, bete)' });
+        }
+
+        // Format date (keep YYYY-MM-DD)
+        let formattedDate;
+        let yearInt;
+        try {
+            const dateObj = new Date(date);
+            formattedDate = dateObj.toISOString().split('T')[0]; 
+            yearInt = dateObj.getFullYear(); // Still useful to store year separately
+        } catch (dateError) {
+            console.error("Invalid date format received:", date);
+            return res.status(400).json({ error: 'Format de date invalide' });
+        }
+        
+        // Create using the updated model structure
+        const newAchat = await AchatBoeuf.create({
+            mois: mois || null,              // Keep mois as provided (string)
+            annee: yearInt,                 // Store extracted year
+            date: formattedDate,            
+            bete: bete,                    // Use bete directly
+            prix: prix || 0,                // Use prix directly
+            abats: abats || 0,            
+            frais_abattage: frais_abattage || 0, // Use frais_abattage
+            nbr_kg: nbr_kg || 0,           // Use nbr_kg directly
+            prix_achat_kg: prix_achat_kg || 0, // Use prix_achat_kg directly
+            commentaire: commentaire || null 
+        });
+        
+        res.status(201).json({ 
+            success: true, 
+            message: 'Données d\'achat de bétail enregistrées avec succès',
+            id: newAchat.id
+        });
+    } catch (err) {
+        console.error('Error saving beef purchase data:', err);
+        if (err.name === 'SequelizeValidationError') {
+            return res.status(400).json({ error: err.errors.map(e => e.message).join(', ') });
+        }
+        res.status(500).json({ error: 'Échec de l\'enregistrement des données d\'achat de bétail' });
+    }
+});
+
+// DELETE endpoint to remove purchase data
+app.delete('/api/achats-boeuf/:id', checkAuth, async (req, res) => {
+    try {
+        const id = req.params.id;
+        const numDeleted = await AchatBoeuf.destroy({
+            where: { id: id }
+        });
+
+        if (numDeleted === 1) {
+            res.json({ success: true, message: 'Entry deleted successfully' });
+        } else {
+            res.status(404).json({ error: 'Entry not found' });
+        }
+    } catch (err) {
+        console.error('Error deleting beef purchase data:', err);
+        res.status(500).json({ error: 'Failed to delete beef purchase data' });
+    }
+});
+
+// GET endpoint for monthly statistics
+app.get('/api/achats-boeuf/stats/monthly', checkAuth, async (req, res) => {
+    try {
+        const stats = await AchatBoeuf.findAll({
+            attributes: [
+                [fn('EXTRACT', literal('YEAR FROM date')), 'year'],
+                [fn('EXTRACT', literal('MONTH FROM date')), 'month'],
+                [fn('TO_CHAR', col('date'), 'Mon YYYY'), 'month_name'],
+                [fn('SUM', col('prix')), 'total_prix'],
+                [fn('SUM', col('abats')), 'total_abats'],
+                [fn('SUM', col('frais_abattage')), 'total_frais_abattage'],
+                [fn('SUM', col('nbr_kg')), 'total_kg'],
+                [literal(`CASE WHEN SUM(nbr_kg) > 0 THEN SUM(prix) / SUM(nbr_kg) ELSE 0 END`), 'avg_prix_kg']
+            ],
+            group: ['year', 'month', 'month_name'],
+            order: [
+                [literal('year'), 'DESC'],
+                [literal('month'), 'DESC']
+            ],
+            raw: true // Get plain objects instead of Sequelize instances
+        });
+        
+        res.json(stats);
+    } catch (err) {
+        console.error('Error fetching monthly stats:', err);
+        res.status(500).json({ error: 'Failed to fetch monthly statistics' });
     }
 });
 
@@ -1418,7 +1824,13 @@ app.listen(PORT, async () => {
     try {
         await sequelize.authenticate();
         console.log('Connecté à la base de données PostgreSQL');
+        
+        // Sync database (create tables if they don't exist) - FOR DEVELOPMENT ONLY
+        await sequelize.sync({ alter: true }); // Using alter: true can help update tables, use with caution
+        console.log('Database synced successfully.');
+
     } catch (error) {
-        console.error('Erreur de connexion à la base de données:', error);
+        // Updated error message to be more specific
+        console.error('Erreur lors de la connexion ou de la synchronisation de la base de données:', error);
     }
 });

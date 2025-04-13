@@ -1,0 +1,92 @@
+{
+  "Mbao-Boeuf": {
+    "date": "09/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Boeuf",
+    "Nombre": "168",
+    "PU": "3600",
+    "Montant": "604800",
+    "Commentaire": ""
+  },
+  "Mbao-Foie": {
+    "date": "09/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Foie",
+    "Nombre": "10",
+    "PU": "4000",
+    "Montant": "40000",
+    "Commentaire": ""
+  },
+  "Mbao-Yell": {
+    "date": "09/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Yell",
+    "Nombre": "30",
+    "PU": "2000",
+    "Montant": "60000",
+    "Commentaire": ""
+  },
+  "Mbao-Déchet 400": {
+    "date": "09/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Déchet 400",
+    "Nombre": "4",
+    "PU": "400",
+    "Montant": "1600",
+    "Commentaire": ""
+  },
+  "O.Foire-Veau": {
+    "date": "09/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Veau",
+    "Nombre": "20",
+    "PU": "3800",
+    "Montant": "76000",
+    "Commentaire": ""
+  },
+  "O.Foire-Tablette": {
+    "date": "09/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Tablette",
+    "Nombre": "4",
+    "PU": "2800",
+    "Montant": "11200",
+    "Commentaire": ""
+  },
+  "O.Foire-Foie": {
+    "date": "09/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Foie",
+    "Nombre": "12",
+    "PU": "4000",
+    "Montant": "48000",
+    "Commentaire": ""
+  },
+  "O.Foire-Yell": {
+    "date": "09/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Yell",
+    "Nombre": "20",
+    "PU": "2000",
+    "Montant": "40000",
+    "Commentaire": ""
+  },
+  "Dahra-Poulet": {
+    "date": "09/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Dahra",
+    "Produit": "Poulet",
+    "Nombre": "48",
+    "PU": "3500",
+    "Montant": "168000",
+    "Commentaire": ""
+  }
+}

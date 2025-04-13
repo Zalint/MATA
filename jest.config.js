@@ -8,5 +8,8 @@ module.exports = {
         '**/tests/**/*.test.js',
         '**/local_tests/**/*.test.js'
     ],
-    verbose: true
+    verbose: true,
+    transformIgnorePatterns: [
+        "[/\\\\]node_modules[/\\\\](?!uuid|sequelize).+\\.(js|mjs)$"
+    ]
 }; 

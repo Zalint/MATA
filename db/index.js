@@ -7,9 +7,9 @@ const sequelize = new Sequelize({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5432,
   username: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
+  password: process.env.DB_PASSWORD || 'mata2024',
   database: process.env.DB_NAME || 'ventes_db',
-  logging: process.env.NODE_ENV === 'development', // Log in development mode only
+  logging: console.log, // Force logging to the console for debugging
   dialectOptions: {
     ssl: process.env.DB_SSL === 'true' ? {
       require: true,
