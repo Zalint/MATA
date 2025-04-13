@@ -812,7 +812,7 @@ const ReconciliationManager = (function() {
             toggleLoadingSpinner(true);
             
             // Utiliser le point de terminaison correct
-            const response = await fetch(`http://localhost:3000/api/reconciliation/load?date=${date}`, {
+            const response = await fetch(`/api/reconciliation/load?date=${date}`, {
                 method: 'GET',
                 credentials: 'include'
             });
