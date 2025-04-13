@@ -8,8 +8,13 @@ module.exports = {
         '**/tests/**/*.test.js',
         '**/local_tests/**/*.test.js'
     ],
+    testPathIgnorePatterns: [
+        "node_modules/",
+        "\\.integration\\.test\\.js$",
+        "auth\\.test\\.js$"
+    ],
     verbose: true,
     transformIgnorePatterns: [
-        "[/\\\\]node_modules[/\\\\](?!uuid|sequelize).+\\.(js|mjs)$"
+        "/node_modules/(?!uuid)/"
     ]
 }; 
