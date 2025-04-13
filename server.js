@@ -1,4 +1,8 @@
-﻿const express = require('express');
+﻿require('dotenv').config({
+  path: process.env.NODE_ENV === 'production' ? '.env' : '.env.local'
+});
+
+const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const { parse } = require('csv-parse');

@@ -4,12 +4,12 @@ const path = require('path');
 // Configuration for PostgreSQL database
 const sequelize = new Sequelize({
   dialect: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST,
   port: process.env.DB_PORT || 5432,
-  username: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'mata2024',
+  username: process.env.DB_USER ,
+  password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'ventes_db',
-  logging: console.log, // Force logging to the console for debugging
+  logging: console.log,
   dialectOptions: {
     ssl: process.env.DB_SSL === 'true' ? {
       require: true,
@@ -44,6 +44,15 @@ async function testConnection() {
     return false;
   }
 }
+
+// Print configuration details before exporting
+console.log('--- Database Configuration Used ---');
+console.log(`Host: ${process.env.DB_HOST}`);
+console.log(`Port: ${process.env.DB_PORT || 5432}`);
+console.log(`User: ${process.env.DB_USER}`);
+console.log(`Database: ${process.env.DB_NAME || 'ventes_db'}`);
+console.log(`SSL: ${process.env.DB_SSL === 'true'}`);
+console.log('---------------------------------');
 
 module.exports = {
   sequelize,
