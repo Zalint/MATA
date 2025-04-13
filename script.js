@@ -428,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Envoyer les données du matin
             if (Object.keys(donneesAEnvoyer.matin).length > 0) {
                 console.log('Envoi des données du matin:', donneesAEnvoyer.matin);
-                const matinResponse = await fetch('http://localhost:3000/api/stock/matin', {
+                const matinResponse = await fetch('/api/stock/matin', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -440,7 +440,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Envoyer les données du soir
             if (Object.keys(donneesAEnvoyer.soir).length > 0) {
                 console.log('Envoi des données du soir:', donneesAEnvoyer.soir);
-                const soirResponse = await fetch('http://localhost:3000/api/stock/soir', {
+                const soirResponse = await fetch('/api/stock/soir', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -452,7 +452,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Envoyer les transferts
             if (donneesAEnvoyer.transferts.length > 0) {
                 console.log('Envoi des transferts:', donneesAEnvoyer.transferts);
-                const transfertsResponse = await fetch('http://localhost:3000/api/transferts', {
+                const transfertsResponse = await fetch('/api/transferts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -516,7 +516,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Modification de la fonction checkAuth pour gérer l'affichage de l'onglet Stock inventaire
 async function checkAuth() {
     try {
-        const response = await fetch('http://localhost:3000/api/check-session', {
+        const response = await fetch('/api/check-session', {
             credentials: 'include'
         });
         const data = await response.json();
@@ -571,7 +571,7 @@ async function checkAuth() {
 document.getElementById('logout-btn').addEventListener('click', async function(e) {
     e.preventDefault();
     try {
-        const response = await fetch('http://localhost:3000/api/logout', {
+        const response = await fetch('/api/logout', {
             method: 'POST',
             credentials: 'include'
         });
@@ -1067,7 +1067,7 @@ document.getElementById('vente-form').addEventListener('submit', async function(
     }
     
     try {
-        const url = isUpdate ? `http://localhost:3000/api/ventes/${venteId}` : 'http://localhost:3000/api/ventes';
+        const url = isUpdate ? `/api/ventes/${venteId}` : '/api/ventes';
         const method = isUpdate ? 'PUT' : 'POST';
         
         console.log('Envoi de la requête:', { url, method, isUpdate, venteId });
@@ -1273,7 +1273,7 @@ async function chargerDernieresVentes() {
         console.log('Point de vente sélectionné:', pointVenteSelectionne);
         console.log('Date sélectionnée:', dateSelectionnee, '(Format comparable:', dateSelectionneeFmt, ')');
         
-        const response = await fetch('http://localhost:3000/api/dernieres-ventes', {
+        const response = await fetch('/api/dernieres-ventes', {
             method: 'GET',
             credentials: 'include'
         });
@@ -1729,7 +1729,7 @@ async function chargerVentes() {
                    d1.getDate() === d2.getDate();
         };
 
-        const response = await fetch(`http://localhost:3000/api/ventes?dateDebut=${debut}&dateFin=${fin}&pointVente=${pointVente}`, {
+        const response = await fetch(`/api/ventes?dateDebut=${debut}&dateFin=${fin}&pointVente=${pointVente}`, {
             credentials: 'include'
         });
         
@@ -2006,7 +2006,7 @@ document.getElementById('save-import').addEventListener('click', async function(
         
         // Envoyer les données au serveur
         const typeStock = document.getElementById('type-stock').value;
-        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
+        const response = await fetch(`/api/stock/${typeStock}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -2050,7 +2050,7 @@ async function chargerTransferts(date) {
         // Charger le fichier transferts.json
         let transferts = [];
         try {
-            const response = await fetch('data/transferts.json');
+            const response = await fetch('/data/transferts.json');
             if (!response.ok) {
                 console.warn('Fichier transferts.json non trouvé ou accès impossible');
                 transferts = [];
@@ -2166,7 +2166,7 @@ async function chargerTransferts(date) {
                         if (confirm('Voulez-vous vraiment supprimer ce transfert ?')) {
                             try {
                                 // Supprimer le transfert via l'API
-                                const response = await fetch(`http://localhost:3000/api/transferts`, {
+                                const response = await fetch(`/api/transferts`, {
                                     method: 'DELETE',
                                     headers: {
                                         'Content-Type': 'application/json'
@@ -2399,7 +2399,7 @@ async function sauvegarderTransfert() {
         
         // Envoyer les données au serveur
         console.log('Envoi des transferts au serveur:', transferts);
-        const response = await fetch('http://localhost:3000/api/transferts', {
+        const response = await fetch('/api/transferts', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -2455,7 +2455,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Vérifier si l'utilisateur a les droits pour voir l'onglet 'Copier Stock'
     try {
-        const response = await fetch('http://localhost:3000/api/user-info', {
+        const response = await fetch('/api/user-info', {
             method: 'GET',
             credentials: 'include'
         });
@@ -2591,7 +2591,7 @@ async function chargerStock(date, type) {
     
     try {
         console.log('%cRécupération des données depuis le serveur pour le type:', 'color: #00aaff;', typeStock);
-        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}?date=${date}`, {
+        const response = await fetch(`/api/stock/${typeStock}?date=${date}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -2683,7 +2683,7 @@ async function copierStock() {
 
     try {
         // Charger les données sources
-        const response = await fetch(`http://localhost:3000/api/stock/${sourceTypeStock}?date=${sourceDate}`, {
+        const response = await fetch(`/api/stock/${sourceTypeStock}?date=${sourceDate}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -2728,7 +2728,7 @@ async function copierStock() {
         }
 
         // Sauvegarder directement les données
-        const saveResponse = await fetch(`http://localhost:3000/api/stock/${targetTypeStock}`, {
+        const saveResponse = await fetch(`/api/stock/${targetTypeStock}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -3062,7 +3062,7 @@ async function sauvegarderDonneesStock() {
 
     try {
         console.log('%cEnvoi des données au serveur...', 'color: #ff9900;');
-        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}`, {
+        const response = await fetch(`/api/stock/${typeStock}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -3298,7 +3298,7 @@ async function onTypeStockChange() {
 
     try {
         console.log('%cRécupération des données depuis le serveur pour le type:', 'color: #00aaff;', typeStock);
-        const response = await fetch(`http://localhost:3000/api/stock/${typeStock}?date=${dateSelectionnee}`, {
+        const response = await fetch(`/api/stock/${typeStock}?date=${dateSelectionnee}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -3462,7 +3462,7 @@ async function onTypeStockChange() {
 // Fonction pour supprimer une vente
 async function supprimerVente(venteId) {
     try {
-        const response = await fetch(`http://localhost:3000/api/ventes/${venteId}`, {
+        const response = await fetch(`/api/ventes/${venteId}`, {
             method: 'DELETE',
             credentials: 'include'
         });
@@ -3607,7 +3607,7 @@ async function calculerReconciliation(date) {
         console.log('Transferts:', transferts);
         
         // Charger les ventes saisies
-        const response = await fetch(`http://localhost:3000/api/ventes-date?date=${date}`, {
+        const response = await fetch(`/api/ventes-date?date=${date}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -3714,7 +3714,7 @@ async function calculerReconciliation(date) {
 // Fonction pour charger les données de stock
 async function chargerDonneesStock(type, date) {
     try {
-        const response = await fetch(`http://localhost:3000/api/stock/${type}?date=${date}`, {
+        const response = await fetch(`/api/stock/${type}?date=${date}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -3737,7 +3737,7 @@ async function chargerDonneesStock(type, date) {
 // Fonction pour charger les données de transferts
 async function chargerDonneesTransferts(date) {
     try {
-        const response = await fetch(`http://localhost:3000/api/transferts?date=${date}`, {
+        const response = await fetch(`/api/transferts?date=${date}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -3791,7 +3791,7 @@ async function calculerReconciliationParPointVente(date, stockMatin, stockSoir, 
     let ventesSaisies = {};
     try {
         // Use dateSelectionnee (which now directly comes from the function parameter)
-        const response = await fetch(`http://localhost:3000/api/ventes-date?date=${dateSelectionnee}`, {
+        const response = await fetch(`/api/ventes-date?date=${dateSelectionnee}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -4199,7 +4199,7 @@ async function sauvegarderReconciliation() {
         console.log('Données de réconciliation à sauvegarder:', dataToSave);
         
         // Envoyer les données au serveur
-        const response = await fetch('http://localhost:3000/api/reconciliation/save', {
+        const response = await fetch('/api/reconciliation/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -4257,7 +4257,7 @@ async function chargerReconciliation(date) {
         document.getElementById('loading-indicator-reconciliation').style.display = 'block';
         
         // Tenter de récupérer une réconciliation sauvegardée
-        const response = await fetch(`http://localhost:3000/api/reconciliation/load?date=${date}`, {
+        const response = await fetch(`/api/reconciliation/load?date=${date}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -4840,7 +4840,7 @@ function formatDateForStockAlerte(date) { // Renamed from formatDate
 // Fonction pour récupérer les données de stock pour une date donnée
 async function getStockForDate(date, type) {
     try {
-        const response = await fetch(`http://localhost:3000/api/stock/${type}?date=${date}`, {
+        const response = await fetch(`/api/stock/${type}?date=${date}`, {
             credentials: 'include'
         });
         
@@ -4880,7 +4880,7 @@ async function getStockForDate(date, type) {
 // Fonction pour récupérer les transferts pour une date donnée
 async function getTransfersForDate(date) {
     try {
-        const response = await fetch(`http://localhost:3000/api/transferts?date=${date}`, {
+        const response = await fetch(`/api/transferts?date=${date}`, {
             credentials: 'include'
         });
         
@@ -5439,7 +5439,7 @@ async function chargerReconciliationMensuelle() {
                     getStockForDate(dateStr, 'matin'),
                     getStockForDate(dateStr, 'soir'),
                     getTransfersForDate(dateStr),
-                    fetch(`http://localhost:3000/api/ventes-date?date=${dateStr}`, { method: 'GET', credentials: 'include' }).then(res => res.ok ? res.json() : { success: false })
+                    fetch(`/api/ventes-date?date=${dateStr}`, { method: 'GET', credentials: 'include' }).then(res => res.ok ? res.json() : { success: false })
                 ]);
                 console.log(`Données brutes pour ${dateStr}:`, { stockMatin: Object.keys(stockMatin).length, stockSoir: Object.keys(stockSoir).length, transferts: transferts.length, ventes: ventesData.success ? ventesData.totaux : {} });
             } catch (fetchError) {
@@ -5482,7 +5482,7 @@ async function chargerReconciliationMensuelle() {
             // 4. Fetch saved reconciliation data (for comments/cash)
             let savedData = null;
             try {
-                const loadResponse = await fetch(`http://localhost:3000/api/reconciliation/load?date=${dateStr}`, {
+                const loadResponse = await fetch(`/api/reconciliation/load?date=${dateStr}`, {
                     method: 'GET',
                     credentials: 'include'
                 });
