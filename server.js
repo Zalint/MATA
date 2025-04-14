@@ -1,4 +1,5 @@
-﻿require('dotenv').config({
+﻿// Load environment variables
+require('dotenv').config({
   path: process.env.NODE_ENV === 'production' ? '.env' : '.env.local'
 });
 
@@ -18,9 +19,15 @@ const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf } = req
 const { testConnection, sequelize } = require('./db');
 const { Op, fn, col, literal } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
+const Estimation = require('./db/models/Estimation');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Make sure Estimation is properly initialized
+console.log('Initializing models...');
+console.log('Estimation model:', !!Estimation);
+console.log('Estimation.create:', typeof Estimation.create === 'function' ? 'function available' : 'NOT AVAILABLE');
 
 // Middleware
 // Allow all origins in production for Render
@@ -1825,13 +1832,331 @@ app.get('/api/achats-boeuf/stats/monthly', checkAuth, async (req, res) => {
     }
 });
 
-// Démarrer le serveur
-app.listen(PORT, '0.0.0.0', async () => {
-    console.log(`Serveur démarré sur le port ${PORT}`);
+// Route pour récupérer les catégories
+app.get('/api/categories', checkAuth, async (req, res) => {
     try {
-        console.log('Attempting DB connection with URL:', process.env.DATABASE_URL);
-        await testConnection();
+        const categories = await Vente.findAll({
+            attributes: [[fn('DISTINCT', fn('col', 'categorie')), 'categorie']],
+            raw: true
+        });
+        
+        const categoriesList = categories.map(c => c.categorie).filter(Boolean);
+        res.json({ success: true, categories: categoriesList });
     } catch (error) {
-        console.error("Erreur lors du test de la connexion DB au démarrage:", error);
+        console.error('Erreur lors de la récupération des catégories:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la récupération des catégories' 
+        });
     }
+});
+
+// Route pour calculer le stock du soir
+app.get('/api/stock-soir', checkAuth, async (req, res) => {
+    try {
+        const { date, pointVente, categorie } = req.query;
+        
+        if (!date || !pointVente || !categorie) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Date, point de vente et catégorie sont requis' 
+            });
+        }
+
+        const dateStandardisee = standardiserDateFormat(date);
+        
+        // Calculer le stock du soir pour la date et le point de vente donnés
+        const stock = await Stock.findAll({
+            where: {
+                date: dateStandardisee,
+                pointVente,
+                typeStock: 'soir'
+            }
+        });
+
+        // Calculer la somme du stock pour la catégorie donnée
+        let stockSoir = 0;
+        stock.forEach(s => {
+            if (s.categorie === categorie) {
+                stockSoir += parseFloat(s.quantite) || 0;
+            }
+        });
+
+        res.json({ success: true, stockSoir });
+    } catch (error) {
+        console.error('Erreur lors du calcul du stock du soir:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors du calcul du stock du soir' 
+        });
+    }
+});
+
+// Route pour calculer les ventes effectuées
+app.get('/api/ventes-effectuees', checkAuth, async (req, res) => {
+    try {
+        const { date, pointVente, categorie } = req.query;
+        
+        if (!date || !pointVente || !categorie) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Date, point de vente et catégorie sont requis' 
+            });
+        }
+
+        const dateStandardisee = standardiserDateFormat(date);
+        
+        // Calculer les ventes effectuées pour la date et le point de vente donnés
+        const ventes = await Vente.findAll({
+            where: {
+                date: dateStandardisee,
+                pointVente,
+                categorie
+            }
+        });
+
+        // Calculer la somme des ventes
+        let ventesEffectuees = 0;
+        ventes.forEach(v => {
+            ventesEffectuees += parseFloat(v.nombre) || 0;
+        });
+
+        res.json({ success: true, ventesEffectuees });
+    } catch (error) {
+        console.error('Erreur lors du calcul des ventes effectuées:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors du calcul des ventes effectuées' 
+        });
+    }
+});
+
+// Route pour créer une estimation
+app.post('/api/estimations', checkAuth, async (req, res) => {
+    try {
+        const estimation = req.body;
+        
+        // Standardiser la date
+        estimation.date = standardiserDateFormat(estimation.date);
+        
+        // Créer l'estimation
+        await Estimation.create(estimation);
+        
+        // Récupérer toutes les estimations pour mise à jour de l'affichage
+        const estimations = await Estimation.findAll({
+            order: [['date', 'DESC']]
+        });
+        
+        res.json({ 
+            success: true, 
+            message: 'Estimation créée avec succès',
+            estimations 
+        });
+    } catch (error) {
+        console.error('Erreur lors de la création de l\'estimation:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la création de l\'estimation' 
+        });
+    }
+});
+
+// Route pour récupérer les estimations
+app.get('/api/estimations', checkAuth, async (req, res) => {
+    try {
+        const estimations = await Estimation.findAll({
+            order: [['date', 'DESC']]
+        });
+        
+        res.json({ success: true, estimations });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des estimations:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la récupération des estimations' 
+        });
+    }
+});
+
+// Route pour supprimer une estimation
+app.delete('/api/estimations/:id', checkAuth, async (req, res) => {
+    try {
+        const id = req.params.id;
+        
+        await Estimation.destroy({
+            where: { id }
+        });
+        
+        res.json({ success: true, message: 'Estimation supprimée avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de la suppression de l\'estimation:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la suppression de l\'estimation' 
+        });
+    }
+});
+
+// Routes pour les estimations
+app.get('/api/stock/:date/:type/:pointVente/:categorie', checkAuth, async (req, res) => {
+    console.log('=== ESTIMATION STOCK API REQUEST START ===');
+    console.log('Request params:', req.params);
+    
+    try {
+        const { date, type, pointVente, categorie } = req.params;
+        
+        if (!date || !type || !pointVente || !categorie) {
+            console.warn('Missing required parameters:', { date, type, pointVente, categorie });
+            return res.status(400).json({ 
+                success: false,
+                stock: 0,
+                error: 'Missing required parameters'
+            });
+        }
+
+        // Get the file path
+        const filePath = path.join(__dirname, 'data', 'by-date', date, `stock-${type}.json`);
+        console.log('Looking for stock file:', filePath);
+
+        // Check if file exists
+        if (!fs.existsSync(filePath)) {
+            console.log(`Stock file not found: ${filePath}`);
+            return res.json({ 
+                success: true,
+                stock: 0,
+                message: 'No stock data found for this date'
+            });
+        }
+
+        // Read and parse the JSON file
+        const fileContent = await fsPromises.readFile(filePath, 'utf8');
+        const data = JSON.parse(fileContent);
+        
+        // Look for the entry with the matching key format: pointVente-categorie
+        const key = `${pointVente}-${categorie}`;
+        console.log('Looking for stock entry with key:', key);
+        
+        const entry = data[key];
+        console.log('Found stock entry:', entry);
+
+        if (entry && entry.Nombre !== undefined) {
+            const stockValue = parseFloat(entry.Nombre) || 0;
+            console.log(`Stock value found for ${key}:`, stockValue);
+            res.json({ 
+                success: true,
+                stock: stockValue
+            });
+        } else {
+            console.log(`No stock value found for ${key}`);
+            res.json({ 
+                success: true,
+                stock: 0,
+                message: 'No stock value found'
+            });
+        }
+    } catch (error) {
+        console.error('Error reading stock data:', error);
+        res.status(500).json({ 
+            success: false,
+            stock: 0,
+            error: error.message
+        });
+    }
+    console.log('=== ESTIMATION STOCK API REQUEST END ===');
+});
+
+// Route pour calculer le stock du matin
+app.get('/api/stock/:date/matin/:pointVente/:categorie', checkAuth, async (req, res) => {
+    try {
+        const { date, pointVente, categorie } = req.params;
+        
+        if (!date || !pointVente || !categorie) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Date, point de vente et catégorie sont requis' 
+            });
+        }
+
+        const dateStandardisee = standardiserDateFormat(date);
+        
+        // Calculer le stock du matin pour la date et le point de vente donnés
+        const stock = await Stock.findAll({
+            where: {
+                date: dateStandardisee,
+                pointVente,
+                typeStock: 'matin'
+            }
+        });
+
+        // Calculer la somme du stock pour la catégorie donnée
+        let stockMatin = 0;
+        stock.forEach(s => {
+            if (s.categorie === categorie) {
+                stockMatin += parseFloat(s.quantite) || 0;
+            }
+        });
+
+        res.json({ success: true, stock: stockMatin });
+    } catch (error) {
+        console.error('Erreur lors du calcul du stock du matin:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors du calcul du stock du matin' 
+        });
+    }
+});
+
+// Route pour calculer les transferts
+app.get('/api/stock/:date/transfert/:pointVente/:categorie', checkAuth, async (req, res) => {
+    try {
+        const { date, pointVente, categorie } = req.params;
+        
+        if (!date || !pointVente || !categorie) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Date, point de vente et catégorie sont requis pour les transferts' 
+            });
+        }
+
+        const dateStandardisee = standardiserDateFormat(date);
+        
+        // Calculer les transferts pour la date et le point de vente donnés
+        const transferts = await Transfert.findAll({
+            where: {
+                date: dateStandardisee,
+                pointVente
+            }
+        });
+
+        // Calculer la somme des transferts pour la catégorie donnée
+        let totalTransfert = 0;
+        transferts.forEach(t => {
+            if (t.categorie === categorie) {
+                totalTransfert += parseFloat(t.quantite) || 0;
+            }
+        });
+
+        res.json({ 
+            success: true, 
+            transfert: totalTransfert,
+            message: transferts.length === 0 ? "Aucune donnée de transfert trouvée pour cette date" : ""
+        });
+    } catch (error) {
+        console.error('Erreur lors du calcul des transferts:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors du calcul des transferts' 
+        });
+    }
+});
+
+// Démarrage du serveur
+app.listen(PORT, () => {
+    console.log(`Serveur démarré sur le port ${PORT}`);
+});
+
+// API endpoint for showing estimation section
+app.get('/api/show-estimation', (req, res) => {
+  console.log('Request to show estimation section received');
+  res.json({ success: true, message: 'Estimation section should be shown' });
 });

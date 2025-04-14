@@ -26,10 +26,12 @@ function initReconciliation() {
                 
                 // Rendre le bouton de calcul plus visible après changement de date
                 const btnCalculer = document.getElementById('calculer-reconciliation');
-                btnCalculer.classList.add('btn-pulse');
-                setTimeout(() => {
-                    btnCalculer.classList.remove('btn-pulse');
-                }, 1500);
+                if (btnCalculer) {
+                    btnCalculer.classList.add('btn-pulse');
+                    setTimeout(() => {
+                        btnCalculer.classList.remove('btn-pulse');
+                    }, 1500);
+                }
                 
                 // Charger automatiquement les données pour la nouvelle date
                 if (dateStr) {

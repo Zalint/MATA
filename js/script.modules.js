@@ -23,6 +23,7 @@ import {
     sauvegarderReconciliation,
     chargerReconciliation
 } from './modules/reconciliation.js';
+import { initEstimation } from './modules/estimation.js';
 import {
     initTabListeners,
     deactivateAllTabs,
@@ -77,33 +78,38 @@ const POINTS_VENTE_PHYSIQUES = [
 ];
 
 // Initialiser l'application au chargement du document
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Initialisation de l\'application (version modulaire)');
-
-    // Vérifier si le gestionnaire de réconciliation est disponible
-    if (typeof ReconciliationManager === 'undefined') {
-        console.error('ReconciliationManager non disponible! Assurez-vous que reconciliationManager.js est chargé avant script.js.');
-        alert('Erreur: Module de réconciliation non chargé. Veuillez recharger la page.');
-        return;
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Vérifier l'authentification
+        const isAuthenticated = await checkAuth();
+        
+        if (!isAuthenticated) {
+            window.location.href = '/login.html';
+            return;
+        }
+        
+        // Afficher les onglets selon les droits
+        afficherOngletsSuivantDroits();
+        
+        // Initialiser les écouteurs d'onglets
+        initTabListeners();
+        
+        // Initialiser le module de réconciliation
+        initReconciliation();
+        
+        // Initialiser le module d'estimation
+        initEstimation();
+        
+        // Initialiser les filtres de stock
+        initFilterStock();
+        
+        // Charger les données initiales
+        await chargerDernieresVentes();
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation:', error);
+        alert('Une erreur est survenue lors de l\'initialisation de l\'application');
     }
-    
-    // Surcharger la fonction afficherReconciliation pour utiliser ReconciliationManager
-    window.afficherReconciliation = function(reconciliation, debugInfo) {
-        console.log('Délégation à ReconciliationManager.afficherReconciliation');
-        ReconciliationManager.afficherReconciliation(reconciliation, debugInfo);
-    };
-    
-    // Initialiser les écouteurs d'événements pour les onglets
-    initTabListeners();
-    
-    // Vérifier l'authentification
-    checkAuth();
-    
-    // Initialiser les écouteurs d'événements pour les actions spécifiques
-    initEventListeners();
-    
-    // Charger les dernières ventes sur la page d'accueil
-    chargerDernieresVentes();
 });
 
 /**

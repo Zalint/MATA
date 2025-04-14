@@ -14,6 +14,22 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Délégation à ReconciliationManager.afficherReconciliation');
         ReconciliationManager.afficherReconciliation(reconciliation, debugInfo);
     };
+
+    // Ensure proper initial state - hide all sections and show saisie section
+    console.log('Initial page load - hiding all sections');
+    hideAllSections();
+    document.getElementById('saisie-section').style.display = 'block';
+    console.log('Initial page load - showing saisie section');
+
+    // Initialize all sections
+    initTabListeners();
+    initEstimation();
+    initReconciliation();
+    initStockAlerte();
+    initReconciliationMensuelle();
+    initCopierStock();
+    initInventaire();
+    initFilterStock();
 });
 
 // Vérification de l'authentification
@@ -70,13 +86,20 @@ function hideAllSections() {
     document.getElementById('import-section').style.display = 'none';
     document.getElementById('stock-inventaire-section').style.display = 'none';
     document.getElementById('copier-stock-section').style.display = 'none';
+    document.getElementById('suivi-achat-boeuf-section').style.display = 'none';
     document.getElementById('reconciliation-section').style.display = 'none';
     document.getElementById('reconciliation-mois-section').style.display = 'none';
     document.getElementById('stock-alerte-section').style.display = 'none';
     document.getElementById('cash-payment-section').style.display = 'none';
-    // Hide the new section as well
-    const suiviSection = document.getElementById('suivi-achat-boeuf-section');
-    if (suiviSection) suiviSection.style.display = 'none';
+    document.getElementById('estimation-section').style.display = 'none';
+
+    // Ensure content-section elements are also hidden
+    const contentSections = document.querySelectorAll('.content-section');
+    console.log(`hideAllSections: Found ${contentSections.length} content-section elements to hide`);
+    contentSections.forEach(el => {
+        console.log(`hideAllSections: Hiding element: ${el.id}`);
+        el.style.display = 'none';
+    });
 
     // Nettoyer les graphiques lorsqu'on n'est pas dans la section visualisation
     if (ventesParMoisChart) {
@@ -108,35 +131,14 @@ function initReconciliation() {
             defaultDate: new Date(),
             disableMobile: "true",
             onChange: function(selectedDates, dateStr) {
-                console.log('Date sélectionnée pour la réconciliation (flatpickr):', dateStr);
-                
+                console.log('Date sélectionnée pour la réconciliation:', dateStr);
                 // Rendre le bouton de calcul plus visible après changement de date
                 const btnCalculer = document.getElementById('calculer-reconciliation');
-                btnCalculer.classList.add('btn-pulse');
-                setTimeout(() => {
-                    btnCalculer.classList.remove('btn-pulse');
-                }, 1500);
-                
-                // Charger automatiquement les données pour la nouvelle date
-                if (dateStr) {
-                    console.log('Chargement automatique des données depuis le handler flatpickr');
-                    
-                    // Réinitialiser les données existantes
-                    const tbody = document.querySelector('#reconciliation-table tbody');
-                    if (tbody) tbody.innerHTML = '';
-                    
-                    // Désactiver le bouton de sauvegarde
-                    const btnSauvegarder = document.getElementById('sauvegarder-reconciliation');
-                    if (btnSauvegarder) btnSauvegarder.disabled = true;
-                    
-                    // Charger les nouvelles données avec le gestionnaire centralisé
-                    if (typeof ReconciliationManager !== 'undefined' && 
-                        typeof ReconciliationManager.chargerReconciliation === 'function') {
-                        ReconciliationManager.chargerReconciliation(dateStr);
-                    } else {
-                        // Fallback en cas de problème avec ReconciliationManager
-                        calculerReconciliation(dateStr);
-                    }
+                if (btnCalculer) {
+                    btnCalculer.classList.add('btn-pulse');
+                    setTimeout(() => {
+                        btnCalculer.classList.remove('btn-pulse');
+                    }, 1500);
                 }
             }
         });
@@ -268,9 +270,22 @@ document.addEventListener('DOMContentLoaded', function() {
             this.classList.add('active');
             
             // S'assurer que les éléments de visualisation sont masqués
-            document.querySelectorAll('.visualisation-charts, .visualisation-data').forEach(el => {
+            document.querySelectorAll('.visualisation-charts, .visualisation-data, .content-section').forEach(el => {
                 el.style.display = 'none';
             });
+            
+            // Explicitly hide reconciliation sections
+            console.log('Explicitly hiding reconciliation sections');
+            const reconciliationSection = document.getElementById('reconciliation-section');
+            const reconciliationMoisSection = document.getElementById('reconciliation-mois-section');
+            if (reconciliationSection) {
+                console.log('Hiding reconciliation-section');
+                reconciliationSection.style.display = 'none';
+            }
+            if (reconciliationMoisSection) {
+                console.log('Hiding reconciliation-mois-section');
+                reconciliationMoisSection.style.display = 'none';
+            }
         });
     }
 
@@ -4346,7 +4361,10 @@ async function calculerReconciliation(date = null) {
         window.currentDebugInfo = debugInfo;
         
         // Activer le bouton de sauvegarde
-        document.getElementById('sauvegarder-reconciliation').disabled = false;
+        const btnSauvegarder = document.getElementById('sauvegarder-reconciliation');
+        if (btnSauvegarder) {
+            btnSauvegarder.disabled = false;
+        }
         
         // Masquer l'indicateur de chargement
         document.getElementById('loading-indicator-reconciliation').style.display = 'none';
@@ -5234,6 +5252,13 @@ function initTabListeners() {
                     }, 500); // Attendre 500ms pour s'assurer que l'onglet est visible et que flatpickr est initialisé
                 }
             }
+
+            // Gestion spécifique pour l'onglet estimation
+            if (tabId === 'estimation-tab') {
+                e.preventDefault();
+                showSection('estimation-section');
+                initEstimation();
+            }
         });
     });
 }
@@ -5255,14 +5280,44 @@ document.getElementById('visualisation-tab').addEventListener('click', function(
     showSection('visualisation-section');
 });
 
+document.getElementById('stock-inventaire-tab').addEventListener('click', function(e) {
+    e.preventDefault();
+    showSection('stock-inventaire-section');
+});
+
+document.getElementById('copier-stock-tab').addEventListener('click', function(e) {
+    e.preventDefault();
+    showSection('copier-stock-section');
+});
+
+document.getElementById('suivi-achat-boeuf-tab').addEventListener('click', function(e) {
+    e.preventDefault();
+    showSection('suivi-achat-boeuf-section');
+});
+
 document.getElementById('reconciliation-tab').addEventListener('click', function(e) {
     e.preventDefault();
     showSection('reconciliation-section');
 });
 
+document.getElementById('reconciliation-mois-tab').addEventListener('click', function(e) {
+    e.preventDefault();
+    showSection('reconciliation-mois-section');
+});
+
 document.getElementById('stock-alerte-tab').addEventListener('click', function(e) {
     e.preventDefault();
     showSection('stock-alerte-section');
+});
+
+document.getElementById('cash-payment-tab').addEventListener('click', function(e) {
+    e.preventDefault();
+    showSection('cash-payment-section');
+});
+
+document.getElementById('estimation-tab').addEventListener('click', function(e) {
+    e.preventDefault();
+    showSection('estimation-section');
 });
 
 // Fonction pour initialiser la section de réconciliation mensuelle
@@ -5795,6 +5850,17 @@ function showSection(sectionId) {
         tab.classList.add('active');
     }
     
+    // Keep content-section elements hidden when showing saisie section
+    if (sectionId === 'saisie-section') {
+        console.log('Showing saisie section - hiding content-section elements');
+        const contentSections = document.querySelectorAll('.content-section');
+        console.log(`Found ${contentSections.length} content-section elements to hide`);
+        contentSections.forEach(el => {
+            console.log(`Hiding element: ${el.id}`);
+            el.style.display = 'none';
+        });
+    }
+    
     // Initialiser la section selon son type
     if (sectionId === 'reconciliation-section') {
         initReconciliation();
@@ -5967,3 +6033,174 @@ function exportReconciliationMoisToExcel() {
 /**
  * Charge les commentaires pour la réconciliation mensuelle
  */
+
+// ... existing code ...
+// Fonction pour initialiser la section estimation
+function initEstimation() {
+    console.log('=== INIT ESTIMATION START ===');
+    console.log('Initialisation de la section estimation');
+    
+    // Initialize flatpickr with French locale
+    const datePicker = flatpickr("#estimation-date", {
+        locale: 'fr',
+        dateFormat: "Y-m-d",
+        defaultDate: new Date(),
+        onChange: function(selectedDates, dateStr) {
+            console.log('Date changed:', { selectedDates, dateStr });
+            if (selectedDates.length > 0) {
+                updateEstimationStock();
+            }
+        }
+    });
+
+    console.log('Flatpickr initialized with config:', {
+        locale: 'fr',
+        dateFormat: "Y-m-d",
+        defaultDate: new Date()
+    });
+
+    // Set initial date
+    const today = new Date();
+    datePicker.setDate(today);
+    console.log('Initial date set to:', today);
+    
+    // Populate categories
+    const categorieSelect = document.getElementById('estimation-categorie');
+    if (categorieSelect) {
+        console.log('Found categorie select element');
+        // Clear existing options except the first one
+        while (categorieSelect.options.length > 1) {
+            categorieSelect.remove(1);
+        }
+        
+        // Add the categories
+        const categories = ['Boeuf', 'Veau', 'Agneau'];
+        categories.forEach(categorie => {
+            const option = document.createElement('option');
+            option.value = categorie;
+            option.textContent = categorie;
+            categorieSelect.appendChild(option);
+        });
+        console.log('Categories populated:', categories);
+
+        // Add change event listener
+        categorieSelect.addEventListener('change', updateEstimationStock);
+    } else {
+        console.warn('Categorie select element not found');
+    }
+
+    // Add change event listener for point de vente
+    const pointVenteSelect = document.getElementById('estimation-point-vente');
+    if (pointVenteSelect) {
+        console.log('Found point de vente select element');
+        pointVenteSelect.addEventListener('change', updateEstimationStock);
+    } else {
+        console.warn('Point de vente select element not found');
+    }
+    
+    // Add event listener for form submission
+    const form = document.getElementById('estimation-form');
+    if (form) {
+        console.log('Found estimation form');
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await sauvegarderEstimation();
+        });
+    } else {
+        console.warn('Estimation form not found');
+    }
+
+    console.log('=== INIT ESTIMATION END ===');
+    // Initial stock update
+    updateEstimationStock();
+}
+
+// Function to update stock display
+async function updateEstimationStock() {
+    console.log('=== UPDATE ESTIMATION STOCK START ===');
+    
+    const dateInput = document.getElementById('estimation-date');
+    const pointVente = document.getElementById('estimation-point-vente').value;
+    const categorie = document.getElementById('estimation-categorie').value;
+    const stockSoirInput = document.getElementById('stock-soir');
+
+    console.log('Form values:', {
+        date: dateInput ? dateInput.value : 'not found',
+        pointVente,
+        categorie
+    });
+
+    if (!dateInput || !pointVente || !categorie) {
+        console.warn('Missing required fields:', {
+            dateInput: !!dateInput,
+            pointVente: !!pointVente,
+            categorie: !!categorie
+        });
+        stockSoirInput.value = '';
+        return;
+    }
+
+    try {
+        const date = dateInput.value; // This will be in YYYY-MM-DD format from flatpickr
+        console.log('Making API request with:', {
+            date,
+            pointVente,
+            categorie
+        });
+
+        const url = `/api/stock/${date}/soir/${pointVente}/${categorie}`;
+        console.log('API URL:', url);
+
+        const response = await fetch(url);
+        console.log('API Response status:', response.status);
+        
+        const data = await response.json();
+        console.log('API Response data:', data);
+
+        if (response.ok && data.stock !== undefined) {
+            stockSoirInput.value = data.stock;
+            stockSoirInput.style.fontStyle = 'normal';
+            console.log('Stock value updated:', data.stock);
+        } else {
+            stockSoirInput.value = '0';
+            stockSoirInput.style.fontStyle = 'italic';
+            console.log('No stock found, set to 0');
+        }
+    } catch (error) {
+        console.error('Error in updateEstimationStock:', error);
+        stockSoirInput.value = '0';
+        stockSoirInput.style.fontStyle = 'italic';
+    }
+    
+    console.log('=== UPDATE ESTIMATION STOCK END ===');
+}
+// ... existing code ...
+
+// Event listeners for estimation form fields
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('estimation-date');
+    const pointVenteSelect = document.getElementById('estimation-point-vente');
+    const categorieSelect = document.getElementById('estimation-categorie');
+
+    if (dateInput && pointVenteSelect && categorieSelect) {
+        const updateAllValues = () => {
+            updateEstimationStockMatin();
+            updateEstimationTransfert();
+            updateEstimationStock();
+        };
+
+        dateInput.addEventListener('change', updateAllValues);
+        pointVenteSelect.addEventListener('change', updateAllValues);
+        categorieSelect.addEventListener('change', updateAllValues);
+    }
+});
+
+// ... existing code ...
+
+// Helper function to safely update loading indicator
+function updateLoadingIndicator(visible) {
+    const loadingIndicator = document.getElementById('loading-indicator-reconciliation');
+    if (loadingIndicator) {
+        loadingIndicator.style.display = visible ? 'block' : 'none';
+    }
+}

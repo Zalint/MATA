@@ -7,6 +7,9 @@ let ventesParMoisChart = null;
 let ventesParProduitChart = null;
 let ventesParCategorieChart = null;
 
+// Import flatpickr locales
+import { French } from "flatpickr/dist/l10n/fr.js";
+
 /**
  * Initialise les écouteurs d'événements pour les onglets
  */
@@ -19,7 +22,9 @@ function initTabListeners() {
         'copier-stock-tab': 'copier-stock-section',
         'reconciliation-tab': 'reconciliation-section',
         'stock-alerte-tab': 'stock-alerte-section',
-        'cash-payment-tab': 'cash-payment-section'
+        'cash-payment-tab': 'cash-payment-section',
+        'suivi-achat-boeuf-tab': 'suivi-achat-boeuf-section',
+        'estimation-tab': 'estimation-section'
     };
     
     // Ajouter des écouteurs pour chaque onglet
@@ -76,6 +81,14 @@ function initTabListeners() {
                     if (typeof initCashPayment === 'function') {
                         initCashPayment();
                     }
+                } else if (tabId === 'suivi-achat-boeuf-tab') {
+                    if (typeof initSuiviAchatBoeuf === 'function') {
+                        initSuiviAchatBoeuf();
+                    }
+                } else if (tabId === 'estimation-tab') {
+                    if (typeof initEstimation === 'function') {
+                        initEstimation();
+                    }
                 }
             });
         }
@@ -86,23 +99,23 @@ function initTabListeners() {
  * Désactive tous les onglets
  */
 function deactivateAllTabs() {
-    const saisieTab = document.getElementById('saisie-tab');
-    const visualisationTab = document.getElementById('visualisation-tab');
-    const importTab = document.getElementById('import-tab');
-    const stockInventaireTab = document.getElementById('stock-inventaire-tab');
-    const copierStockTab = document.getElementById('copier-stock-tab');
-    const reconciliationTab = document.getElementById('reconciliation-tab');
-    const stockAlerteTab = document.getElementById('stock-alerte-tab');
-    const cashPaymentTab = document.getElementById('cash-payment-tab');
+    const tabs = [
+        'saisie-tab',
+        'visualisation-tab',
+        'import-tab',
+        'stock-inventaire-tab',
+        'copier-stock-tab',
+        'reconciliation-tab',
+        'stock-alerte-tab',
+        'cash-payment-tab',
+        'suivi-achat-boeuf-tab',
+        'estimation-tab'
+    ];
     
-    if (saisieTab) saisieTab.classList.remove('active');
-    if (visualisationTab) visualisationTab.classList.remove('active');
-    if (importTab) importTab.classList.remove('active');
-    if (stockInventaireTab) stockInventaireTab.classList.remove('active');
-    if (copierStockTab) copierStockTab.classList.remove('active');
-    if (reconciliationTab) reconciliationTab.classList.remove('active');
-    if (stockAlerteTab) stockAlerteTab.classList.remove('active');
-    if (cashPaymentTab) cashPaymentTab.classList.remove('active');
+    tabs.forEach(tabId => {
+        const tab = document.getElementById(tabId);
+        if (tab) tab.classList.remove('active');
+    });
 }
 
 /**
@@ -117,15 +130,17 @@ function hideAllSections() {
         'copier-stock-section',
         'reconciliation-section',
         'stock-alerte-section',
-        'cash-payment-section'
+        'cash-payment-section',
+        'suivi-achat-boeuf-section',
+        'estimation-section'
     ];
     
-    for (const sectionId of sections) {
+    sections.forEach(sectionId => {
         const section = document.getElementById(sectionId);
         if (section) {
             section.style.display = 'none';
         }
-    }
+    });
     
     // Nettoyer les graphiques lorsqu'on n'est pas dans la section visualisation
     if (ventesParMoisChart) {
@@ -246,6 +261,23 @@ function initFilterStock() {
         });
     }
 }
+
+// Initialize flatpickr with French locale
+function initializeDatePickers() {
+    const dateInputs = document.querySelectorAll('.date-picker');
+    dateInputs.forEach(input => {
+        flatpickr(input, {
+            locale: French,
+            dateFormat: "Y-m-d",
+            allowInput: true
+        });
+    });
+}
+
+// Call initialization when document is ready
+document.addEventListener('DOMContentLoaded', () => {
+    initializeDatePickers();
+});
 
 // Exporter les fonctions
 export {
