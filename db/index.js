@@ -1,90 +1,91 @@
 const { Sequelize } = require('sequelize');
 const path = require('path');
-const fs = require('fs');
 
 let sequelize;
-
-// Read environment variables directly from file
-const envPath = path.resolve(__dirname, '..', '.env.local');
-const envContent = fs.readFileSync(envPath, 'utf8')
-  .replace(/^\uFEFF/, '')  // Remove BOM if present
-  .replace(/\r\n/g, '\n')  // Normalize line endings
-  .replace(/\r/g, '\n');   // Normalize line endings
-
-const envVars = {};
-
-// Parse environment variables
-envContent.split('\n').forEach(line => {
-  line = line.trim();
-  if (line && !line.startsWith('#')) {
-    const [key, value] = line.split('=');
-    if (key && value) {
-      envVars[key.trim()] = value.trim();
-    }
-  }
-});
-
-console.log('Parsed environment variables:', envVars);
-
 const commonOptions = {
   dialect: 'postgres',
-  logging: false,
+  // logging: console.log, // Use simpler logging for Render
+  logging: false, // Disable detailed SQL logging in production
   pool: {
     max: 5,
     min: 0,
     acquire: 30000,
     idle: 10000
+  },
+  dialectOptions: {
+    ssl: { // Assume SSL is needed if DATABASE_URL is present (common for Render)
+      require: true,
+      rejectUnauthorized: false
+    }
   }
 };
 
+// Print configuration details before initializing Sequelize
+console.log('--- Database Environment Variables ---');
+console.log(`DATABASE_URL Exists: ${!!process.env.DATABASE_URL}`);
+console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+console.log(`DB_HOST: ${process.env.DB_HOST}`);
+console.log(`DB_USER: ${process.env.DB_USER}`);
+console.log(`DB_NAME: ${process.env.DB_NAME}`);
+console.log(`DB_SSL: ${process.env.DB_SSL}`);
+console.log('------------------------------------');
+
+
 if (process.env.DATABASE_URL) {
   console.log('Initializing Sequelize with DATABASE_URL...');
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
-    ...commonOptions,
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false
-      }
-    }
-  });
+  sequelize = new Sequelize(process.env.DATABASE_URL, commonOptions);
 } else {
   console.log('Initializing Sequelize with individual variables...');
-  const useSSL = envVars.DB_SSL === 'true';
-  
+  // Configuration for individual variables (e.g., from .env.local)
+  const useSSL = process.env.DB_SSL === 'true';
   sequelize = new Sequelize({
-    ...commonOptions,
-    host: envVars.DB_HOST,
-    port: envVars.DB_PORT || 5432,
-    username: envVars.DB_USER,
-    password: envVars.DB_PASSWORD,
-    database: envVars.DB_NAME,
-    dialectOptions: useSSL ? {
-      ssl: {
+    dialect: 'postgres',
+    host: process.env.DB_HOST, // No fallback - rely on dotenv
+    port: process.env.DB_PORT || 5432,
+    username: process.env.DB_USER, // No fallback - rely on dotenv
+    password: process.env.DB_PASSWORD, // No fallback - rely on dotenv
+    database: process.env.DB_NAME || 'ventes_db', // Keep fallback for DB name maybe?
+    logging: false, // Disable detailed SQL logging locally too unless debugging
+    dialectOptions: {
+      ssl: useSSL ? {
         require: true,
         rejectUnauthorized: false
-      }
-    } : {}
+      } : false
+    },
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
+    }
   });
 }
 
-// Test connection function
+
+// Tester la connexion
 async function testConnection() {
   try {
+    // Log the final config Sequelize is ACTUALLY using (if possible, often internal)
+    // console.log("Sequelize effective configuration:", sequelize.config); // Might not be available depending on version
     await sequelize.authenticate();
-    console.log('Database connection established successfully.');
+    console.log('Connexion à la base de données établie avec succès.');
     return true;
   } catch (error) {
-    console.error('Unable to connect to the database:', error);
-    console.error('Failed configuration details:');
-    console.error(`  Host: ${envVars.DB_HOST}`);
-    console.error(`  Port: ${envVars.DB_PORT || 5432}`);
-    console.error(`  User: ${envVars.DB_USER}`);
-    console.error(`  Database: ${envVars.DB_NAME}`);
-    console.error(`  SSL Used: ${envVars.DB_SSL === 'true'}`);
+    console.error('Impossible de se connecter à la base de données:', error);
+    // Log the specific configuration that failed if using individual vars
+    if (!process.env.DATABASE_URL) {
+        console.error('Failed configuration details:');
+        console.error(`  Host: ${process.env.DB_HOST}`);
+        console.error(`  Port: ${process.env.DB_PORT || 5432}`);
+        console.error(`  User: ${process.env.DB_USER}`);
+        console.error(`  Database: ${process.env.DB_NAME || 'ventes_db'}`);
+        console.error(`  SSL Used: ${process.env.DB_SSL === 'true'}`);
+    }
     return false;
   }
 }
+
+// Removed the previous direct console.logs for config
 
 module.exports = {
   sequelize,
