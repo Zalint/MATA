@@ -47,7 +47,15 @@ async function addCashPaymentToReconciliation() {
         'V_MBA': 'Mbao',
         'V_KM': 'Keur Massar',
         'V_OSF': 'O.Foire'
+        // Ajoutez d'autres mappings si nécessaire
     };
+
+    // Helper function for mapping normalization
+    function getNormalizedPointVente(ref) {
+        if (!ref) return 'Non spécifié'; // Handle null/undefined refs
+        const upperRef = ref.toUpperCase().replace(/^G_/, 'V_'); // Convert to uppercase and replace G_ with V_
+        return PAYMENT_REF_MAPPING[upperRef] || upperRef; // Return mapped name or the normalized ref itself
+    }
     
     // Récupérer les données de paiement
     try {
@@ -77,11 +85,13 @@ async function addCashPaymentToReconciliation() {
                 // Construire l'objet de données avec le mapping des points de vente
                 const cashPaymentData = {};
                 dateData.points.forEach(point => {
-                    const pointVenteStandard = PAYMENT_REF_MAPPING[point.point] || point.point;
-                    cashPaymentData[pointVenteStandard] = point.total;
+                    // Utiliser la fonction de normalisation ici
+                    const pointVenteStandard = getNormalizedPointVente(point.point);
+                    // Ensure aggregation if multiple refs map to the same name
+                    cashPaymentData[pointVenteStandard] = (cashPaymentData[pointVenteStandard] || 0) + point.total;
                 });
                 
-                console.log("Données de paiement en espèces préparées:", cashPaymentData);
+                console.log("Données de paiement en espèces préparées (après normalisation):", cashPaymentData);
                 
                 // Vérifier si la colonne "Montant Total Cash" existe déjà
                 let cashColumnExists = false;
@@ -158,25 +168,98 @@ async function addCashPaymentToReconciliation() {
                 
                 // Mettre à jour chaque ligne avec les données de paiement
                 rows.forEach(row => {
-                    const pointVente = row.getAttribute('data-point-vente');
+                    // Utiliser la normalisation aussi pour lire l'attribut
+                    const pointVenteAttr = row.getAttribute('data-point-vente');
+                    const pointVente = getNormalizedPointVente(pointVenteAttr); 
+                    
                     if (!pointVente) {
-                        console.warn("Ligne sans attribut data-point-vente");
+                        console.warn("Ligne sans attribut data-point-vente ou ref non mappable:", pointVenteAttr);
                         return;
                     }
                     
                     // Obtenir les valeurs
                     const cashValue = cashPaymentData[pointVente] || 0;
                     const ventesCell = row.cells[ventesSaisiesColumnIndex];
-                    const ventesSaisies = extractNumericValue(ventesCell.textContent);
+                    const ventesSaisies = extractNumericValue(ventesCell?.textContent);
                     
-                    // Mettre à jour la cellule de cash payment
+                    // Mettre à jour la cellule de cash payment avec édition inline
                     const cashCell = row.cells[cashColumnIndex];
                     if (cashCell) {
-                        cashCell.textContent = formatMonetaire(cashValue);
+                        // Clear previous content
+                        cashCell.innerHTML = ''; 
                         cashCell.classList.add('currency');
+
+                        const amountSpan = document.createElement('span');
+                        amountSpan.textContent = formatMonetaire(cashValue);
+                        amountSpan.style.marginRight = '5px'; // Add some space
+
+                        const editIcon = document.createElement('span');
+                        editIcon.textContent = '✏️'; // Simple pencil emoji
+                        editIcon.style.cursor = 'pointer';
+                        editIcon.title = 'Modifier le montant'; // Tooltip
+
+                        cashCell.appendChild(amountSpan);
+                        cashCell.appendChild(editIcon);
+
+                        // Event listener for editing
+                        editIcon.addEventListener('click', () => {
+                            const currentValue = extractNumericValue(amountSpan.textContent);
+                            cashCell.innerHTML = ''; // Clear cell
+
+                            const input = document.createElement('input');
+                            input.type = 'number';
+                            input.value = currentValue;
+                            input.style.width = '100px'; // Adjust width as needed
+                            input.classList.add('form-control', 'form-control-sm'); // Add some bootstrap styling if available
+                            
+                            cashCell.appendChild(input);
+                            input.focus();
+
+                            // Function to finish editing
+                            const finishEdit = () => {
+                                const newValue = parseFloat(input.value) || 0;
+                                amountSpan.textContent = formatMonetaire(newValue);
+                                
+                                // Recalculate Ecart Cash based on new value
+                                const newEcartCash = newValue - ventesSaisies;
+                                const ecartCashCell = row.cells[ecartCashColumnIndex];
+                                if (ecartCashCell) {
+                                    ecartCashCell.textContent = formatMonetaire(newEcartCash);
+                                    ecartCashCell.classList.remove('positive', 'negative'); // Clear previous styles
+                                    if (newEcartCash < 0) {
+                                        ecartCashCell.classList.add('negative');
+                                    } else if (newEcartCash > 0) {
+                                        ecartCashCell.classList.add('positive');
+                                    }
+                                }
+
+                                cashCell.innerHTML = ''; // Clear again
+                                cashCell.appendChild(amountSpan);
+                                cashCell.appendChild(editIcon);
+                                console.log(`Value updated for ${pointVente} to ${newValue}. Ecart recalculated.`);
+                                // Here you would ideally trigger an API call to save the new value
+                            };
+
+                            // Save on blur
+                            input.addEventListener('blur', finishEdit);
+
+                            // Save on Enter key
+                            input.addEventListener('keydown', (e) => {
+                                if (e.key === 'Enter') {
+                                    input.blur(); // Trigger blur to finish edit
+                                }
+                                if (e.key === 'Escape') {
+                                    // Cancel: Restore original value and view
+                                    amountSpan.textContent = formatMonetaire(cashValue); // Restore original
+                                    cashCell.innerHTML = '';
+                                    cashCell.appendChild(amountSpan);
+                                    cashCell.appendChild(editIcon);
+                                }
+                            });
+                        });
                     }
                     
-                    // Calculer et afficher l'écart cash
+                    // Calculer et afficher l'écart cash initial
                     const ecartCash = cashValue - ventesSaisies;
                     const ecartCashCell = row.cells[ecartCashColumnIndex];
                     if (ecartCashCell) {
@@ -208,18 +291,31 @@ async function addCashPaymentToReconciliation() {
 
 // Fonction utilitaire pour extraire une valeur numérique d'un texte formaté
 function extractNumericValue(formattedText) {
-    if (!formattedText) return 0;
+    if (typeof formattedText !== 'string' || !formattedText) return 0;
     
-    // Supprimer tous les caractères non numériques sauf le point et la virgule
-    const numericString = formattedText.replace(/[^\d.,]/g, '')
-        // Remplacer la virgule par un point pour la conversion
-        .replace(',', '.');
+    // Supprimer les espaces insécables et autres espaces, puis les caractères non numériques sauf le point/virgule
+    const numericString = formattedText.replace(/\s|\u00A0/g, '') // Remove spaces (incl. non-breaking)
+                                     .replace(/[^\d.,-]/g, '')    // Keep digits, comma, dot, minus
+                                     .replace(',', '.');          // Replace comma with dot
     
     return parseFloat(numericString) || 0;
 }
 
+// Assume formatMonetaire exists elsewhere, provide a dummy if needed for testing
+if (typeof formatMonetaire === 'undefined') {
+    function formatMonetaire(value) {
+        // Basic placeholder formatting
+        return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF' }).format(value);
+    }
+}
+
 // Exporter les fonctions pour les tests
-module.exports = {
-    addCashPaymentToReconciliation,
-    extractNumericValue
-}; 
+// If this script is run directly in the browser (not as a Node module), 
+// module.exports will cause an error. Check if module exists.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        addCashPaymentToReconciliation,
+        extractNumericValue,
+        // Potentially export getNormalizedPointVente if needed for tests
+    };
+} 

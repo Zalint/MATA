@@ -14,6 +14,18 @@ function formatMonetaire(valeur) {
     }).format(valeur);
 }
 
+// Helper function to extract numeric value (added)
+function extractNumericValue(formattedText) {
+    if (typeof formattedText !== 'string' || !formattedText) return 0;
+    
+    // Remove spaces (incl. non-breaking) and non-numeric characters except dot/comma/minus
+    const numericString = formattedText.replace(/\s|\u00A0/g, '') 
+                                     .replace(/[^\d.,-]/g, '')   
+                                     .replace(',', '.');         
+    
+    return parseFloat(numericString) || 0;
+}
+
 // Fonction pour charger les données de paiement en espèces
 async function loadCashPaymentData() {
     try {
@@ -76,22 +88,44 @@ function populatePointVenteFilter() {
 }
 
 // Fonction pour appliquer les filtres
-function applyFilters() {
+function applyCashPaymentFilters() {
     const dateFilter = document.getElementById('date-filter-cash').value;
     const pointVenteFilter = document.getElementById('point-vente-filter-cash').value;
     
+    // --- DEBUG LOGGING START ---
+    console.log('[cash-payment.js] applyCashPaymentFilters called.');
+    console.log('Date filter value from input (#date-filter-cash):', dateFilter);
+    console.log('Point de vente filter value from input (#point-vente-filter-cash):', pointVenteFilter);
+    if (allCashPaymentData.length > 0) {
+        console.log('Sample date from allCashPaymentData[0].date:', allCashPaymentData[0].date);
+    }
+    // --- DEBUG LOGGING END ---
+
     // Filtrer les données
     let filteredData = [...allCashPaymentData];
     
     // Si un filtre de date est spécifié
     if (dateFilter) {
-        filteredData = filteredData.filter(dateEntry => {
+        console.log('Applying date filter...'); // Log that date filtering is attempted
+        filteredData = filteredData.filter((dateEntry, index) => {
+            const backendDate = dateEntry.date; // Expected format: YYYY-MM-DD
             // Convertir la date SQL (YYYY-MM-DD) en format d'affichage (DD/MM/YYYY) pour la comparaison
-            const parts = dateEntry.date.split('-');
-            if (parts.length !== 3) return false;
+            const parts = backendDate ? backendDate.split('-') : null;
+            if (!parts || parts.length !== 3) {
+                 if (index < 5) { // Log details for the first few entries only
+                     console.log(`  Skipping entry ${index}: Invalid date format from backend: ${backendDate}`);
+                 }
+                return false;
+            }
             
-            const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-            return formattedDate === dateFilter;
+            const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`; // e.g., "14/04/2025"
+            const comparisonResult = formattedDate === dateFilter;
+
+            // Log details for the first few entries during comparison
+            if (index < 5) { 
+                console.log(`  Comparing entry ${index}: Backend='${backendDate}', Formatted='${formattedDate}', Filter='${dateFilter}', Match=${comparisonResult}`);
+            }
+            return comparisonResult; 
         });
     }
     
@@ -159,8 +193,124 @@ function displayCashPaymentData(data) {
             row.appendChild(tdPoint);
 
             const tdTotal = document.createElement('td');
-            tdTotal.textContent = formatMonetaire(pointData.total);
-            tdTotal.classList.add('text-end');
+            // --- Start Edit Functionality --- 
+            tdTotal.classList.add('text-end', 'currency'); // Ensure currency class is added
+            const originalValue = pointData.total;
+
+            const amountSpan = document.createElement('span');
+            amountSpan.textContent = formatMonetaire(originalValue);
+            amountSpan.style.marginRight = '5px';
+
+            const editIcon = document.createElement('span');
+            editIcon.textContent = '✏️';
+            editIcon.style.cursor = 'pointer';
+            editIcon.title = 'Modifier le montant'; 
+
+            tdTotal.appendChild(amountSpan);
+            tdTotal.appendChild(editIcon);
+
+            editIcon.addEventListener('click', () => {
+                const currentValue = extractNumericValue(amountSpan.textContent);
+                tdTotal.innerHTML = ''; // Clear cell
+
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.value = currentValue;
+                input.style.width = '120px'; // Adjust width as needed
+                input.classList.add('form-control', 'form-control-sm'); 
+                
+                tdTotal.appendChild(input);
+                input.focus();
+
+                const finishEdit = async () => {
+                    // Disable input/icon during save
+                    input.disabled = true;
+                    editIcon.style.pointerEvents = 'none';
+                    editIcon.style.opacity = '0.5';
+
+                    const newValue = parseFloat(input.value) || 0;
+                    const originalFormattedValue = amountSpan.textContent; // Store before potential failure
+                    amountSpan.textContent = formatMonetaire(newValue);
+                    
+                    try {
+                        console.log(`Attempting to save: date=${formattedDate}, point_de_vente=${pointData.point}, newTotal=${newValue}`);
+                        
+                        const response = await fetch('/api/cash-payments/update-aggregated', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                date: formattedDate,         // Send date in DD/MM/YYYY format
+                                point_de_vente: pointData.point, // Send point de vente name
+                                newTotal: newValue            // Send the new numeric value
+                            })
+                        });
+
+                        const result = await response.json();
+
+                        if (!response.ok || !result.success) {
+                            throw new Error(result.message || `Erreur serveur: ${response.status}`);
+                        }
+
+                        console.log(`Save successful for ${pointData.point} on ${formattedDate}.`);
+                        
+                        // --- Update local data cache --- 
+                        const dateEntryIndex = allCashPaymentData.findIndex(entry => {
+                             // Convert entry.date (YYYY-MM-DD) to DD/MM/YYYY for comparison
+                             const parts = entry.date.split('-');
+                             if (parts.length !== 3) return false;
+                             return `${parts[2]}/${parts[1]}/${parts[0]}` === formattedDate;
+                        });
+
+                        if (dateEntryIndex > -1) {
+                            const pointEntryIndex = allCashPaymentData[dateEntryIndex].points.findIndex(p => p.point === pointData.point);
+                            if (pointEntryIndex > -1) {
+                                allCashPaymentData[dateEntryIndex].points[pointEntryIndex].total = newValue;
+                                console.log('Local data cache updated.');
+                            } else {
+                                console.warn('Point entry not found in local cache for update.');
+                            }
+                        } else {
+                            console.warn('Date entry not found in local cache for update.');
+                        }
+                        // --- End Update local data cache --- 
+
+                        // Re-apply filters instead of reloading all data
+                        applyCashPaymentFilters(); 
+
+                    } catch (error) {
+                        console.error('Error saving updated total:', error);
+                        alert(`Erreur lors de la sauvegarde: ${error.message}`);
+                        // Restore original value in span on failure
+                        amountSpan.textContent = originalFormattedValue;
+                        // Restore view even on failure
+                        tdTotal.innerHTML = ''; 
+                        tdTotal.appendChild(amountSpan);
+                        tdTotal.appendChild(editIcon);
+                        // Re-enable icon
+                        editIcon.style.pointerEvents = 'auto';
+                        editIcon.style.opacity = '1';
+                    }
+                };
+
+                input.addEventListener('blur', finishEdit);
+
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        input.blur(); 
+                    }
+                    if (e.key === 'Escape') {
+                        // Cancel: Restore original value and view
+                        amountSpan.textContent = formatMonetaire(originalValue); 
+                        tdTotal.innerHTML = '';
+                        tdTotal.appendChild(amountSpan);
+                        tdTotal.appendChild(editIcon);
+                    }
+                });
+            });
+            // --- End Edit Functionality ---
             row.appendChild(tdTotal);
 
             tbody.appendChild(row);
@@ -323,30 +473,39 @@ document.addEventListener('DOMContentLoaded', function() {
     function initDatepicker() {
         const dateFilterInput = document.getElementById('date-filter-cash');
         if (dateFilterInput && !dateFilterInput._flatpickr) {
-            flatpickr(dateFilterInput, {
+            
+            // Check if French locale is loaded
+            const options = {
                 dateFormat: 'd/m/Y',
-                locale: 'fr',
                 allowInput: true,
                 onClose: function() {
-                    // Appliquer automatiquement le filtre quand une date est sélectionnée
                     if (document.getElementById('auto-apply-filter').checked) {
-                        applyFilters();
+                        applyCashPaymentFilters();
                     }
                 },
                 onChange: function(selectedDates, dateStr) {
-                    // Si la date est effacée, réappliquer le filtre également
                     if (dateStr === '' && document.getElementById('auto-apply-filter').checked) {
-                        applyFilters();
+                        applyCashPaymentFilters();
                     }
                 }
-            });
+            };
+
+            if (flatpickr.l10ns && flatpickr.l10ns.fr) {
+                options.locale = 'fr';
+                console.log('Flatpickr: Initializing with French locale.');
+            } else {
+                console.warn('Flatpickr: French locale (fr.js) not loaded or available. Defaulting to English.');
+                // Optionally, try again after a short delay if needed, but for now, just default.
+            }
+
+            flatpickr(dateFilterInput, options);
         }
     }
     
     // Gestionnaire pour le bouton d'application des filtres
     const applyFiltersBtn = document.getElementById('apply-filters-cash');
     if (applyFiltersBtn) {
-        applyFiltersBtn.addEventListener('click', applyFilters);
+        applyFiltersBtn.addEventListener('click', applyCashPaymentFilters);
     }
     
     // Gestionnaire pour le filtre de point de vente (changement automatique)
@@ -354,7 +513,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (pointVenteFilter) {
         pointVenteFilter.addEventListener('change', function() {
             if (document.getElementById('auto-apply-filter')?.checked) {
-                applyFilters();
+                applyCashPaymentFilters();
             }
         });
     }

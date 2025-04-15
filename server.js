@@ -1531,7 +1531,10 @@ app.post('/api/cash-payments/import', checkAuth, async (req, res) => {
             }
             
             // Mapper le payment_reference au point de vente
-            const pointDeVente = paymentRefToPointDeVente[item.payment_reference] || 'Non spécifié';
+            // Normaliser la référence AVANT la recherche
+            const rawRef = item.payment_reference;
+            const normalizedRef = rawRef ? rawRef.toUpperCase().replace(/^G_/, 'V_') : null;
+            const pointDeVente = normalizedRef ? (paymentRefToPointDeVente[normalizedRef] || 'Non spécifié') : 'Non spécifié';
             
             // Extraire juste la date (sans l'heure) pour le champ date
             const dateOnly = createdAt ? createdAt.split('T')[0] : null;
@@ -1712,6 +1715,94 @@ app.delete('/api/cash-payments/clear', checkAuth, async (req, res) => {
         res.status(500).json({ 
             success: false, 
             message: `Erreur lors de la suppression des données: ${error.message}` 
+        });
+    }
+});
+
+// Route pour mettre à jour le total agrégé d'un paiement cash
+app.put('/api/cash-payments/update-aggregated', checkAuth, async (req, res) => {
+    const { date, point_de_vente, newTotal } = req.body;
+    
+    console.log(`Requête reçue pour mettre à jour le total agrégé:`, { date, point_de_vente, newTotal });
+
+    if (date === undefined || point_de_vente === undefined || newTotal === undefined) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Les champs date, point_de_vente et newTotal sont requis.' 
+        });
+    }
+    
+    // Convertir newTotal en nombre
+    const totalAmount = parseFloat(newTotal);
+    if (isNaN(totalAmount)) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Le champ newTotal doit être un nombre valide.' 
+        });
+    }
+
+    // Convertir la date reçue (format DD/MM/YYYY) au format SQL (YYYY-MM-DD)
+    let sqlDate;
+    try {
+        const parts = date.split('/');
+        if (parts.length !== 3) throw new Error('Format de date invalide.');
+        sqlDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        // Valider la date convertie
+        if (isNaN(new Date(sqlDate).getTime())) {
+            throw new Error('Date invalide après conversion.');
+        }
+    } catch (e) {
+        console.error("Erreur de format de date:", e);
+        return res.status(400).json({ 
+            success: false, 
+            message: `Format de date invalide: ${date}. Utilisez DD/MM/YYYY.` 
+        });
+    }
+
+    const transaction = await sequelize.transaction();
+    try {
+        // Trouver tous les paiements existants pour cette date et ce point de vente
+        const existingPayments = await CashPayment.findAll({
+            where: {
+                date: sqlDate,
+                point_de_vente: point_de_vente
+            },
+            order: [['created_at', 'ASC']], // Important pour identifier le "premier"
+            transaction
+        });
+
+        if (existingPayments.length === 0) {
+            await transaction.rollback();
+            console.warn(`Aucun paiement trouvé pour date=${sqlDate}, pdv=${point_de_vente}. Impossible de mettre à jour.`);
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Aucun paiement existant trouvé pour cette date et ce point de vente.' 
+            });
+        }
+
+        // Mettre à jour le premier enregistrement avec le nouveau total
+        // et les autres à 0
+        for (let i = 0; i < existingPayments.length; i++) {
+            const payment = existingPayments[i];
+            const updateAmount = (i === 0) ? totalAmount : 0;
+            
+            await payment.update({ amount: updateAmount }, { transaction });
+            console.log(`Mise à jour du paiement ID ${payment.id} à ${updateAmount}`);
+        }
+
+        await transaction.commit();
+        console.log(`Total agrégé mis à jour avec succès pour date=${sqlDate}, pdv=${point_de_vente}`);
+        res.json({ 
+            success: true, 
+            message: 'Total agrégé mis à jour avec succès.' 
+        });
+
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Erreur lors de la mise à jour du total agrégé:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: `Erreur lors de la mise à jour du total: ${error.message}` 
         });
     }
 });
