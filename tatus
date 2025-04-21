@@ -1,0 +1,3 @@
+[33mc4ed647[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Fix cash payment date filtering and add API endpoint for aggregated updates
+[33mb1a0189[m Amélioration de la configuration de la base de données dans index.js
+[33mb44fccf[m Ajout du module estimation et correctifs pour les sections (sans fichiers .env)

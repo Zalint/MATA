@@ -4,6 +4,7 @@ package-lock.json
 
 # Fichiers de configuration
 .env
+.env.local
 config.json
 
 # Fichiers de données
