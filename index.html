@@ -1655,5 +1655,71 @@
             }, 800);
         });
     </script>
+    
+<script type="text/javascript">
+    // Function to initialize chat widget
+    function initializeChatWidget() {
+        // Check if current user is stored
+        const userInfoElement = document.getElementById('user-info');
+        const userText = userInfoElement ? userInfoElement.textContent : '';
+        
+        // Extract username from the "Connecté en tant que USERNAME" format
+        const usernameMatch = userText.match(/Connecté en tant que (\w+)/);
+        const currentUsername = usernameMatch ? usernameMatch[1] : '';
+        
+        // Only initialize for SALIOU and OUSMANE
+        if (currentUsername === 'SALIOU' || currentUsername === 'OUSMANE') {
+            (function(d, t) {
+                var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
+                v.onload = function() {
+                    if (!document.getElementById('root')) {
+                        var root = d.createElement('div');
+                        root.id = 'root';
+                        d.body.appendChild(root);
+                    }
+                    if (window.myChatWidget && typeof window.myChatWidget.load === 'function') {
+                        window.myChatWidget.load({
+                            id: '9081bbf7-751a-4e06-8165-6b3980e02f51',
+                        });
+                    }
+                };
+                v.src = "https://agentivehub.com/production.bundle.min.js";
+                v.type = "text/javascript";
+                s.parentNode.insertBefore(v, s);
+            })(document, 'script');
+        }
+    }
+
+    // Function to check user info with polling
+    function waitForUserInfo() {
+        const MAX_ATTEMPTS = 20; // Maximum number of attempts (10 seconds total)
+        const INTERVAL = 500; // Check every 500ms
+        let attempts = 0;
+
+        function checkUserInfo() {
+            const userInfoElement = document.getElementById('user-info');
+            if (userInfoElement && userInfoElement.textContent.includes('Connecté en tant que')) {
+                // User info is available, initialize chat widget
+                initializeChatWidget();
+                return;
+            }
+
+            attempts++;
+            if (attempts < MAX_ATTEMPTS) {
+                // Try again after interval
+                setTimeout(checkUserInfo, INTERVAL);
+            } else {
+                console.log('Timeout waiting for user info');
+            }
+        }
+
+        // Start checking
+        checkUserInfo();
+    }
+
+    // Start waiting for user info when page loads
+    document.addEventListener('DOMContentLoaded', waitForUserInfo);
+</script>
+      
 </body>
 </html>
