@@ -64,6 +64,30 @@ const checkAuth = (req, res, next) => {
     next();
 };
 
+// Middleware d'authentification par API key pour services externes comme Relevance AI
+const validateApiKey = (req, res, next) => {
+    const apiKey = req.headers['x-api-key'];
+    // Vérifier l'API key (en production, utilisez une variable d'environnement)
+    // À remplacer par votre propre API key
+    const validApiKey = process.env.EXTERNAL_API_KEY || 'your-secure-api-key-for-relevance';
+    
+    if (!apiKey || apiKey !== validApiKey) {
+        return res.status(401).json({ 
+            success: false, 
+            message: 'API key invalide ou manquante' 
+        });
+    }
+    
+    // Simuler un utilisateur avec des droits complets pour les requêtes API externes
+    req.user = {
+        username: 'api-client',
+        role: 'api',
+        pointVente: 'tous'
+    };
+    
+    next();
+};
+
 // Middleware de vérification des droits d'admin
 const checkAdmin = (req, res, next) => {
     if (!req.user.isAdmin) {
@@ -2251,3 +2275,260 @@ app.get('/api/show-estimation', (req, res) => {
   console.log('Request to show estimation section received');
   res.json({ success: true, message: 'Estimation section should be shown' });
 });
+
+// =================== EXTERNAL API ENDPOINTS FOR RELEVANCE AI ===================
+
+// External API version for ventes saisie by date
+app.get('/api/external/ventes-date', validateApiKey, async (req, res) => {
+    try {
+        const { date, pointVente } = req.query;
+        
+        if (!date) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'La date est requise' 
+            });
+        }
+        
+        console.log('==== EXTERNAL API - VENTES DATE ====');
+        console.log('Recherche des ventes pour date:', date, 'et point de vente:', pointVente);
+        
+        const dateStandardisee = standardiserDateFormat(date);
+        
+        // Préparer les conditions de filtrage
+        const whereConditions = { date: dateStandardisee };
+        
+        if (pointVente) {
+            whereConditions.pointVente = pointVente;
+        }
+        
+        // Récupérer les ventes depuis la base de données
+        const ventes = await Vente.findAll({
+            where: whereConditions
+        });
+        
+        // Formater les données pour la réponse
+        const formattedVentes = ventes.map(vente => {
+            // Conversion explicite en nombres
+            const prixUnit = parseFloat(vente.prixUnit) || 0;
+            const nombre = parseFloat(vente.nombre) || 0;
+            const montant = parseFloat(vente.montant) || 0;
+            
+            return {
+                id: vente.id,
+                date: vente.date,
+                pointVente: vente.pointVente,
+                categorie: vente.categorie,
+                produit: vente.produit,
+                prixUnit: prixUnit,
+                nombre: nombre,
+                montant: montant
+            };
+        });
+        
+        // Calculer le total par point de vente
+        const totauxParPointVente = {};
+        
+        formattedVentes.forEach(vente => {
+            const pv = vente.pointVente;
+            if (!totauxParPointVente[pv]) {
+                totauxParPointVente[pv] = 0;
+            }
+            // S'assurer que le montant est un nombre
+            const montant = parseFloat(vente.montant) || 0;
+            totauxParPointVente[pv] += montant;
+        });
+        
+        console.log('==== FIN EXTERNAL API - VENTES DATE ====');
+        
+        res.json({ 
+            success: true, 
+            ventes: formattedVentes,
+            totaux: totauxParPointVente
+        });
+    } catch (error) {
+        console.error('Erreur lors de la recherche des ventes (API externe):', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la recherche des ventes',
+            error: error.message
+        });
+    }
+});
+
+// External API version for stock information
+app.get('/api/external/stock/:type', validateApiKey, async (req, res) => {
+    try {
+        const type = req.params.type;
+        const date = req.query.date;
+        const baseFilePath = type === 'matin' ? STOCK_MATIN_PATH : STOCK_SOIR_PATH;
+        
+        // Obtenir le chemin du fichier spécifique à la date
+        const filePath = getPathByDate(baseFilePath, date);
+        
+        // Vérifier si le fichier existe
+        if (!fs.existsSync(filePath)) {
+            // Si le fichier n'existe pas, retourner un objet vide
+            console.log(`Fichier de stock ${type} pour la date ${date} non trouvé, retour d'un objet vide`);
+            return res.json({});
+        }
+        
+        const data = await fsPromises.readFile(filePath, 'utf8');
+        res.json(JSON.parse(data));
+    } catch (error) {
+        console.error('Erreur lors du chargement des données:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement des données' });
+    }
+});
+
+// External API version for detailed stock information
+app.get('/api/external/stock/:date/:type/:pointVente/:categorie', validateApiKey, async (req, res) => {
+    try {
+        const { date, type, pointVente, categorie } = req.params;
+        
+        if (!date || !type || !pointVente || !categorie) {
+            console.warn('Missing required parameters:', { date, type, pointVente, categorie });
+            return res.status(400).json({ 
+                success: false,
+                stock: 0,
+                error: 'Paramètres requis manquants'
+            });
+        }
+
+        // Obtenir le chemin du fichier
+        const filePath = path.join(__dirname, 'data', 'by-date', date, `stock-${type}.json`);
+
+        // Vérifier si le fichier existe
+        if (!fs.existsSync(filePath)) {
+            console.log(`Fichier stock non trouvé: ${filePath}`);
+            return res.json({ 
+                success: true,
+                stock: 0,
+                message: 'Aucune donnée de stock trouvée pour cette date'
+            });
+        }
+
+        // Lire et parser le fichier JSON
+        const fileContent = await fsPromises.readFile(filePath, 'utf8');
+        const data = JSON.parse(fileContent);
+        
+        // Chercher l'entrée avec la clé correspondante: pointVente-categorie
+        const key = `${pointVente}-${categorie}`;
+        const entry = data[key];
+
+        if (entry && entry.Nombre !== undefined) {
+            const stockValue = parseFloat(entry.Nombre) || 0;
+            res.json({ 
+                success: true,
+                stock: stockValue
+            });
+        } else {
+            res.json({ 
+                success: true,
+                stock: 0,
+                message: 'Aucune valeur de stock trouvée'
+            });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la lecture des données de stock:', error);
+        res.status(500).json({ 
+            success: false,
+            stock: 0,
+            error: error.message
+        });
+    }
+});
+
+// External API version for transfer information
+app.get('/api/external/transferts', validateApiKey, async (req, res) => {
+    try {
+        const { date } = req.query;
+        
+        if (date) {
+            // Obtenir le chemin du fichier spécifique à la date
+            const filePath = getPathByDate(TRANSFERTS_PATH, date);
+            
+            // Vérifier si le fichier spécifique existe
+            if (fs.existsSync(filePath)) {
+                const content = await fsPromises.readFile(filePath, 'utf8');
+                const transferts = JSON.parse(content || '[]');
+                return res.json({ success: true, transferts });
+            }
+            
+            // Si le fichier spécifique n'existe pas, chercher dans le fichier principal
+            if (fs.existsSync(TRANSFERTS_PATH)) {
+                const content = await fsPromises.readFile(TRANSFERTS_PATH, 'utf8');
+                const allTransferts = JSON.parse(content || '[]');
+                // Filtrer les transferts par date
+                const transferts = allTransferts.filter(t => t.date === date);
+                return res.json({ success: true, transferts });
+            }
+            
+            // Si aucun fichier n'existe, retourner un tableau vide
+            return res.json({ success: true, transferts: [] });
+        } else {
+            // Retourner tous les transferts depuis le fichier principal
+            if (fs.existsSync(TRANSFERTS_PATH)) {
+                const content = await fsPromises.readFile(TRANSFERTS_PATH, 'utf8');
+                const transferts = JSON.parse(content || '[]');
+                return res.json({ success: true, transferts });
+            }
+            
+            // Si le fichier n'existe pas, retourner un tableau vide
+            return res.json({ success: true, transferts: [] });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la récupération des transferts:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la récupération des transferts',
+            error: error.message 
+        });
+    }
+});
+
+// External API version for specific transfer information
+app.get('/api/external/stock/:date/transfert/:pointVente/:categorie', validateApiKey, async (req, res) => {
+    try {
+        const { date, pointVente, categorie } = req.params;
+        
+        if (!date || !pointVente || !categorie) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Date, point de vente et catégorie sont requis pour les transferts' 
+            });
+        }
+
+        const dateStandardisee = standardiserDateFormat(date);
+        
+        // Calculer les transferts pour la date et le point de vente donnés
+        const transferts = await Transfert.findAll({
+            where: {
+                date: dateStandardisee,
+                pointVente
+            }
+        });
+
+        // Calculer la somme des transferts pour la catégorie donnée
+        let totalTransfert = 0;
+        transferts.forEach(t => {
+            if (t.categorie === categorie) {
+                totalTransfert += parseFloat(t.quantite) || 0;
+            }
+        });
+
+        res.json({ 
+            success: true, 
+            transfert: totalTransfert,
+            message: transferts.length === 0 ? "Aucune donnée de transfert trouvée pour cette date" : ""
+        });
+    } catch (error) {
+        console.error('Erreur lors du calcul des transferts:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors du calcul des transferts' 
+        });
+    }
+});
+
+// =================== END EXTERNAL API ENDPOINTS ===================
