@@ -2062,26 +2062,27 @@ async function chargerTransferts(date) {
             return [];
         }
         
-        // Charger le fichier transferts.json
+        // Utiliser l'API endpoint au lieu du fichier JSON direct
         let transferts = [];
         try {
-            const response = await fetch('/data/transferts.json');
+            const response = await fetch(`/api/transferts?date=${dateSelectionnee}`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
             if (!response.ok) {
-                console.warn('Fichier transferts.json non trouvé ou accès impossible');
+                console.warn(`Aucun transfert disponible pour ${dateSelectionnee}, utilisation d'un tableau vide`);
                 transferts = [];
             } else {
-                transferts = await response.json();
-                console.log('Transferts chargés depuis le fichier:', transferts);
+                const result = await response.json();
+                transferts = result.success && result.transferts ? result.transferts : [];
+                console.log('Transferts chargés depuis l\'API:', transferts);
             }
         } catch (fetchError) {
-            console.warn('Erreur lors du chargement du fichier transferts.json:', fetchError);
+            console.warn('Erreur lors du chargement des transferts:', fetchError);
             transferts = [];
         }
         
-        // Filtrer les transferts par date
-        const transfertsFiltres = Array.isArray(transferts) ? transferts.filter(t => t.date === dateSelectionnee) : [];
-        console.log('Transferts filtrés par date:', transfertsFiltres);
-
         // Si la fonction est appelée depuis la page d'inventaire, mettre à jour l'interface
         const tbody = document.querySelector('#transfertTable tbody');
         if (tbody) {
@@ -2089,8 +2090,8 @@ async function chargerTransferts(date) {
             tbody.innerHTML = '';
             
             // Afficher les transferts existants
-            if (Array.isArray(transfertsFiltres) && transfertsFiltres.length > 0) {
-                transfertsFiltres.forEach((transfert, index) => {
+            if (Array.isArray(transferts) && transferts.length > 0) {
+                transferts.forEach((transfert, index) => {
                     const row = document.createElement('tr');
                     row.dataset.index = index; // Ajouter l'index pour la suppression
                     
@@ -2238,7 +2239,7 @@ async function chargerTransferts(date) {
         }
         
         // Toujours retourner un tableau (vide ou filtré)
-        return transfertsFiltres;
+        return transferts;
         
     } catch (error) {
         console.error('Erreur lors du chargement des transferts:', error);
