@@ -2531,4 +2531,568 @@ app.get('/api/external/stock/:date/transfert/:pointVente/:categorie', validateAp
     }
 });
 
+// External API version for cash payments
+app.get('/api/external/cash-payments', validateApiKey, async (req, res) => {
+    try {
+        const { date } = req.query;
+        
+        // Validate input
+        if (!date) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Date parameter is required (format: dd-mm-yyyy)' 
+            });
+        }
+        
+        console.log('==== EXTERNAL API - CASH PAYMENTS ====');
+        console.log('Querying cash payments for date:', date);
+        
+        // Convert date from dd-mm-yyyy to yyyy-mm-dd for database query
+        let sqlDate;
+        try {
+            const parts = date.split(/[-\/]/); // Handle both dash and slash formats
+            if (parts.length !== 3) throw new Error('Invalid date format.');
+            sqlDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            
+            // Validate the converted date
+            if (isNaN(new Date(sqlDate).getTime())) {
+                throw new Error('Invalid date after conversion.');
+            }
+        } catch (e) {
+            console.error("Date format error:", e);
+            return res.status(400).json({ 
+                success: false, 
+                message: `Invalid date format: ${date}. Use DD-MM-YYYY or DD/MM/YYYY.` 
+            });
+        }
+        
+        // Ensure the table exists
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS cash_payments (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255),
+                created_at TIMESTAMP NOT NULL,
+                amount FLOAT NOT NULL,
+                merchant_fee FLOAT,
+                customer_fee FLOAT,
+                customer_name VARCHAR(255),
+                customer_phone VARCHAR(255),
+                entete_trans_type VARCHAR(255),
+                psp_name VARCHAR(255),
+                payment_category VARCHAR(255),
+                payment_means VARCHAR(255),
+                payment_reference VARCHAR(255),
+                merchant_reference VARCHAR(255),
+                trn_status VARCHAR(255),
+                tr_id VARCHAR(255),
+                cust_country VARCHAR(255),
+                aggregation_mt VARCHAR(255),
+                total_nom_marchand VARCHAR(255),
+                total_marchand VARCHAR(255),
+                merchant_id VARCHAR(255),
+                name_first VARCHAR(255),
+                point_de_vente VARCHAR(255),
+                date DATE,
+                "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Query the database for the specified date
+        const result = await sequelize.query(`
+            SELECT point_de_vente, SUM(amount) as total
+            FROM cash_payments
+            WHERE date = :date
+            GROUP BY point_de_vente
+            ORDER BY point_de_vente
+        `, {
+            replacements: { date: sqlDate },
+            type: sequelize.QueryTypes.SELECT
+        });
+        
+        // Format response to match the internal API structure
+        const formattedResponse = {
+            date: sqlDate,
+            points: result.map(item => ({
+                point: item.point_de_vente,
+                total: parseFloat(item.total) || 0
+            }))
+        };
+        
+        console.log(`Found ${formattedResponse.points.length} cash payment entries for date ${sqlDate}`);
+        console.log('==== END EXTERNAL API - CASH PAYMENTS ====');
+        
+        res.json({
+            success: true,
+            data: formattedResponse
+        });
+    } catch (error) {
+        console.error('Error retrieving cash payment data (External API):', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error retrieving cash payment data',
+            error: error.message
+        });
+    }
+});
+
+// External API version for reconciliation
+app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
+    try {
+        const { date } = req.query;
+        
+        // Validate input
+        if (!date) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Date parameter is required (format: dd-mm-yyyy or dd/mm/yyyy)' 
+            });
+        }
+        
+        console.log('==== EXTERNAL API - RECONCILIATION ====');
+        console.log('Computing reconciliation for date:', date);
+        
+        // Get stock type parameter value for stock endpoints
+        const typeParam = { type: 'matin' };
+        const typeParamSoir = { type: 'soir' };
+        
+        // Use a safer approach with proper HTTP requests
+        const axiosInstance = require('axios').create({
+            baseURL: `http://localhost:${PORT}`,
+            headers: {
+                'X-API-Key': req.headers['x-api-key']
+            }
+        });
+        
+        // Function to safely make HTTP requests to our own API endpoints
+        const fetchData = async (endpoint, params = {}) => {
+            try {
+                console.log(`Fetching data from ${endpoint} with params:`, params);
+                const response = await axiosInstance.get(endpoint, { params });
+                return response.data;
+            } catch (error) {
+                console.error(`Error fetching ${endpoint}:`, error.message);
+                throw new Error(`Failed to fetch data from ${endpoint}: ${error.message}`);
+            }
+        };
+        
+        // Fetch all necessary data in parallel
+        const [ventesData, stockMatinData, stockSoirData, cashData, transfertsData] = await Promise.all([
+            fetchData('/api/external/ventes-date', { date }),
+            fetchData('/api/external/stock/matin', { date }),  
+            fetchData('/api/external/stock/soir', { date }),   
+            fetchData('/api/external/cash-payments', { date }),
+            fetchData('/api/external/transferts', { date })
+        ]);
+        
+        // Debug logging
+        console.log('Successfully fetched all necessary data');
+        console.log('Stock Matin Data Structure:', JSON.stringify(stockMatinData).substring(0, 200) + '...');
+        console.log('Stock Soir Data Structure:', JSON.stringify(stockSoirData).substring(0, 200) + '...');
+        console.log('Transferts Data Structure:', JSON.stringify(transfertsData).substring(0, 200) + '...');
+        
+        // Prepare structures for aggregation
+        const reconciliationByPDV = {};
+        const detailsByPDV = {};
+        
+        // Processing sales data for each point de vente
+        if (ventesData.success && ventesData.ventes) {
+            // Group sales by point de vente and category
+            ventesData.ventes.forEach(vente => {
+                const pdv = vente.pointVente;
+                const category = vente.categorie;
+                const montant = parseFloat(vente.montant) || 0;
+                
+                // Initialize point de vente if not exists
+                if (!reconciliationByPDV[pdv]) {
+                    reconciliationByPDV[pdv] = {
+                        pointVente: pdv,
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0,
+                        cashPayments: 0,
+                        ecart: 0,
+                        ecartPct: 0,
+                        ecartCash: 0,
+                        ecartCashPct: 0
+                    };
+                }
+                
+                // Initialize details if not exists
+                if (!detailsByPDV[pdv]) {
+                    detailsByPDV[pdv] = {};
+                }
+                
+                // Initialize category if not exists
+                if (!detailsByPDV[pdv][category]) {
+                    detailsByPDV[pdv][category] = {
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0
+                    };
+                }
+                
+                // Add sales amount
+                reconciliationByPDV[pdv].ventesSaisies += montant;
+                detailsByPDV[pdv][category].ventesSaisies += montant;
+            });
+        }
+        
+        // Processing stock-matin data - handles the format from stock API
+        if (stockMatinData && typeof stockMatinData === 'object') {
+            // Log a sample of keys to help debug
+            const sampleKeys = Object.keys(stockMatinData).slice(0, 3);
+            console.log('Sample stock matin keys:', sampleKeys);
+            
+            Object.entries(stockMatinData).forEach(([key, entry]) => {
+                // Try different approaches to identify PDV and category
+                let pdv, category;
+                
+                if (key.includes('-')) {
+                    [pdv, category] = key.split('-');
+                } else if (entry && entry.pointVente && entry.categorie) {
+                    pdv = entry.pointVente;
+                    category = entry.categorie;
+                } else {
+                    console.log('Skipping unknown stock entry format:', key);
+                    return; // Skip this entry
+                }
+                
+                // Try different approaches to get stock value and price
+                let stockValue = 0;
+                let prixUnit = 0;
+                
+                if (entry.Nombre !== undefined) {
+                    stockValue = parseFloat(entry.Nombre) || 0;
+                    prixUnit = parseFloat(entry['Prix unitaire'] || entry.PU) || 0;
+                } else if (entry.nombre !== undefined) {
+                    stockValue = parseFloat(entry.nombre) || 0;
+                    prixUnit = parseFloat(entry.prixUnit || entry.prixUnitaire || entry.prix || entry.PU) || 0;
+                } else if (entry.quantite !== undefined) {
+                    stockValue = parseFloat(entry.quantite) || 0;
+                    prixUnit = parseFloat(entry.prixUnit || entry.prixUnitaire || entry.prix || entry.PU) || 0;
+                }
+                
+                // If we have the Montant directly, that's even better
+                let montant = 0;
+                if (entry.Montant !== undefined) {
+                    montant = parseFloat(entry.Montant) || 0;
+                } else if (entry.montant !== undefined) {
+                    montant = parseFloat(entry.montant) || 0;
+                } else {
+                    // Calculate from stock value and price
+                    montant = stockValue * prixUnit;
+                }
+                
+                // Log to debug
+                if (montant > 0) {
+                    console.log(`Adding stock matin for ${pdv}/${category}: ${stockValue} * ${prixUnit} = ${montant}`);
+                }
+                
+                // Initialize point de vente if not exists
+                if (!reconciliationByPDV[pdv]) {
+                    reconciliationByPDV[pdv] = {
+                        pointVente: pdv,
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0,
+                        cashPayments: 0,
+                        ecart: 0,
+                        ecartPct: 0,
+                        ecartCash: 0,
+                        ecartCashPct: 0
+                    };
+                }
+                
+                // Initialize details if not exists
+                if (!detailsByPDV[pdv]) {
+                    detailsByPDV[pdv] = {};
+                }
+                
+                // Initialize category if not exists
+                if (!detailsByPDV[pdv][category]) {
+                    detailsByPDV[pdv][category] = {
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0
+                    };
+                }
+                
+                // Add stock-matin value
+                reconciliationByPDV[pdv].stockMatin += montant;
+                detailsByPDV[pdv][category].stockMatin += montant;
+            });
+        }
+        
+        // Processing stock-soir data - handles the format from stock API
+        if (stockSoirData && typeof stockSoirData === 'object') {
+            // Log a sample of keys to help debug
+            const sampleKeys = Object.keys(stockSoirData).slice(0, 3);
+            console.log('Sample stock soir keys:', sampleKeys);
+            
+            Object.entries(stockSoirData).forEach(([key, entry]) => {
+                // Try different approaches to identify PDV and category
+                let pdv, category;
+                
+                if (key.includes('-')) {
+                    [pdv, category] = key.split('-');
+                } else if (entry && entry.pointVente && entry.categorie) {
+                    pdv = entry.pointVente;
+                    category = entry.categorie;
+                } else {
+                    console.log('Skipping unknown stock entry format:', key);
+                    return; // Skip this entry
+                }
+                
+                // Try different approaches to get stock value and price
+                let stockValue = 0;
+                let prixUnit = 0;
+                
+                if (entry.Nombre !== undefined) {
+                    stockValue = parseFloat(entry.Nombre) || 0;
+                    prixUnit = parseFloat(entry['Prix unitaire']) || 0;
+                } else if (entry.nombre !== undefined) {
+                    stockValue = parseFloat(entry.nombre) || 0;
+                    prixUnit = parseFloat(entry.prixUnit || entry.prixUnitaire || entry.prix || entry.PU) || 0;
+                } else if (entry.quantite !== undefined) {
+                    stockValue = parseFloat(entry.quantite) || 0;
+                    prixUnit = parseFloat(entry.prixUnit || entry.prixUnitaire || entry.prix || entry.PU) || 0;
+                }
+                
+                // If we have the Montant directly, that's even better
+                let montant = 0;
+                if (entry.Montant !== undefined) {
+                    montant = parseFloat(entry.Montant) || 0;
+                } else if (entry.montant !== undefined) {
+                    montant = parseFloat(entry.montant) || 0;
+                } else {
+                    // Calculate from stock value and price
+                    montant = stockValue * prixUnit;
+                }
+                
+                // Log to debug
+                if (montant > 0) {
+                    console.log(`Adding stock soir for ${pdv}/${category}: ${stockValue} * ${prixUnit} = ${montant}`);
+                }
+                
+                // Initialize point de vente if not exists
+                if (!reconciliationByPDV[pdv]) {
+                    reconciliationByPDV[pdv] = {
+                        pointVente: pdv,
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0,
+                        cashPayments: 0,
+                        ecart: 0,
+                        ecartPct: 0,
+                        ecartCash: 0,
+                        ecartCashPct: 0
+                    };
+                }
+                
+                // Initialize details if not exists
+                if (!detailsByPDV[pdv]) {
+                    detailsByPDV[pdv] = {};
+                }
+                
+                // Initialize category if not exists
+                if (!detailsByPDV[pdv][category]) {
+                    detailsByPDV[pdv][category] = {
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0
+                    };
+                }
+                
+                // Add stock-soir value
+                reconciliationByPDV[pdv].stockSoir += montant;
+                detailsByPDV[pdv][category].stockSoir += montant;
+            });
+        }
+        
+        // Processing transfers data
+        if (transfertsData.success && transfertsData.transferts) {
+            console.log('Processing transfers:', transfertsData.transferts.length);
+            
+            transfertsData.transferts.forEach(transfert => {
+                const pdv = transfert.pointVente;
+                const category = transfert.categorie || 'Non spécifié';
+                
+                // Get the total directly from the transfer object
+                let montant = 0;
+                if (transfert.total !== undefined) {
+                    montant = parseFloat(transfert.total) || 0;
+                    console.log(`Using total field for ${pdv}: ${montant}`);
+                } else if (transfert.montant !== undefined) {
+                    montant = parseFloat(transfert.montant) || 0;
+                } else if (transfert.quantite !== undefined && transfert.prixUnitaire !== undefined) {
+                    const quantite = parseFloat(transfert.quantite) || 0;
+                    const prixUnitaire = parseFloat(transfert.prixUnitaire) || 0;
+                    montant = quantite * prixUnitaire;
+                }
+                
+                // Skip if we couldn't determine a montant
+                if (montant === 0) {
+                    console.log('Skipping transfer with zero montant:', transfert);
+                    return;
+                }
+                
+                // Log to debug
+                console.log(`Processing transfer for ${pdv}/${category}: ${montant} (impact: ${transfert.impact || 'undefined'})`);
+                
+                // Initialize point de vente if not exists
+                if (!reconciliationByPDV[pdv]) {
+                    reconciliationByPDV[pdv] = {
+                        pointVente: pdv,
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0,
+                        cashPayments: 0,
+                        ecart: 0,
+                        ecartPct: 0,
+                        ecartCash: 0,
+                        ecartCashPct: 0
+                    };
+                }
+                
+                // Initialize details if not exists
+                if (!detailsByPDV[pdv]) {
+                    detailsByPDV[pdv] = {};
+                }
+                
+                // Initialize category if not exists
+                if (!detailsByPDV[pdv][category]) {
+                    detailsByPDV[pdv][category] = {
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0
+                    };
+                }
+                
+                // Add transfer value - consider the impact direction
+                // Transfers should be positive for Mbao and O.Foire (receiving points)
+                // For Abattage (source point), transfers should be negative
+                let impactValue;
+                
+                // Special logic for specific points de vente
+                if (pdv === 'Mbao' || pdv === 'O.Foire') {
+                    // For these PDVs, transfers should be positive values as they are receiving
+                    impactValue = Math.abs(montant);
+                } else if (pdv === 'Abattage') {
+                    // For Abattage (source), transfers should be negative
+                    impactValue = -Math.abs(montant);
+                } else {
+                    // For other PDVs, follow the impact indicator
+                    impactValue = (transfert.impact === 'positif' || transfert.impact === true || transfert.impact === 1) ? 
+                                 montant : -montant;
+                }
+                
+                console.log(`Adding transfer for ${pdv}: ${impactValue} (final value after impact logic)`);
+                
+                reconciliationByPDV[pdv].transferts += impactValue;
+                detailsByPDV[pdv][category].transferts += impactValue;
+            });
+        }
+        
+        // Processing cash payments data
+        if (cashData.success && cashData.data && cashData.data.points) {
+            console.log('Processing cash payments:', cashData.data.points.length);
+            
+            cashData.data.points.forEach(payment => {
+                const pdv = payment.point;
+                const montant = parseFloat(payment.total) || 0;
+                
+                // Log to debug
+                console.log(`Adding cash payment for ${pdv}: ${montant}`);
+                
+                // Initialize point de vente if not exists
+                if (!reconciliationByPDV[pdv]) {
+                    reconciliationByPDV[pdv] = {
+                        pointVente: pdv,
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0,
+                        cashPayments: 0,
+                        ecart: 0,
+                        ecartPct: 0,
+                        ecartCash: 0,
+                        ecartCashPct: 0
+                    };
+                }
+                
+                // Add cash payment value
+                reconciliationByPDV[pdv].cashPayments += montant;
+            });
+        }
+        
+        // Calculate derived values for each point de vente
+        Object.values(reconciliationByPDV).forEach(pdvData => {
+            // Calculate theoretical sales
+            pdvData.ventesTheoriques = pdvData.stockMatin - pdvData.stockSoir + pdvData.transferts;
+            
+            // Calculate gaps
+            pdvData.ecart = pdvData.ventesTheoriques - pdvData.ventesSaisies;
+            pdvData.ecartCash = pdvData.cashPayments - pdvData.ventesSaisies;
+            
+            // Calculate percentages
+            const stockVariation = Math.abs(pdvData.ventesTheoriques);
+            pdvData.ecartPct = stockVariation > 0 ? (Math.abs(pdvData.ecart) / stockVariation * 100).toFixed(2) : 0;
+            
+            const cashTotal = Math.abs(pdvData.cashPayments);
+            pdvData.ecartCashPct = cashTotal > 0 ? (Math.abs(pdvData.ecartCash) / cashTotal * 100).toFixed(2) : 0;
+            
+            // Log summary for this PDV
+            console.log(`Summary for ${pdvData.pointVente}: Stock Matin=${pdvData.stockMatin}, Stock Soir=${pdvData.stockSoir}, Transferts=${pdvData.transferts}, VentesTheoriques=${pdvData.ventesTheoriques}, VentesSaisies=${pdvData.ventesSaisies}, Cash=${pdvData.cashPayments}`);
+        });
+        
+        // Calculate derived values for detail categories
+        Object.entries(detailsByPDV).forEach(([pdv, categories]) => {
+            Object.entries(categories).forEach(([category, data]) => {
+                // Calculate theoretical sales for each category
+                data.ventesTheoriques = data.stockMatin - data.stockSoir + data.transferts;
+            });
+        });
+        
+        // Format the response
+        const formattedResponse = {
+            date: date,
+            resume: Object.values(reconciliationByPDV),
+            details: detailsByPDV
+        };
+        
+        console.log(`Completed reconciliation for ${date} with ${formattedResponse.resume.length} points de vente`);
+        console.log('==== END EXTERNAL API - RECONCILIATION ====');
+        
+        res.json({
+            success: true,
+            data: formattedResponse
+        });
+    } catch (error) {
+        console.error('Error computing reconciliation (External API):', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error computing reconciliation data',
+            error: error.message
+        });
+    }
+});
+
 // =================== END EXTERNAL API ENDPOINTS ===================
