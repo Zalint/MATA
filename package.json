@@ -27,12 +27,14 @@
     "cy:reconciliation": "cypress run --spec 'cypress/e2e/reconciliation.cy.js'",
     "test:unit": "jest --testPathPattern='tests/.*\\.test\\.js' --testPathIgnorePatterns=\"auth.test.js|auth.integration.test.js|reconciliation.integration.test.js\"",
     "test:e2e": "npm run cy:run",
-    "test:all": "npm run test:unit && npm run test:e2e"
+    "test:all": "npm run test:unit && npm run test:e2e",
+    "postinstall": "echo 'Installed packages:' && npm list --depth=0"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.8.4",
     "bcrypt": "^5.1.0",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
