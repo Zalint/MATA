@@ -9,6 +9,7 @@
     "test:local": "jest local_tests",
     "pretest": "jest tests local_tests",
     "start": "node server.js",
+    "prebuild": "npm install axios --no-save",
     "prestart:test": "jest --testPathIgnorePatterns=\"auth.test.js|auth.integration.test.js|reconciliation.integration.test.js\"",
     "start:test": "npm run prestart:test && node -r dotenv/config server.js",
     "dev": "nodemon -r dotenv/config server.js",
