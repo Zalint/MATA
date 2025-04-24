@@ -3095,4 +3095,86 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
     }
 });
 
-// =================== END EXTERNAL API ENDPOINTS ===================
+// External API version for beef purchases
+app.get('/api/external/achats-boeuf', validateApiKey, async (req, res) => {
+    try {
+        const { startDate, endDate, date } = req.query;
+        
+        console.log('==== EXTERNAL API - ACHATS BOEUF ====');
+        
+        let whereConditions = {};
+        
+        // If a specific date is provided, use it
+        if (date) {
+            const formattedDate = standardiserDateFormat(date);
+            console.log('Querying beef purchases for date:', formattedDate);
+            whereConditions.date = formattedDate;
+        } 
+        // If date range is provided
+        else if (startDate && endDate) {
+            const formattedStartDate = standardiserDateFormat(startDate);
+            const formattedEndDate = standardiserDateFormat(endDate);
+            console.log('Querying beef purchases for date range:', formattedStartDate, 'to', formattedEndDate);
+            whereConditions.date = {
+                [Op.between]: [formattedStartDate, formattedEndDate]
+            };
+        }
+        
+        // Get all beef purchases matching the conditions
+        const achats = await AchatBoeuf.findAll({
+            where: whereConditions,
+            order: [['date', 'DESC']],
+        });
+        
+        // Format the data for response
+        const formattedAchats = achats.map(achat => ({
+            id: achat.id,
+            date: achat.date,
+            mois: achat.mois,
+            annee: achat.annee,
+            bete: achat.bete,
+            prix: parseFloat(achat.prix) || 0,
+            abats: parseFloat(achat.abats) || 0,
+            frais_abattage: parseFloat(achat.frais_abattage) || 0,
+            nbr_kg: parseFloat(achat.nbr_kg) || 0,
+            prix_achat_kg: parseFloat(achat.prix_achat_kg) || 0,
+            commentaire: achat.commentaire
+        }));
+        
+        // Calculate totals
+        const totals = {
+            totalPrix: formattedAchats.reduce((sum, achat) => sum + achat.prix, 0),
+            totalAbats: formattedAchats.reduce((sum, achat) => sum + achat.abats, 0),
+            totalFraisAbattage: formattedAchats.reduce((sum, achat) => sum + achat.frais_abattage, 0),
+            totalKg: formattedAchats.reduce((sum, achat) => sum + achat.nbr_kg, 0),
+        };
+        
+        // Calculate average price per kg if there are kgs
+        if (totals.totalKg > 0) {
+            totals.avgPrixKg = totals.totalPrix / totals.totalKg;
+        } else {
+            totals.avgPrixKg = 0;
+        }
+        
+        console.log(`Found ${formattedAchats.length} beef purchase entries`);
+        console.log('==== END EXTERNAL API - ACHATS BOEUF ====');
+        
+        res.json({
+            success: true,
+            data: {
+                achats: formattedAchats,
+                totals: totals
+            }
+        });
+    } catch (error) {
+        console.error('Error retrieving beef purchase data (External API):', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error retrieving beef purchase data',
+            error: error.message
+        });
+    }
+});
+
+// External API version for reconciliation
+// ... existing code ...
