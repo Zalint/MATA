@@ -3036,7 +3036,8 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                 // Add transfer value - consider the impact direction
                 // Transfers should be positive for Mbao and O.Foire (receiving points)
                 // For Abattage (source point), transfers should be negative
-                let impactValue;
+               /* Not needed anymore
+               let impactValue;
                 
                 // Special logic for specific points de vente
                 if (pdv === 'Mbao' || pdv === 'O.Foire') {
@@ -3051,10 +3052,10 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                                  montant : -montant;
                 }
                 
-                console.log(`Adding transfer for ${pdv}: ${impactValue} (final value after impact logic)`);
+                console.log(`Adding transfer for ${pdv}: ${impactValue} (final value after impact logic)`);*/
                 
-                reconciliationByPDV[pdv].transferts += impactValue;
-                detailsByPDV[pdv][category].transferts += impactValue;
+                reconciliationByPDV[pdv].transferts += montant;
+                detailsByPDV[pdv][category].transferts += montant;
             });
         }
         
