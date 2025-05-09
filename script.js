@@ -544,6 +544,9 @@ async function checkAuth() {
         // Stocker les informations de l'utilisateur
         currentUser = data.user;
         
+        // Stocker l'utilisateur dans la variable window pour l'accès global
+        window.currentUser = currentUser;
+        
         // Afficher les informations de l'utilisateur
         document.getElementById('user-info').textContent = `Connecté en tant que ${currentUser.username}`;
         
@@ -563,6 +566,29 @@ async function checkAuth() {
             if (importTabContainer) importTabContainer.style.display = 'none';
             if (stockInventaireItem) stockInventaireItem.style.display = 'none';
             if (copierStockItem) copierStockItem.style.display = 'none';
+        }
+        
+        // Vérifier l'accès au chat Relevance AI
+        const usersWithChatAccess = ['SALIOU', 'OUSMANE'];
+        if (!usersWithChatAccess.includes(currentUser.username)) {
+            // Désactiver le chat pour les utilisateurs non autorisés
+            // Cette logique est complémentaire à celle dans index.html
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1 && (
+                            node.id && node.id.includes('relevance') || 
+                            node.className && node.className.includes('relevance')
+                        )) {
+                            node.style.display = 'none';
+                        }
+                    });
+                });
+            });
+            
+            // Démarrer l'observation du document
+            observer.observe(document.body, { childList: true, subtree: true });
+            console.log('Chat Relevance AI désactivé pour l\'utilisateur:', currentUser.username);
         }
 
         // Mettre à jour la visibilité du bouton de vidage

@@ -1690,70 +1690,75 @@
         });
     </script>
     
-<script type="text/javascript">
-    // Function to initialize chat widget
-    function initializeChatWidget() {
-        // Check if current user is stored
-        const userInfoElement = document.getElementById('user-info');
-        const userText = userInfoElement ? userInfoElement.textContent : '';
-        
-        // Extract username from the "Connecté en tant que USERNAME" format
-        const usernameMatch = userText.match(/Connecté en tant que (\w+)/);
-        const currentUsername = usernameMatch ? usernameMatch[1] : '';
-        
-        // Only initialize for SALIOU and OUSMANE
-        if (currentUsername === 'SALIOU' || currentUsername === 'OUSMANE') {
-            (function(d, t) {
-                var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
-                v.onload = function() {
-                    if (!document.getElementById('root')) {
-                        var root = d.createElement('div');
-                        root.id = 'root';
-                        d.body.appendChild(root);
-                    }
-                    if (window.myChatWidget && typeof window.myChatWidget.load === 'function') {
-                        window.myChatWidget.load({
-                            id: '9081bbf7-751a-4e06-8165-6b3980e02f51',
+    <!-- Script pour gérer l'accès au chat Relevance AI -->
+    <script>
+        // Fonction pour vérifier l'accès au chat
+        function checkChatAccess() {
+            // Vérifie si l'utilisateur actuel existe dans la variable globale
+            if (window.currentUser) {
+                // Liste des utilisateurs autorisés à voir le chat
+                const usersWithChatAccess = ['SALIOU', 'OUSMANE'];
+                
+                // Vérifie si l'utilisateur actuel est dans la liste d'accès
+                if (!usersWithChatAccess.includes(window.currentUser.username)) {
+                    // Si l'utilisateur n'est pas autorisé, on observe le DOM pour détecter quand le chat est ajouté
+                    const observer = new MutationObserver(function(mutations) {
+                        mutations.forEach(function(mutation) {
+                            mutation.addedNodes.forEach(function(node) {
+                                // Si le noeud ajouté est un élément HTML et a une relation avec le chat
+                                if (node.nodeType === 1 && (
+                                    node.id && node.id.includes('relevance') || 
+                                    node.className && node.className.includes('relevance')
+                                )) {
+                                    // Cache l'élément du chat
+                                    node.style.display = 'none';
+                                }
+                            });
                         });
-                    }
-                };
-                v.src = "https://agentivehub.com/production.bundle.min.js";
-                v.type = "text/javascript";
-                s.parentNode.insertBefore(v, s);
-            })(document, 'script');
-        }
-    }
-
-    // Function to check user info with polling
-    function waitForUserInfo() {
-        const MAX_ATTEMPTS = 20; // Maximum number of attempts (10 seconds total)
-        const INTERVAL = 500; // Check every 500ms
-        let attempts = 0;
-
-        function checkUserInfo() {
-            const userInfoElement = document.getElementById('user-info');
-            if (userInfoElement && userInfoElement.textContent.includes('Connecté en tant que')) {
-                // User info is available, initialize chat widget
-                initializeChatWidget();
-                return;
-            }
-
-            attempts++;
-            if (attempts < MAX_ATTEMPTS) {
-                // Try again after interval
-                setTimeout(checkUserInfo, INTERVAL);
+                    });
+                    
+                    // Démarrer l'observation du document
+                    observer.observe(document.body, { childList: true, subtree: true });
+                    
+                    // Supprime également le script du chat après un court délai
+                    setTimeout(function() {
+                        const chatScript = document.querySelector('script[data-relevanceai-share-id]');
+                        if (chatScript) {
+                            chatScript.remove();
+                        }
+                    }, 100);
+                    
+                    console.log('Chat Relevance AI désactivé pour cet utilisateur');
+                    return false;
+                } else {
+                    console.log('Chat Relevance AI activé pour cet utilisateur');
+                    return true;
+                }
             } else {
-                console.log('Timeout waiting for user info');
+                // Si l'utilisateur n'est pas encore chargé, on réessaye après un délai
+                setTimeout(checkChatAccess, 1000);
+                return false;
             }
         }
-
-        // Start checking
-        checkUserInfo();
-    }
-
-    // Start waiting for user info when page loads
-    document.addEventListener('DOMContentLoaded', waitForUserInfo);
-</script>
+        
+        // Vérifier l'accès au chat quand le DOM est chargé
+        document.addEventListener('DOMContentLoaded', function() {
+            // Attendre que la variable currentUser soit définie
+            const checkInterval = setInterval(function() {
+                if (window.currentUser) {
+                    clearInterval(checkInterval);
+                    checkChatAccess();
+                }
+            }, 500);
+            
+            // Arrêter de vérifier après 10 secondes pour éviter une boucle infinie
+            setTimeout(function() {
+                clearInterval(checkInterval);
+            }, 10000);
+        });
+    </script>
+    
+    <script defer data-relevanceai-share-id="d7b62b/454efacc47da-463b-877a-66e43c7b454a/ebb0f674-400d-4843-b6b9-b9c327246419" src="https://app.relevanceai.com/embed/chat-bubble.js" data-share-styles="starting_message_prompts=Lancer+un+rapport+pour+aujourd%27hui&starting_message_prompts=&hide_tool_steps=false&hide_file_uploads=false&hide_conversation_list=false&bubble_style=agent&primary_color=%23685FFF&bubble_icon=pd%2Fchat&input_placeholder_text=Type+your+message...&hide_logo=true&hide_description=false" ></script>
       
 </body>
 </html>
