@@ -237,11 +237,11 @@
                         <form id="vente-form">
                             <div class="row mb-3">
                                 <div class="col-md-4">
-                                    <label for="date" class="form-label">Date</label>
+                                    <label for="date" class="form-label">Date *</label>
                                     <input type="text" class="form-control" id="date" required>
                                 </div>
                                 <div class="col-md-4">
-                                    <label for="point-vente" class="form-label">Point de Vente</label>
+                                    <label for="point-vente" class="form-label">Point de Vente *</label>
                                     <select class="form-select" id="point-vente" required>
                                         <option value="">Sélectionner un point de vente</option>
                                         <option value="Mbao">Mbao</option>
@@ -258,7 +258,7 @@
                                 <div class="produit-entry mb-3">
                                     <div class="row">
                                         <div class="col-md-3">
-                                            <label class="form-label">Catégorie</label>
+                                            <label class="form-label">Catégorie *</label>
                                             <select class="form-select categorie-select" required>
                                                 <option value="">Sélectionner une catégorie</option>
                                                 <option value="Bovin">Bovin</option>
@@ -269,17 +269,17 @@
                                             </select>
                                         </div>
                                         <div class="col-md-3">
-                                            <label class="form-label">Produit</label>
+                                            <label class="form-label">Produit *</label>
                                             <select class="form-select produit-select" required>
                                                 <option value="">Sélectionner un produit</option>
                                             </select>
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Prix Unit.</label>
+                                            <label class="form-label">Prix Unit. *</label>
                                             <input type="number" class="form-control prix-unit" required>
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Quantité</label>
+                                            <label class="form-label">Quantité *</label>
                                             <input type="number" class="form-control quantite" step="0.001" required>
                                         </div>
                                         <div class="col-md-2">
@@ -315,6 +315,10 @@
                             <button type="button" class="btn btn-secondary mb-3" id="ajouter-produit">
                                 Ajouter un produit
                             </button>
+
+                            <div class="small text-muted mb-3">
+                                * Champs obligatoires
+                            </div>
 
                             <div class="row">
                                 <div class="col-md-6">
