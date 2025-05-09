@@ -1,20 +1,20 @@
 const produits = {
     "Bovin": {
         "Boeuf en détail": { 
-            default: 3600, 
-            alternatives: [3600, 3700] 
+            default: 3700, 
+            alternatives: [3700, 3600] 
         },
         "Boeuf en gros": { 
-            default: 3400, 
-            alternatives: [3400] 
+            default: 3500, 
+            alternatives: [3500,3400] 
         },
         "Dechet": { 
             default: 1000, 
             alternatives: [1000] 
         },
         "Foie": { 
-            default: 4000, 
-            alternatives: [4000] 
+            default: 3000, 
+            alternatives: [3000,4000] 
         },
         "Yell": { 
             default: 2000, 
@@ -45,12 +45,12 @@ const produits = {
             alternatives: [5000] 
         },
         "Veau en détail": { 
-            default: 3800, 
-            alternatives: [3800, 3800] 
+            default: 3900, 
+            alternatives: [3900, 3800] 
         },
         "Veau en gros": { 
-            default: 3600, 
-            alternatives: [3600, 3600] 
+            default: 3700, 
+            alternatives: [3700, 3600] 
         },
         "Veau sur pied": { 
             default: 0, 
