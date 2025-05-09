@@ -5468,71 +5468,79 @@ function initReconciliationMensuelle() {
     chargerReconciliationMensuelle();
 }
 
+let isLoadingReconciliationMensuelle = false; // Moved to global scope here
+
 /**
  * Charge les données de réconciliation pour le mois et l'année sélectionnés
  */
 async function chargerReconciliationMensuelle() {
-    const moisSelect = document.getElementById('mois-reconciliation');
-    const anneeSelect = document.getElementById('annee-reconciliation');
-
-    // --- Récupérer les éléments des totaux ---
-    const totalVentesTheoriquesEl = document.getElementById('total-ventes-theoriques-mois');
-    const totalVentesSaisiesEl = document.getElementById('total-ventes-saisies-mois');
-    const totalVersementsEl = document.getElementById('total-versements-mois');
-    // --- Récupérer l'élément pour l'estimation ---
-    const estimationVersementsEl = document.getElementById('estimation-versements-mois');
-
-    // --- Réinitialiser les totaux affichés ---
-    if (totalVentesTheoriquesEl) totalVentesTheoriquesEl.textContent = formatMonetaire(0);
-    if (totalVentesSaisiesEl) totalVentesSaisiesEl.textContent = formatMonetaire(0);
-    if (totalVersementsEl) totalVersementsEl.textContent = formatMonetaire(0);
-    // --- Réinitialiser l'estimation ---
-    if (estimationVersementsEl) estimationVersementsEl.textContent = formatMonetaire(0);
-
-    // --- Initialiser les variables de calcul des totaux ---
-    let totalVentesTheoriquesMois = 0;
-    let totalVentesSaisiesMois = 0;
-    let totalVersementsMois = 0;
-    let dernierJourAvecDonnees = 0; // Pour l'estimation
-    // --- Fin initialisation totaux ---
-
-    if (!moisSelect || !anneeSelect) {
-        console.error('Sélecteurs de mois/année non trouvés');
+    if (isLoadingReconciliationMensuelle) {
+        console.log("Chargement de la réconciliation mensuelle déjà en cours. Annulation de la nouvelle demande.");
         return;
     }
+    isLoadingReconciliationMensuelle = true;
 
-    const mois = moisSelect.value;
-    const annee = anneeSelect.value;
+    try { // Add try block
+        const moisSelect = document.getElementById('mois-reconciliation');
+        const anneeSelect = document.getElementById('annee-reconciliation');
 
-    console.log(`Chargement des données de réconciliation pour ${mois}/${annee}`);
+        // --- Récupérer les éléments des totaux ---
+        const totalVentesTheoriquesEl = document.getElementById('total-ventes-theoriques-mois');
+        const totalVentesSaisiesEl = document.getElementById('total-ventes-saisies-mois');
+        const totalVersementsEl = document.getElementById('total-versements-mois');
+        // --- Récupérer l'élément pour l'estimation ---
+        const estimationVersementsEl = document.getElementById('estimation-versements-mois');
 
-    const loadingIndicator = document.getElementById('loading-indicator-reconciliation-mois');
-    if (loadingIndicator) loadingIndicator.style.display = 'block';
-
-    const tableBody = document.querySelector('#reconciliation-mois-table tbody');
-    tableBody.innerHTML = ''; // Vider le tableau
-
-    // --- Add check for valid month selection ---
-    if (!mois) {
-        console.warn("Aucun mois valide sélectionné. Arrêt du chargement.");
-        const row = document.createElement('tr');
-        const cell = document.createElement('td');
-        cell.colSpan = 12; // Adjust colspan if needed
-        cell.textContent = 'Aucun mois sélectionné ou aucune donnée pour cette année.';
-        cell.className = 'text-center';
-        row.appendChild(cell);
-        tableBody.appendChild(row);
-        if (loadingIndicator) loadingIndicator.style.display = 'none';
-        // Reset totals and estimation if no month selected
+        // --- Réinitialiser les totaux affichés ---
         if (totalVentesTheoriquesEl) totalVentesTheoriquesEl.textContent = formatMonetaire(0);
         if (totalVentesSaisiesEl) totalVentesSaisiesEl.textContent = formatMonetaire(0);
         if (totalVersementsEl) totalVersementsEl.textContent = formatMonetaire(0);
+        // --- Réinitialiser l'estimation ---
         if (estimationVersementsEl) estimationVersementsEl.textContent = formatMonetaire(0);
-        return; // Stop execution
-    }
-    // --- End check ---
 
-    try {
+        // --- Initialiser les variables de calcul des totaux ---
+        let totalVentesTheoriquesMois = 0;
+        let totalVentesSaisiesMois = 0;
+        let totalVersementsMois = 0;
+        let dernierJourAvecDonnees = 0; // Pour l'estimation
+        // --- Fin initialisation totaux ---
+
+        if (!moisSelect || !anneeSelect) {
+            console.error('Sélecteurs de mois/année non trouvés');
+            return;
+        }
+
+        const mois = moisSelect.value;
+        const annee = anneeSelect.value;
+
+        console.log(`Chargement des données de réconciliation pour ${mois}/${annee}`);
+
+        const loadingIndicator = document.getElementById('loading-indicator-reconciliation-mois');
+        if (loadingIndicator) loadingIndicator.style.display = 'block';
+
+        const tableBody = document.querySelector('#reconciliation-mois-table tbody');
+        tableBody.innerHTML = ''; // Vider le tableau
+
+        // --- Add check for valid month selection ---
+        if (!mois) {
+            console.warn("Aucun mois valide sélectionné. Arrêt du chargement.");
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 12; // Adjust colspan if needed
+            cell.textContent = 'Aucun mois sélectionné ou aucune donnée pour cette année.';
+            cell.className = 'text-center';
+            row.appendChild(cell);
+            tableBody.appendChild(row);
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            // Reset totals and estimation if no month selected
+            if (totalVentesTheoriquesEl) totalVentesTheoriquesEl.textContent = formatMonetaire(0);
+            if (totalVentesSaisiesEl) totalVentesSaisiesEl.textContent = formatMonetaire(0);
+            if (totalVersementsEl) totalVersementsEl.textContent = formatMonetaire(0);
+            if (estimationVersementsEl) estimationVersementsEl.textContent = formatMonetaire(0);
+            return; // Stop execution
+        }
+        // --- End check ---
+
         const anneeNum = parseInt(annee);
         const moisNum = parseInt(mois); // Mois est 1-basé ici
         const totalDaysInMonth = new Date(anneeNum, moisNum, 0).getDate();
@@ -5794,7 +5802,9 @@ async function chargerReconciliationMensuelle() {
         if (totalVersementsEl) totalVersementsEl.textContent = formatMonetaire(0);
         // --- Reset estimation en cas d'erreur majeure ---
          if (estimationVersementsEl) estimationVersementsEl.textContent = formatMonetaire(0);
-    } finally {
+    } finally { // Add finally block
+        isLoadingReconciliationMensuelle = false;
+        const loadingIndicator = document.getElementById('loading-indicator-reconciliation-mois'); // Ensure indicator is hidden
         if (loadingIndicator) loadingIndicator.style.display = 'none';
     }
 }
