@@ -939,7 +939,7 @@ function creerNouvelleEntree() {
                     <option value="Autres">Autres</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label">Produit</label>
                 <select class="form-select produit-select" required>
                     <option value="">Sélectionner...</option>
@@ -953,6 +953,7 @@ function creerNouvelleEntree() {
                 <label class="form-label">Quantité</label>
                 <input type="number" class="form-control quantite" step="0.1" required>
             </div>
+            
             <div class="col-md-2">
                 <label class="form-label">Total</label>
                 <input type="number" class="form-control total" readonly>
@@ -961,6 +962,27 @@ function creerNouvelleEntree() {
                 <button type="button" class="btn btn-danger btn-sm supprimer-produit">
                     <i class="fas fa-trash"></i>
                 </button>
+            </div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-md-3">
+                <label class="form-label">Nom Client</label>
+                <input type="text" class="form-control nom-client">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Numéro Client</label>
+                <input type="text" class="form-control numero-client">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Adresse Client</label>
+                <input type="text" class="form-control adresse-client">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Créance</label>
+                <select class="form-select creance-select">
+                    <option value="false">Non</option>
+                    <option value="true">Oui</option>
+                </select>
             </div>
         </div>
     `;
@@ -1056,6 +1078,10 @@ document.getElementById('vente-form').addEventListener('submit', async function(
         const quantite = entry.querySelector('.quantite').value;
         const prixUnit = entry.querySelector('.prix-unit').value;
         const total = entry.querySelector('.total').value;
+        const nomClient = entry.querySelector('.nom-client').value;
+        const numeroClient = entry.querySelector('.numero-client').value;
+        const adresseClient = entry.querySelector('.adresse-client').value;
+        const creance = entry.querySelector('.creance-select').value === 'true';
         
         if (categorie && produit && quantite && prixUnit) {
             const mois = new Date(date.split('/').reverse().join('-')).toLocaleString('fr-FR', { month: 'long' });
@@ -1071,7 +1097,11 @@ document.getElementById('vente-form').addEventListener('submit', async function(
                 produit,
                 prixUnit,
                 quantite,
-                total
+                total,
+                nomClient,
+                numeroClient,
+                adresseClient,
+                creance
             });
         }
     });
@@ -1167,7 +1197,7 @@ function afficherDernieresVentes(ventes) {
     tbody.innerHTML = '';
     
     if (!Array.isArray(ventes) || ventes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center">Aucune vente disponible</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="15" class="text-center">Aucune vente disponible</td></tr>';
         return;
     }
     
@@ -1211,6 +1241,11 @@ function afficherDernieresVentes(ventes) {
             <td>${parseFloat(vente.PU || 0).toLocaleString('fr-FR')}</td>
             <td>${parseFloat(vente.Nombre || 0)}</td>
             <td>${parseFloat(vente.Montant || 0).toLocaleString('fr-FR')}</td>
+            <td>${vente.nomClient || ''}</td>
+            <td>${vente.numeroClient || ''}</td>
+    
+            <td>${vente.adresseClient || ''}</td>
+            <td>${vente.creance ? 'Oui' : 'Non'}</td>
             <td>
                 <button class="btn btn-danger btn-sm delete-vente" data-id="${vente.id}">
                     <i class="fas fa-trash"></i>
@@ -1380,12 +1415,12 @@ async function chargerDernieresVentes() {
         } else {
             console.error('Format de données invalide pour les dernières ventes:', data);
             const tbody = document.querySelector('#dernieres-ventes tbody');
-            if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="text-center">Aucune donnée disponible</td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="16" class="text-center">Aucune donnée disponible</td></tr>';
         }
     } catch (error) {
         console.error('Erreur lors du chargement des dernières ventes:', error);
         const tbody = document.querySelector('#dernieres-ventes tbody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="text-center text-danger">Erreur: ' + error.message + '</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="16" class="text-center text-danger">Erreur: ' + error.message + '</td></tr>';
     }
 }
 
@@ -1795,7 +1830,7 @@ async function chargerVentes() {
         console.error('Erreur lors du chargement des ventes:', error);
         const tbody = document.querySelector('#tableau-ventes tbody');
         if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Erreur lors du chargement des ventes: ${error.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="15" class="text-center text-danger">Erreur lors du chargement des ventes: ${error.message}</td></tr>`;
         }
         // Réinitialiser le montant total en cas d'erreur si l'élément existe
         const montantTotalElement = document.getElementById('montant-total');
@@ -1832,6 +1867,11 @@ function afficherPageVentes(page) {
             <td>${(parseFloat(vente.PU || vente.prixUnit || 0)).toLocaleString('fr-FR')} FCFA</td>
             <td>${vente.Nombre || vente.quantite || 0}</td>
             <td>${(parseFloat(vente.Montant || vente.total || 0)).toLocaleString('fr-FR')} FCFA</td>
+                <td>${vente.nomClient || ''}</td>
+                <td>${vente.numeroClient || ''}</td>
+          
+                <td>${vente.adresseClient || ''}</td>
+                <td>${vente.creance ? 'Oui' : 'Non'}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -1910,7 +1950,12 @@ function lireFichier(file) {
                     'Produit',
                     'PU',
                     'Nombre',
-                    'Montant'
+                    'Montant',
+                    'Nom Client',
+                    'Numéro Client',
+                   
+                    'Adresse Client',
+                    'Créance'
                 ];
                 
                 // Vérifier que tous les en-têtes attendus sont présents
@@ -1958,7 +2003,7 @@ function afficherApercu(donnees) {
     tbody.innerHTML = '';
     
     donnees.forEach((row, index) => {
-        if (row.length >= 10) { // Vérifier que la ligne a toutes les colonnes nécessaires
+        if (row.length >= 14) { // Vérifier que la ligne a toutes les colonnes nécessaires
             const tr = document.createElement('tr');
             tr.dataset.index = index;
             tr.innerHTML = `
@@ -1972,6 +2017,11 @@ function afficherApercu(donnees) {
                 <td>${row[7]}</td>
                 <td>${row[8]}</td>
                 <td>${row[9]}</td>
+                <td>${row[10]}</td>
+                <td>${row[11]}</td>
+                <td>${row[12]}</td>
+                <td>${row[13]}</td>
+                
                 <td>
                     <button type="button" class="btn btn-danger btn-sm delete-row">
                         <i class="fas fa-trash"></i> ×
@@ -2016,7 +2066,11 @@ document.getElementById('save-import').addEventListener('click', async function(
             produit: row[6],
             prixUnit: row[7],
             quantite: row[8],
-            total: row[9]
+            total: row[9],
+            nomClient: row[10],
+            numeroClient: row[11],
+            adresseClient: row[12],
+            creance: row[13] === 'Oui' // Assuming 'Oui'/'Non' in import file, convert to boolean
         }));
         
         // Envoyer les données au serveur
@@ -6174,34 +6228,4 @@ async function updateEstimationStock() {
     }
     
     console.log('=== UPDATE ESTIMATION STOCK END ===');
-}
-// ... existing code ...
-
-// Event listeners for estimation form fields
-document.addEventListener('DOMContentLoaded', function() {
-    const dateInput = document.getElementById('estimation-date');
-    const pointVenteSelect = document.getElementById('estimation-point-vente');
-    const categorieSelect = document.getElementById('estimation-categorie');
-
-    if (dateInput && pointVenteSelect && categorieSelect) {
-        const updateAllValues = () => {
-            updateEstimationStockMatin();
-            updateEstimationTransfert();
-            updateEstimationStock();
-        };
-
-        dateInput.addEventListener('change', updateAllValues);
-        pointVenteSelect.addEventListener('change', updateAllValues);
-        categorieSelect.addEventListener('change', updateAllValues);
-    }
-});
-
-// ... existing code ...
-
-// Helper function to safely update loading indicator
-function updateLoadingIndicator(visible) {
-    const loadingIndicator = document.getElementById('loading-indicator-reconciliation');
-    if (loadingIndicator) {
-        loadingIndicator.style.display = visible ? 'block' : 'none';
-    }
 }

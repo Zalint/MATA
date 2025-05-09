@@ -21,6 +21,10 @@ const { Op, fn, col, literal } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const Estimation = require('./db/models/Estimation');
 
+// Import the schema update scripts
+const { updateSchema } = require('./db/update-schema');
+const { updateVenteSchema } = require('./db/update-vente-schema');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -28,6 +32,18 @@ const PORT = process.env.PORT || 3000;
 console.log('Initializing models...');
 console.log('Estimation model:', !!Estimation);
 console.log('Estimation.create:', typeof Estimation.create === 'function' ? 'function available' : 'NOT AVAILABLE');
+
+// Run the schema update scripts when the server starts
+(async function() {
+  try {
+    console.log('Running database schema updates...');
+    await updateSchema();
+    await updateVenteSchema();
+    console.log('Database schema updates completed successfully');
+  } catch (error) {
+    console.error('Error during schema updates:', error);
+  }
+})();
 
 // Middleware
 // Allow all origins in production for Render
@@ -109,7 +125,7 @@ const csvFilePath = path.join(__dirname, 'ventes.csv');
 
 // Créer le fichier CSV avec les en-têtes seulement s'il n'existe pas
 if (!fs.existsSync(csvFilePath)) {
-    const headers = 'ID;Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant\n';
+    const headers = 'ID;Mois;Date;Semaine;Point de Vente;Preparation;Catégorie;Produit;PU;Nombre;Montant;Nom Client;Numéro Client;Tél. Client;Adresse Client;Créance\n'; // Updated headers
     fs.writeFileSync(csvFilePath, headers);
 }
 
@@ -439,7 +455,11 @@ app.post('/api/ventes', checkAuth, async (req, res) => {
                 produit: entry.produit,
                 prixUnit: prixUnit,
                 nombre: nombre,
-                montant: montant
+                montant: montant,
+                nomClient: entry.nomClient || null,
+                numeroClient: entry.numeroClient || null,
+                adresseClient: entry.adresseClient || null,
+                creance: entry.creance || false
             };
         });
         
@@ -466,7 +486,11 @@ app.post('/api/ventes', checkAuth, async (req, res) => {
             Produit: vente.produit,
             PU: vente.prixUnit,
             Nombre: vente.nombre,
-            Montant: vente.montant
+            Montant: vente.montant,
+            nomClient: vente.nomClient,
+            numeroClient: vente.numeroClient,
+            adresseClient: vente.adresseClient,
+            creance: vente.creance
         }));
         
         res.json({ success: true, dernieresVentes: formattedVentes });
@@ -518,7 +542,11 @@ app.put('/api/ventes/:id', checkAuth, async (req, res) => {
             produit: updatedVente.produit,
             prixUnit: updatedVente.prixUnit,
             nombre: updatedVente.quantite,
-            montant: updatedVente.total
+            montant: updatedVente.total,
+            nomClient: updatedVente.nomClient || null,
+            numeroClient: updatedVente.numeroClient || null,
+            adresseClient: updatedVente.adresseClient || null,
+            creance: updatedVente.creance || false
         });
         
         // Récupérer les 10 dernières ventes pour mise à jour de l'affichage
@@ -539,7 +567,11 @@ app.put('/api/ventes/:id', checkAuth, async (req, res) => {
             Produit: v.produit,
             PU: v.prixUnit,
             Nombre: v.nombre,
-            Montant: v.montant
+            Montant: v.montant,
+            nomClient: v.nomClient,
+            numeroClient: v.numeroClient,
+            adresseClient: v.adresseClient,
+            creance: v.creance
         }));
 
         res.json({ 
@@ -631,7 +663,11 @@ app.get('/api/ventes', checkAuth, async (req, res) => {
                 Produit: vente.produit,
                 PU: vente.prixUnit,
                 Nombre: vente.nombre,
-                Montant: vente.montant
+                Montant: vente.montant,
+                nomClient: vente.nomClient,
+                numeroClient: vente.numeroClient,
+                adresseClient: vente.adresseClient,
+                creance: vente.creance
             }));
             
             console.log('Nombre de ventes filtrées:', formattedVentes.length);
@@ -663,7 +699,11 @@ app.get('/api/ventes', checkAuth, async (req, res) => {
             Produit: vente.produit,
             PU: vente.prixUnit,
             Nombre: vente.nombre,
-            Montant: vente.montant
+            Montant: vente.montant,
+            nomClient: vente.nomClient,
+            numeroClient: vente.numeroClient,
+            adresseClient: vente.adresseClient,
+            creance: vente.creance
         }));
         
         console.log('Nombre de ventes filtrées:', formattedVentes.length);
@@ -699,7 +739,11 @@ app.get('/api/dernieres-ventes', checkAuth, async (req, res) => {
             Produit: vente.produit,
             PU: vente.prixUnit,
             Nombre: vente.nombre,
-            Montant: vente.montant
+            Montant: vente.montant,
+            nomClient: vente.nomClient,
+            numeroClient: vente.numeroClient,
+            adresseClient: vente.adresseClient,
+            creance: vente.creance
         }));
         
         res.json({ success: true, dernieresVentes: formattedVentes });
@@ -1246,7 +1290,11 @@ app.get('/api/ventes-date', checkAuth, async (req, res) => {
                 Produit: vente.produit,
                 PU: prixUnit,
                 Nombre: nombre,
-                Montant: montant
+                Montant: montant,
+                nomClient: vente.nomClient,
+                numeroClient: vente.numeroClient,
+                adresseClient: vente.adresseClient,
+                creance: vente.creance
             };
         });
         
@@ -3138,7 +3186,12 @@ app.get('/api/external/achats-boeuf', validateApiKey, async (req, res) => {
             frais_abattage: parseFloat(achat.frais_abattage) || 0,
             nbr_kg: parseFloat(achat.nbr_kg) || 0,
             prix_achat_kg: parseFloat(achat.prix_achat_kg) || 0,
-            commentaire: achat.commentaire
+            commentaire: achat.commentaire,
+            nomClient: achat.nomClient,           // Add new field
+            numeroClient: achat.numeroClient,        // Add new field
+            telephoneClient: achat.telephoneClient,     // Add new field
+            adresseClient: achat.adresseClient,       // Add new field
+            creance: achat.creance              // Add new field
         }));
         
         // Calculate totals

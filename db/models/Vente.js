@@ -51,6 +51,26 @@ const Vente = sequelize.define('Vente', {
     type: DataTypes.FLOAT,
     allowNull: false,
     defaultValue: 0
+  },
+  nomClient: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'nom_client'
+  },
+  numeroClient: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'numero_client'
+  },
+  adresseClient: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'adresse_client'
+  },
+  creance: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
   }
 }, {
   tableName: 'ventes',
