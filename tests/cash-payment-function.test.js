@@ -127,7 +127,8 @@ const addCashPaymentToReconciliation = async () => {
           'V_LGR': 'Linguere',
           'V_MBA': 'Mbao',
           'V_KM': 'Keur Massar',
-          'V_OSF': 'O.Foire'
+          'V_OSF': 'O.Foire',
+          'V_ABATS': 'Abattage'
         };
         
         // Construire l'objet de données avec le mapping des points de vente

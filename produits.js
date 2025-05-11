@@ -67,6 +67,10 @@ const produits = {
         "Tete de Boeuf": { 
             default: 10000, 
             alternatives: [10000] 
+        },
+        "Coeur": { 
+            default: 2000, 
+            alternatives: [2000] 
         }
     },
     "Ovin": {

@@ -4,7 +4,8 @@ const pointsVente = {
     "Keur Massar": { active: true },
     "Linguere": { active: true },
     "Dahra": { active: true },
-    "Touba": { active: true }
+    "Touba": { active: true },
+    "Abattage": { active: true }
 };
 
 module.exports = pointsVente; 

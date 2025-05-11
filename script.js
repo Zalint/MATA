@@ -3429,20 +3429,20 @@ function initTableauStock() {
     console.log('%c=== Fin initTableauStock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
 }
 
-// Configuration pour l'inventaire
+// Configuration pour l'inventaire to refac point de vente
 const POINTS_VENTE_PHYSIQUES = [
-    'Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba', 'Keur Massar'
+    'Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba', 'Keur Massar','Abattage'
 ];
-
+// Configuration pour l'inventaire to refac to read produits.js
 const PRODUITS = [
     'Boeuf', 'Veau', 'Poulet', 'Tete De Mouton', 'Tablette',
-    'Foie', 'Yell', 'Agneau', 'Déchet 400', 'Autres', 'Mergez', 'Déchet 2000'
+    'Foie', 'Yell', 'Agneau', 'Déchet 400', 'Autres', 'Mergez', 'Déchet 2000','Abats'
 ];
 
 // Configuration des prix par défaut
 const PRIX_DEFAUT = {
-    'Boeuf': 3600,
-    'Veau': 3800,
+    'Boeuf': 3700,
+    'Veau': 300,
     'Poulet': 3500,
     'Tete De Mouton': 1000,
     'Tablette': 2800,

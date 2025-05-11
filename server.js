@@ -151,7 +151,8 @@ const PAYMENT_REF_TO_PDV = {
   'V_LGR': 'Linguere',
   'V_MBA': 'Mbao',
   'V_KM': 'Keur Massar',
-  'V_OSF': 'O.Foire'
+  'V_OSF': 'O.Foire',
+  'V_ABATS': 'Abattage'
 };
 
 // Fonction pour obtenir le chemin du fichier en fonction de la date
@@ -1560,7 +1561,7 @@ app.post('/api/cash-payments/import', checkAuth, async (req, res) => {
             'V_MBA': 'Mbao',
             'V_KM': 'Keur Massar',
             'V_OSF': 'O.Foire',
-            'V_ABATS': 'Autres'
+            'V_ABATS': 'Abattage'
         };
         
         // Convertir les dates du format "1 avr. 2025, 16:18" en format standard
