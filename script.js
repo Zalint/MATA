@@ -69,6 +69,87 @@ const MAPPING_PRODUITS = {
     'AGNEAU': 'Agneau'
 };
 
+// Fonction globale pour standardiser les dates
+function standardiserDate(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') {
+        // console.warn(`[standardiserDate] Invalid input: '${dateStr}'`);
+        return null;
+    }
+
+    let jour, mois, annee;
+
+    // Regex pour YYYY-MM-DD
+    const ymdRegex = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
+    const ymdMatch = dateStr.match(ymdRegex);
+
+    if (ymdMatch) {
+        annee = parseInt(ymdMatch[1], 10);
+        mois = parseInt(ymdMatch[2], 10) - 1; // Mois est 0-indexé en JS
+        jour = parseInt(ymdMatch[3], 10);
+    } else if (dateStr.includes('/')) { // Format DD/MM/YYYY ou DD/MM/YY
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+            jour = parseInt(parts[0], 10);
+            mois = parseInt(parts[1], 10) - 1; // Mois est 0-indexé
+            annee = parseInt(parts[2], 10);
+            if (parts[2].length === 2) {
+                annee += 2000; // Convertir YY en YYYY (ex: 24 -> 2024)
+            }
+        } else {
+            // console.warn(`[standardiserDate] Invalid D/M/Y format: '${dateStr}'`);
+            return null;
+        }
+    } else if (dateStr.includes('-')) { // Format DD-MM-YYYY ou DD-MM-YY (après YYYY-MM-DD)
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            jour = parseInt(parts[0], 10);
+            mois = parseInt(parts[1], 10) - 1; // Mois est 0-indexé
+            annee = parseInt(parts[2], 10);
+            if (parts[2].length === 2) {
+                annee += 2000; // Convertir YY en YYYY
+            }
+        } else {
+            // console.warn(`[standardiserDate] Invalid D-M-Y format: '${dateStr}'`);
+            return null;
+        }
+    } else {
+        // console.warn(`[standardiserDate] Unrecognized date format: '${dateStr}'`);
+        return null; // Format non reconnu
+    }
+
+    if (isNaN(jour) || isNaN(mois) || isNaN(annee) || annee < 1900 || annee > 2100 || mois < 0 || mois > 11 || jour < 1 || jour > 31) {
+        // console.warn(`[standardiserDate] Invalid date components for input: '${dateStr}' -> j:${jour}, m:${mois + 1}, a:${annee}`);
+        return null;
+    }
+    
+    const dateObj = new Date(annee, mois, jour);
+    // Vérifier si la date construite est valide et correspond aux entrées (évite les dépassements comme 31/02)
+    if (dateObj.getFullYear() === annee && dateObj.getMonth() === mois && dateObj.getDate() === jour) {
+        return dateObj;
+    }
+    // console.warn(`[standardiserDate] Constructed date mismatch for input: '${dateStr}' -> j:${jour}, m:${mois + 1}, a:${annee}`);
+    return null;
+}
+
+function isToday(dateStr) {
+    const date = standardiserDate(dateStr);
+    if (!date) return false;
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+}
+
+function isYesterday(dateStr) {
+    const date = standardiserDate(dateStr);
+    if (!date) return false;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return date.getDate() === yesterday.getDate() &&
+           date.getMonth() === yesterday.getMonth() &&
+           date.getFullYear() === yesterday.getFullYear();
+}
+
 // Fonction pour mettre à jour la visibilité du bouton de vidage
 function updateViderBaseButtonVisibility() {
     const viderBaseBtn = document.getElementById('vider-base');
@@ -1204,93 +1285,95 @@ document.getElementById('ajouter-produit').addEventListener('click', function() 
 
 // Fonction pour vérifier si une date est aujourd'hui
 function isToday(dateStr) {
+    // StandardiserDate s'attend à un format avec tirets, ex: "09-05-2025"
+    // Assurez-vous que dateStr est dans ce format ou ajustez la logique ici.
+    const date = standardiserDate(dateStr); // Ensure standardiserDate is accessible or defined before this block
     const today = new Date();
-    // Gérer le format DD-MM-YY
-    const [jour, mois, annee] = dateStr.split('-');
-    // Convertir l'année à 4 chiffres (20YY)
-    const fullYear = '20' + annee;
-    const date = new Date(fullYear, mois - 1, jour);
-    
     return date.getDate() === today.getDate() &&
            date.getMonth() === today.getMonth() &&
            date.getFullYear() === today.getFullYear();
 }
 
+function isYesterday(dateStr) {
+    const date = standardiserDate(dateStr); // Ensure standardiserDate is accessible or defined before this block
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return date.getDate() === yesterday.getDate() &&
+           date.getMonth() === yesterday.getMonth() &&
+           date.getFullYear() === yesterday.getFullYear();
+}
+
+// Ensure standardiserDate is defined before afficherDernieresVentes if it's not globally available
+// For example, by moving its definition here or ensuring it's defined earlier in the script.
+// Assuming standardiserDate is defined globally or earlier:
+
 function afficherDernieresVentes(ventes) {
-    const tbody = document.querySelector('#dernieres-ventes tbody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (!Array.isArray(ventes) || ventes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="15" class="text-center">Aucune vente disponible</td></tr>';
+    const tbody = document.querySelector("#dernieres-ventes tbody");
+    if (!tbody) {
+        console.error("Element tbody introuvable pour #dernieres-ventes");
         return;
     }
-    
-    // Fonction pour standardiser les dates au format DD-MM-YY
-    const standardiserDate = (dateStr) => {
-        if (!dateStr) return '';
-        
-        let jour, mois, annee;
-        if (dateStr.includes('/')) {
-            [jour, mois, annee] = dateStr.split('/');
-            // Convertir l'année à 2 chiffres si elle est à 4 chiffres
-            if (annee.length === 4) {
-                annee = annee.substring(2);
-            }
-            return `${jour}-${mois}-${annee}`;
-        } else if (dateStr.includes('-')) {
-            return dateStr; // Déjà au format DD-MM-YY
-        }
-        return dateStr;
-    };
-    
+    tbody.innerHTML = ""; // Vider le tableau avant d'ajouter de nouvelles lignes
+
+    // Standardiser la date pour la comparaison (definition moved up or assumed global)
+    // const standardiserDate = (dateStr) => { ... } // Definition might be here or earlier
+
     ventes.forEach(vente => {
-        const tr = document.createElement('tr');
-        
-        // Vérifier si la vente est d'aujourd'hui
-        const estAujourdhui = isToday(vente.Date);
-        
-        // Créer le style pour marquer les ventes d'aujourd'hui
-        const rowClass = estAujourdhui ? 'bg-info text-white' : '';
-        tr.className = rowClass;
-        
-        // Ajouter les données dans les cellules - SANS l'ID
-        tr.innerHTML = `
-            <td>${vente.Mois || ''}</td>
-            <td>${vente.Date || ''}</td>
-            <td>${vente.Semaine || ''}</td>
-            <td>${vente['Point de Vente'] || ''}</td>
-            <td>${vente.Preparation || ''}</td>
-            <td>${vente.Catégorie || ''}</td>
-            <td>${vente.Produit || ''}</td>
-            <td>${parseFloat(vente.PU || 0).toLocaleString('fr-FR')}</td>
-            <td>${parseFloat(vente.Nombre || 0)}</td>
-            <td>${parseFloat(vente.Montant || 0).toLocaleString('fr-FR')}</td>
-            <td>${vente.nomClient || ''}</td>
-            <td>${vente.numeroClient || ''}</td>
-    
-            <td>${vente.adresseClient || ''}</td>
-            <td>${vente.creance ? 'Oui' : 'Non'}</td>
-            <td>
-                <button class="btn btn-danger btn-sm delete-vente" data-id="${vente.id}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>
-        `;
-        
-        // Ajouter la ligne au tableau
-        tbody.appendChild(tr);
-        
-        // Ajouter l'écouteur d'événement pour le bouton de suppression
-        const deleteBtn = tr.querySelector('.delete-vente');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', function() {
-                const venteId = this.getAttribute('data-id');
-                if (confirm(`Êtes-vous sûr de vouloir supprimer la vente #${venteId} ?`)) {
-                    supprimerVente(venteId);
+        const row = tbody.insertRow();
+        // Formater la date pour l'affichage en DD-MM-YYYY
+        let displayDate = vente.Date;
+        const dateObj = standardiserDate(vente.Date); // Uses standardiserDate
+        if (dateObj) {
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const year = dateObj.getFullYear();
+            displayDate = `${day}-${month}-${year}`;
+        }
+
+        row.insertCell().textContent = vente.Mois || "";
+        row.insertCell().textContent = displayDate;
+        row.insertCell().textContent = vente.Semaine || "";
+        row.insertCell().textContent = vente.PointDeVente || "";
+        row.insertCell().textContent = vente.Preparation || "";
+        row.insertCell().textContent = vente.Categorie || "";
+        row.insertCell().textContent = vente.Produit || "";
+        row.insertCell().textContent = vente.PU !== undefined && vente.PU !== null ? parseFloat(vente.PU).toLocaleString('fr-FR') : "";
+        row.insertCell().textContent = vente.Nombre !== undefined && vente.Nombre !== null ? parseFloat(vente.Nombre).toLocaleString('fr-FR') : "";
+        row.insertCell().textContent = vente.Montant !== undefined && vente.Montant !== null ? parseFloat(vente.Montant).toLocaleString('fr-FR') : "";
+        row.insertCell().textContent = vente.NomClient || "";
+        row.insertCell().textContent = vente.NumeroClient || "";
+        row.insertCell().textContent = vente.AdresseClient || "";
+        row.insertCell().textContent = (vente.Creance === true || vente.Creance === 'true' || vente.Creance === 'Oui') ? 'Oui' : 'Non';
+
+        const actionsCell = row.insertCell();
+        actionsCell.style.textAlign = 'center';
+
+        let showDeleteButton = false;
+        const currentUser = window.currentUser; 
+        const userRole = currentUser ? currentUser.username.toUpperCase() : null;
+        const privilegedUsers = ['SALIOU', 'OUSMANE'];
+        const limitedAccessUsers = ['NADOU', 'PAPI', 'MBA', 'OSF', 'KMS', 'LNG', 'DHR', 'TBM'];
+
+        if (userRole && privilegedUsers.includes(userRole)) {
+            showDeleteButton = true;
+        } else if (userRole && limitedAccessUsers.includes(userRole)) {
+            if (isToday(vente.Date) || isYesterday(vente.Date)) { // Uses isToday and isYesterday
+                showDeleteButton = true;
+            }
+        }
+
+        if (showDeleteButton) {
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'btn btn-danger btn-sm delete-vente';
+            deleteButton.setAttribute('data-id', vente.id); // Assurez-vous que vente.id existe et est correct
+            deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+            deleteButton.addEventListener('click', async () => {
+                if (confirm('Êtes-vous sûr de vouloir supprimer cette vente ?')) {
+                    // Assurez-vous que supprimerVente est défini et accessible
+                    await supprimerVente(vente.id); 
                 }
             });
+            actionsCell.appendChild(deleteButton);
         }
     });
 }
@@ -5976,292 +6059,4 @@ function showSection(sectionId) {
     }
 }
 
-// --- Fonction pour exporter le tableau de réconciliation mensuelle en Excel ---
-function exportReconciliationMoisToExcel() {
-    console.log("Début de l'exportation du tableau de réconciliation mensuelle vers Excel.");
-
-    const table = document.getElementById('reconciliation-mois-table');
-    if (!table) {
-        console.error('Tableau de réconciliation mensuelle non trouvé.');
-        alert('Erreur: Impossible de trouver le tableau à exporter.');
-        return;
-    }
-
-    const mois = document.getElementById('mois-reconciliation').value;
-    const annee = document.getElementById('annee-reconciliation').value;
-    const pointVenteFiltre = document.getElementById('point-vente-filtre-mois').value;
-
-    const filename = `Reconciliation_Mois_${mois}-${annee}${pointVenteFiltre ? '_' + pointVenteFiltre : ''}.xlsx`;
-    console.log(`Nom du fichier d'export: ${filename}`);
-
-    // Options pour l'exportation - conserver le formatage brut des nombres
-    const options = {
-        raw: true // Important pour conserver les nombres sans formatage monétaire
-    };
-
-    try {
-        // Cloner la table pour ne pas modifier l'originale (visuellement)
-        const tableClone = table.cloneNode(true);
-
-        // Préparer les données pour l'export
-        const rowsToExport = [];
-        const headerRow = tableClone.querySelector('thead tr');
-        const dataRows = tableClone.querySelectorAll('tbody tr');
-
-        // Ajouter l'en-tête
-        const headerCells = Array.from(headerRow.cells).map(cell => cell.textContent.trim());
-        rowsToExport.push(headerCells);
-
-        // Ajouter les lignes de données visibles (respecter le filtre)
-        dataRows.forEach(row => {
-            // Vérifier si la ligne est visible (respecte le filtre appliqué)
-            if (row.style.display !== 'none') {
-                const rowData = [];
-                Array.from(row.cells).forEach((cell, cellIndex) => {
-                    let cellValue;
-                    const input = cell.querySelector('input[type="text"]'); // Pour la colonne commentaire
-
-                    if (input) {
-                        cellValue = input.value;
-                    } else {
-                        cellValue = cell.textContent.trim();
-                        // Essayer de convertir les valeurs monétaires en nombres
-                        // Colonnes 2 à 8 et 10 (indices 2 à 7 et 9) et Ecart Cash (indice 10)
-                        if ([2, 3, 4, 5, 6, 7, 8, 10].includes(cellIndex)) {
-                            const numericValue = extractNumericValue(cellValue); // Utilise la fonction existante
-                            cellValue = numericValue;
-                        }
-                        // Pour le pourcentage (indice 9)
-                        if (cellIndex === 9) {
-                            const percentageValue = parseFloat(cellValue.replace('%', ''));
-                            cellValue = isNaN(percentageValue) ? 0 : percentageValue / 100; // Stocker comme décimal
-                        }
-                    }
-                    rowData.push(cellValue);
-                });
-                rowsToExport.push(rowData);
-            }
-        });
-
-        if (rowsToExport.length <= 1) { // Seulement l'en-tête
-             console.warn("Aucune donnée visible à exporter.");
-             alert("Aucune donnée à exporter. Vérifiez les filtres.");
-             return;
-        }
-
-        // Créer une feuille de calcul
-        const ws = XLSX.utils.aoa_to_sheet(rowsToExport);
-
-        // Appliquer le format numérique pour les colonnes monétaires et pourcentage
-        const currencyFormat = '#,##0 FCFA'; // Ou '#,##0' si vous préférez sans FCFA
-        const percentageFormat = '0.00%';
-        const columnIndices = {
-             stockMatin: 2,
-             stockSoir: 3,
-             transferts: 4,
-             ventesTheo: 5,
-             ventesSaisies: 6,
-             ecart: 7,
-             cashPayment: 8,
-             ecartPct: 9,
-             ecartCash: 10
-        };
-
-        // Itérer sur les cellules pour appliquer les formats
-        for (let R = 1; R < rowsToExport.length; ++R) { // Commence à 1 pour sauter l'en-tête
-             // Colonnes monétaires
-             [columnIndices.stockMatin, columnIndices.stockSoir, columnIndices.transferts,
-              columnIndices.ventesTheo, columnIndices.ventesSaisies, columnIndices.ecart,
-              columnIndices.cashPayment, columnIndices.ecartCash].forEach(C => {
-                 const cell_address = { c: C, r: R };
-                 const cell_ref = XLSX.utils.encode_cell(cell_address);
-                 if (ws[cell_ref]) {
-                     ws[cell_ref].t = 'n'; // Type numérique
-                     ws[cell_ref].z = currencyFormat; // Format monétaire
-                 }
-             });
-
-             // Colonne pourcentage
-             const pct_cell_address = { c: columnIndices.ecartPct, r: R };
-             const pct_cell_ref = XLSX.utils.encode_cell(pct_cell_address);
-             if (ws[pct_cell_ref]) {
-                 ws[pct_cell_ref].t = 'n'; // Type numérique
-                 ws[pct_cell_ref].z = percentageFormat; // Format pourcentage
-             }
-        }
-
-        // Ajuster la largeur des colonnes (approximatif)
-        const colWidths = headerCells.map((_, i) => {
-            let maxWidth = 0;
-            rowsToExport.forEach(row => {
-                const cellContent = row[i] ? String(row[i]) : '';
-                maxWidth = Math.max(maxWidth, cellContent.length);
-            });
-            // Ajouter une marge et gérer les colonnes monétaires/pourcentage
-            const baseWidth = Math.max(10, maxWidth + 2);
-             if (i === 0 || i === 1) return { wch: baseWidth }; // Date, PV
-             if (i === 11) return { wch: Math.max(20, baseWidth) }; // Commentaire plus large
-             if (i === 9) return { wch: 10 }; // Pourcentage
-             return { wch: 15 }; // Colonnes monétaires
-        });
-        ws['!cols'] = colWidths;
-
-        // Créer un classeur
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Réconciliation Mois");
-
-        // Exporter le fichier
-        XLSX.writeFile(wb, filename, options);
-        console.log("Exportation vers Excel terminée avec succès.");
-
-    } catch (error) {
-        console.error("Erreur lors de l'exportation vers Excel:", error);
-        alert("Une erreur est survenue lors de l'exportation vers Excel.");
-    }
-}
-// --- Fin fonction export --- 
-
-/**
- * Charge les commentaires pour la réconciliation mensuelle
- */
-
-// ... existing code ...
-// Fonction pour initialiser la section estimation
-function initEstimation() {
-    console.log('=== INIT ESTIMATION START ===');
-    console.log('Initialisation de la section estimation');
-    
-    // Initialize flatpickr with French locale
-    const datePicker = flatpickr("#estimation-date", {
-        locale: 'fr',
-        dateFormat: "Y-m-d",
-        defaultDate: new Date(),
-        onChange: function(selectedDates, dateStr) {
-            console.log('Date changed:', { selectedDates, dateStr });
-            if (selectedDates.length > 0) {
-                updateEstimationStock();
-            }
-        }
-    });
-
-    console.log('Flatpickr initialized with config:', {
-        locale: 'fr',
-        dateFormat: "Y-m-d",
-        defaultDate: new Date()
-    });
-
-    // Set initial date
-    const today = new Date();
-    datePicker.setDate(today);
-    console.log('Initial date set to:', today);
-    
-    // Populate categories
-    const categorieSelect = document.getElementById('estimation-categorie');
-    if (categorieSelect) {
-        console.log('Found categorie select element');
-        // Clear existing options except the first one
-        while (categorieSelect.options.length > 1) {
-            categorieSelect.remove(1);
-        }
-        
-        // Add the categories
-        const categories = ['Boeuf', 'Veau', 'Agneau'];
-        categories.forEach(categorie => {
-            const option = document.createElement('option');
-            option.value = categorie;
-            option.textContent = categorie;
-            categorieSelect.appendChild(option);
-        });
-        console.log('Categories populated:', categories);
-
-        // Add change event listener
-        categorieSelect.addEventListener('change', updateEstimationStock);
-    } else {
-        console.warn('Categorie select element not found');
-    }
-
-    // Add change event listener for point de vente
-    const pointVenteSelect = document.getElementById('estimation-point-vente');
-    if (pointVenteSelect) {
-        console.log('Found point de vente select element');
-        pointVenteSelect.addEventListener('change', updateEstimationStock);
-    } else {
-        console.warn('Point de vente select element not found');
-    }
-    
-    // Add event listener for form submission
-    const form = document.getElementById('estimation-form');
-    if (form) {
-        console.log('Found estimation form');
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            await sauvegarderEstimation();
-        });
-    } else {
-        console.warn('Estimation form not found');
-    }
-
-    console.log('=== INIT ESTIMATION END ===');
-    // Initial stock update
-    updateEstimationStock();
-}
-
-// Function to update stock display
-async function updateEstimationStock() {
-    console.log('=== UPDATE ESTIMATION STOCK START ===');
-    
-    const dateInput = document.getElementById('estimation-date');
-    const pointVente = document.getElementById('estimation-point-vente').value;
-    const categorie = document.getElementById('estimation-categorie').value;
-    const stockSoirInput = document.getElementById('stock-soir');
-
-    console.log('Form values:', {
-        date: dateInput ? dateInput.value : 'not found',
-        pointVente,
-        categorie
-    });
-
-    if (!dateInput || !pointVente || !categorie) {
-        console.warn('Missing required fields:', {
-            dateInput: !!dateInput,
-            pointVente: !!pointVente,
-            categorie: !!categorie
-        });
-        stockSoirInput.value = '';
-        return;
-    }
-
-    try {
-        const date = dateInput.value; // This will be in YYYY-MM-DD format from flatpickr
-        console.log('Making API request with:', {
-            date,
-            pointVente,
-            categorie
-        });
-
-        const url = `/api/stock/${date}/soir/${pointVente}/${categorie}`;
-        console.log('API URL:', url);
-
-        const response = await fetch(url);
-        console.log('API Response status:', response.status);
-        
-        const data = await response.json();
-        console.log('API Response data:', data);
-
-        if (response.ok && data.stock !== undefined) {
-            stockSoirInput.value = data.stock;
-            stockSoirInput.style.fontStyle = 'normal';
-            console.log('Stock value updated:', data.stock);
-        } else {
-            stockSoirInput.value = '0';
-            stockSoirInput.style.fontStyle = 'italic';
-            console.log('No stock found, set to 0');
-        }
-    } catch (error) {
-        console.error('Error in updateEstimationStock:', error);
-        stockSoirInput.value = '0';
-        stockSoirInput.style.fontStyle = 'italic';
-    }
-    
-    console.log('=== UPDATE ESTIMATION STOCK END ===');
-}
+// ... rest of the code ...
