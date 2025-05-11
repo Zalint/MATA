@@ -5466,10 +5466,6 @@ document.getElementById('reconciliation-tab').addEventListener('click', function
     showSection('reconciliation-section');
 });
 
-document.getElementById('reconciliation-mois-tab').addEventListener('click', function(e) {
-    e.preventDefault();
-    showSection('reconciliation-mois-section');
-});
 
 document.getElementById('stock-alerte-tab').addEventListener('click', function(e) {
     e.preventDefault();
@@ -5996,20 +5992,6 @@ async function chargerCommentairesMensuels() {
     }
 }
 
-if (reconciliationMoisTab) {
-        reconciliationMoisTab.addEventListener('click', function(e) {
-            e.preventDefault();
-            console.log('Navigation vers l\'onglet: reconciliation-mois-tab');
-            hideAllSections();
-            reconciliationMoisSection.style.display = 'block';
-            deactivateAllTabs();
-            this.classList.add('active');
-            
-            // Initialiser la section de réconciliation mensuelle
-            initReconciliationMensuelle();
-        });
-    }
-
 // Fonction pour afficher une section spécifique
 function showSection(sectionId) {
     hideAllSections();
@@ -6062,3 +6044,312 @@ function showSection(sectionId) {
 }
 
 // ... rest of the code ...
+
+// Placeholder function for Excel export
+// --- Fonction pour exporter le tableau de réconciliation mensuelle en Excel ---
+function exportReconciliationMoisToExcel() {
+    console.log("Début de l'exportation du tableau de réconciliation mensuelle vers Excel.");
+
+    const table = document.getElementById('reconciliation-mois-table');
+    if (!table) {
+        console.error('Tableau de réconciliation mensuelle non trouvé.');
+        alert('Erreur: Impossible de trouver le tableau à exporter.');
+        return;
+    }
+
+    const mois = document.getElementById('mois-reconciliation').value;
+    const annee = document.getElementById('annee-reconciliation').value;
+    const pointVenteFiltre = document.getElementById('point-vente-filtre-mois').value;
+
+    const filename = `Reconciliation_Mois_${mois}-${annee}${pointVenteFiltre ? '_' + pointVenteFiltre : ''}.xlsx`;
+    console.log(`Nom du fichier d'export: ${filename}`);
+
+    // Options pour l'exportation - conserver le formatage brut des nombres
+    const options = {
+        raw: true // Important pour conserver les nombres sans formatage monétaire
+    };
+
+    try {
+        // Cloner la table pour ne pas modifier l'originale (visuellement)
+        const tableClone = table.cloneNode(true);
+
+        // Préparer les données pour l'export
+        const rowsToExport = [];
+        const headerRow = tableClone.querySelector('thead tr');
+        const dataRows = tableClone.querySelectorAll('tbody tr');
+
+        // Ajouter l'en-tête
+        const headerCells = Array.from(headerRow.cells).map(cell => cell.textContent.trim());
+        rowsToExport.push(headerCells);
+
+        // Ajouter les lignes de données visibles (respecter le filtre)
+        dataRows.forEach(row => {
+            // Vérifier si la ligne est visible (respecte le filtre appliqué)
+            if (row.style.display !== 'none') {
+                const rowData = [];
+                Array.from(row.cells).forEach((cell, cellIndex) => {
+                    let cellValue;
+                    const input = cell.querySelector('input[type="text"]'); // Pour la colonne commentaire
+
+                    if (input) {
+                        cellValue = input.value;
+                    } else {
+                        cellValue = cell.textContent.trim();
+                        // Essayer de convertir les valeurs monétaires en nombres
+                        // Colonnes 2 à 8 et 10 (indices 2 à 7 et 9) et Ecart Cash (indice 10)
+                        if ([2, 3, 4, 5, 6, 7, 8, 10].includes(cellIndex)) {
+                            const numericValue = extractNumericValue(cellValue); // Utilise la fonction existante
+                            cellValue = numericValue;
+                        }
+                        // Pour le pourcentage (indice 9)
+                        if (cellIndex === 9) {
+                            const percentageValue = parseFloat(cellValue.replace('%', ''));
+                            cellValue = isNaN(percentageValue) ? 0 : percentageValue / 100; // Stocker comme décimal
+                        }
+                    }
+                    rowData.push(cellValue);
+                });
+                rowsToExport.push(rowData);
+            }
+        });
+
+        if (rowsToExport.length <= 1) { // Seulement l'en-tête
+             console.warn("Aucune donnée visible à exporter.");
+             alert("Aucune donnée à exporter. Vérifiez les filtres.");
+             return;
+        }
+
+        // Créer une feuille de calcul
+        const ws = XLSX.utils.aoa_to_sheet(rowsToExport);
+
+        // Appliquer le format numérique pour les colonnes monétaires et pourcentage
+        const currencyFormat = '#,##0 FCFA'; // Ou '#,##0' si vous préférez sans FCFA
+        const percentageFormat = '0.00%';
+        const columnIndices = {
+             stockMatin: 2,
+             stockSoir: 3,
+             transferts: 4,
+             ventesTheo: 5,
+             ventesSaisies: 6,
+             ecart: 7,
+             cashPayment: 8,
+             ecartPct: 9,
+             ecartCash: 10
+        };
+
+        // Itérer sur les cellules pour appliquer les formats
+        for (let R = 1; R < rowsToExport.length; ++R) { // Commence à 1 pour sauter l'en-tête
+             // Colonnes monétaires
+             [columnIndices.stockMatin, columnIndices.stockSoir, columnIndices.transferts,
+              columnIndices.ventesTheo, columnIndices.ventesSaisies, columnIndices.ecart,
+              columnIndices.cashPayment, columnIndices.ecartCash].forEach(C => {
+                 const cell_address = { c: C, r: R };
+                 const cell_ref = XLSX.utils.encode_cell(cell_address);
+                 if (ws[cell_ref]) {
+                     ws[cell_ref].t = 'n'; // Type numérique
+                     ws[cell_ref].z = currencyFormat; // Format monétaire
+                 }
+             });
+
+             // Colonne pourcentage
+             const pct_cell_address = { c: columnIndices.ecartPct, r: R };
+             const pct_cell_ref = XLSX.utils.encode_cell(pct_cell_address);
+             if (ws[pct_cell_ref]) {
+                 ws[pct_cell_ref].t = 'n'; // Type numérique
+                 ws[pct_cell_ref].z = percentageFormat; // Format pourcentage
+             }
+        }
+
+        // Ajuster la largeur des colonnes (approximatif)
+        const colWidths = headerCells.map((_, i) => {
+            let maxWidth = 0;
+            rowsToExport.forEach(row => {
+                const cellContent = row[i] ? String(row[i]) : '';
+                maxWidth = Math.max(maxWidth, cellContent.length);
+            });
+            // Ajouter une marge et gérer les colonnes monétaires/pourcentage
+            const baseWidth = Math.max(10, maxWidth + 2);
+             if (i === 0 || i === 1) return { wch: baseWidth }; // Date, PV
+             if (i === 11) return { wch: Math.max(20, baseWidth) }; // Commentaire plus large
+             if (i === 9) return { wch: 10 }; // Pourcentage
+             return { wch: 15 }; // Colonnes monétaires
+        });
+        ws['!cols'] = colWidths;
+
+        // Créer un classeur
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Réconciliation Mois");
+
+        // Exporter le fichier
+        XLSX.writeFile(wb, filename, options);
+        console.log("Exportation vers Excel terminée avec succès.");
+
+    } catch (error) {
+        console.error("Erreur lors de l'exportation vers Excel:", error);
+        alert("Une erreur est survenue lors de l'exportation vers Excel.");
+    }
+}
+// --- Fin fonction export --- 
+    // --- Fonction pour exporter le tableau de visualisation des ventes en Excel ---
+    function exportVisualisationToExcel() {
+        console.log("Début de l'exportation du tableau de visualisation des ventes vers Excel.");
+        
+        try {
+            // Check if XLSX library is loaded
+            if (typeof XLSX === 'undefined') {
+                console.error("Erreur: La bibliothèque XLSX n'est pas chargée.");
+                alert("Erreur: La bibliothèque XLSX n'est pas chargée. Veuillez rafraîchir la page.");
+                return;
+            }
+            
+            const table = document.getElementById('tableau-ventes');
+            if (!table) {
+                console.error('Tableau des ventes (tableau-ventes) non trouvé.');
+                alert('Erreur: Impossible de trouver le tableau à exporter.');
+                return;
+            }
+            
+            // Debug logs for the global variable allVentes
+            console.log("Vérification des variables:");
+            console.log("- allVentes:", typeof allVentes, Array.isArray(allVentes), allVentes ? allVentes.length : 0);
+            console.log("- window.allVentes:", typeof window.allVentes, Array.isArray(window.allVentes), window.allVentes ? window.allVentes.length : 0);
+            
+            // Use either global allVentes or window.allVentes (whichever exists)
+            const ventesData = (typeof allVentes !== 'undefined' && allVentes) ? allVentes : 
+                              (typeof window.allVentes !== 'undefined' && window.allVentes) ? window.allVentes : [];
+            
+            if (!ventesData || ventesData.length === 0) {
+                console.error("Aucune donnée à exporter. Tableau vide.");
+                alert("Aucune donnée à exporter. Veuillez d'abord charger des ventes.");
+                return;
+            }
+            
+            console.log(`Préparation de l'export avec ${ventesData.length} lignes de ventes.`);
+            
+            // Format filename with date range and filter
+            const dateDebut = document.getElementById('date-debut').value.replace(/\//g, '-');
+            const dateFin = document.getElementById('date-fin').value.replace(/\//g, '-');
+            const pointVenteFiltre = document.getElementById('point-vente-select').value;
+            
+            let filename = `Visualisation_Ventes`;
+            if (dateDebut) filename += `_du_${dateDebut}`;
+            if (dateFin) filename += `_au_${dateFin}`;
+            if (pointVenteFiltre && pointVenteFiltre !== 'tous') filename += `_${pointVenteFiltre}`;
+            filename += '.xlsx';
+            
+            console.log(`Nom du fichier d'export: ${filename}`);
+            
+            const options = {
+                raw: true // Keep numbers as raw values
+            };
+            
+            // Prepare data for export
+            const rowsToExport = [];
+            
+            // Add headers
+            const headerCells = [
+                'Mois', 'Date', 'Semaine', 'Point de Vente', 'Préparation',
+                'Catégorie', 'Produit', 'Prix Unitaire', 'Quantité', 'Montant',
+                'Nom Client', 'Numéro Client', 'Adresse Client', 'Créance'
+            ];
+            rowsToExport.push(headerCells);
+            
+            // Add data rows
+            ventesData.forEach((vente, index) => {
+                // Log sample data for debugging
+                if (index < 3 || index > ventesData.length - 3) {
+                    console.log(`Exemple de donnée [${index}]:`, vente);
+                }
+                
+                const rowData = [
+                    vente.Mois || vente.mois || '',
+                    vente.Date || vente.date || '',
+                    vente.Semaine || vente.semaine || '',
+                    vente['Point de Vente'] || vente.pointVente || '',
+                    vente.Preparation || vente.preparation || vente['Point de Vente'] || vente.pointVente || '',
+                    vente.Catégorie || vente.categorie || '',
+                    vente.Produit || vente.produit || '',
+                    extractNumericValue(vente.PU || vente.prixUnit || '0'), // Convert to number
+                    parseFloat(vente.Nombre || vente.quantite || 0), // Convert to number
+                    extractNumericValue(vente.Montant || vente.total || '0'), // Convert to number
+                    vente.nomClient || '',
+                    vente.numeroClient || '',
+                    vente.adresseClient || '',
+                    (vente.creance === true || vente.creance === 'true' || vente.creance === 'Oui') ? 'Oui' : 'Non'
+                ];
+                rowsToExport.push(rowData);
+            });
+            
+            if (rowsToExport.length <= 1) { // Only headers
+                console.warn("Aucune donnée à exporter après traitement.");
+                alert("Aucune donnée de vente à exporter.");
+                return;
+            }
+            
+            // Create worksheet
+            const ws = XLSX.utils.aoa_to_sheet(rowsToExport);
+            
+            // Format columns
+            const currencyFormat = '#,##0 FCFA';
+            const currencyColumnIndices = [7, 9]; // PU (7), Montant (9)
+            const quantityColumnIndex = 8;
+            
+            for (let R = 1; R < rowsToExport.length; ++R) {
+                // Format currency columns
+                currencyColumnIndices.forEach(C => {
+                    const cell_address = { c: C, r: R };
+                    const cell_ref = XLSX.utils.encode_cell(cell_address);
+                    if (ws[cell_ref]) {
+                        ws[cell_ref].t = 'n';
+                        ws[cell_ref].z = currencyFormat;
+                    }
+                });
+                
+                // Format quantity column
+                const qty_cell_address = { c: quantityColumnIndex, r: R };
+                const qty_cell_ref = XLSX.utils.encode_cell(qty_cell_address);
+                if (ws[qty_cell_ref]) {
+                    ws[qty_cell_ref].t = 'n';
+                }
+            }
+            
+            // Set column widths
+            const colWidths = headerCells.map((header, i) => {
+                let maxWidth = header.length;
+                rowsToExport.forEach(row => {
+                    const cellContent = row[i] ? String(row[i]) : '';
+                    maxWidth = Math.max(maxWidth, cellContent.length);
+                });
+                
+                // Custom widths for specific columns
+                if (i === 0) return { wch: Math.max(10, maxWidth + 2) }; // Mois
+                if (i === 1 || i === 2) return { wch: Math.max(12, maxWidth + 2) }; // Date, Semaine
+                if (i === 3 || i === 4) return { wch: Math.max(15, maxWidth + 2) }; // Point de Vente, Préparation
+                if (i === 6) return { wch: Math.max(18, maxWidth + 2) }; // Produit
+                if (i === 10 || i === 11 || i === 12) return { wch: Math.max(20, maxWidth + 2) }; // Client info
+                return { wch: Math.max(12, maxWidth + 2) };
+            });
+            ws['!cols'] = colWidths;
+            
+            // Create workbook and add worksheet
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Visualisation Ventes");
+            
+            // Write file
+            XLSX.writeFile(wb, filename, options);
+            console.log("Exportation des ventes vers Excel terminée avec succès.");
+            
+        } catch (error) {
+            console.error("Erreur détaillée lors de l'exportation:", error);
+            alert("Une erreur est survenue lors de l'exportation: " + error.message);
+        }
+    }
+    // --- Fin fonction export Visualisation ---
+  // Backup global event handler for the export button
+document.addEventListener('click', function(event) {
+    if (event.target && event.target.id === 'export-visualisation-excel') {
+        console.log('[DEBUG] Bouton Export Excel cliqué via événement global.');
+        exportVisualisationToExcel();
+    }
+});
+
