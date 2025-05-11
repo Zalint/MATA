@@ -3440,9 +3440,10 @@ const PRODUITS = [
 ];
 
 // Configuration des prix par défaut
+// refacto to read produits.js
 const PRIX_DEFAUT = {
     'Boeuf': 3700,
-    'Veau': 300,
+    'Veau': 3900,
     'Poulet': 3500,
     'Tete De Mouton': 1000,
     'Tablette': 2800,
@@ -3452,7 +3453,8 @@ const PRIX_DEFAUT = {
     'Déchet 400': 400,
     'Autres': 1,
     'Mergez': 5000,
-    'Déchet 2000': 2000
+    'Déchet 2000': 2000,
+    'Abats': 1000
 };
 
 // Tous les points de vente (physiques et virtuels)
