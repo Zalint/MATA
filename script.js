@@ -646,7 +646,7 @@ async function checkAuth() {
         } else {
             if (importTabContainer) importTabContainer.style.display = 'none';
             if (stockInventaireItem) stockInventaireItem.style.display = 'none';
-            if (copierStockItem) copierStockItem.style.display = 'none';
+          
         }
         
         // Vérifier l'accès au chat Relevance AI
@@ -2628,9 +2628,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const stockAlerteSection = document.getElementById('stock-alerte-section');
     
     // Forcer l'affichage de l'onglet Copier Stock pour tous les utilisateurs
-    if (copierStockItem) {
-        copierStockItem.style.display = 'none'; // Par défaut, masquer l'onglet
-    }
+  
     
     // Vérifier si l'utilisateur a les droits pour voir l'onglet 'Copier Stock'
     try {
@@ -3004,12 +3002,8 @@ function afficherOngletsSuivantDroits(userData) {
     }
     
     // Afficher l'onglet Copier Stock uniquement pour les utilisateurs autorisés
-    const usersAutorisesCopiage = ['SALIOU', 'PAPI', 'NADOU', 'OUSMANE'];
-    if (usersAutorisesCopiage.includes(userData.username.toUpperCase())) {
         copierStockItem.style.display = 'block';
-    } else {
-        copierStockItem.style.display = 'none';
-    }
+   
 }
 
 // Fonction pour initialiser la page d'inventaire
