@@ -1340,9 +1340,9 @@ function afficherDernieresVentes(ventes) {
         row.insertCell().textContent = vente.PU !== undefined && vente.PU !== null ? parseFloat(vente.PU).toLocaleString('fr-FR') : "";
         row.insertCell().textContent = vente.Nombre !== undefined && vente.Nombre !== null ? parseFloat(vente.Nombre).toLocaleString('fr-FR') : "";
         row.insertCell().textContent = vente.Montant !== undefined && vente.Montant !== null ? parseFloat(vente.Montant).toLocaleString('fr-FR') : "";
-        row.insertCell().textContent = vente.NomClient || "";
-        row.insertCell().textContent = vente.NumeroClient || "";
-        row.insertCell().textContent = vente.AdresseClient || "";
+        row.insertCell().textContent = vente.nomClient || "";
+        row.insertCell().textContent = vente.numeroClient || "";
+        row.insertCell().textContent = vente.adresseClient || "";
         row.insertCell().textContent = (vente.Creance === true || vente.Creance === 'true' || vente.Creance === 'Oui') ? 'Oui' : 'Non';
 
         const actionsCell = row.insertCell();
@@ -1452,6 +1452,7 @@ async function chargerDernieresVentes() {
             // 2. Point de vente sélectionné
             // 3. Date sélectionnée
             let ventesAffichees = data.dernieresVentes;
+           
             
             // 1. Filtrer selon les droits de l'utilisateur
             if (currentUser && currentUser.pointVente !== "tous") {
