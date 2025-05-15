@@ -854,6 +854,41 @@ document.querySelectorAll('.quantite, .prix-unit').forEach(input => {
     });
 });
 
+// Ajouter un événement pour recalculer le total général quand la date change
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('date');
+    const pointVenteInput = document.getElementById('point-vente');
+    
+    if (dateInput) {
+        dateInput.addEventListener('change', function() {
+            // Recalculer le total général quand la date change
+            setTimeout(calculerTotalGeneral, 0);
+            // Recharger les ventes filtrées par date et point de vente
+            chargerDernieresVentes();
+        });
+    }
+    
+    if (pointVenteInput) {
+        pointVenteInput.addEventListener('change', function() {
+            // Get the current value
+            const pointVenteValue = this.value;
+            console.log("[Point Vente Change] Value:", pointVenteValue);
+            
+            // Always calculate total, regardless of selection
+            setTimeout(function() {
+                console.log("[Point Vente Change] Calling calculerTotalGeneral");
+                calculerTotalGeneral();
+            }, 100);
+            
+            // Recharger les ventes filtrées par date et point de vente
+            chargerDernieresVentes();
+        });
+    }
+    
+    // Calculer le total général au chargement de la page
+    setTimeout(calculerTotalGeneral, 100);
+});
+
 function calculerTotalGeneral() {
     // Récupérer la date sélectionnée
     const dateSelectionnee = document.getElementById('date').value;
@@ -862,34 +897,6 @@ function calculerTotalGeneral() {
     const pointVenteSelectionnee = document.getElementById('point-vente').value;
     
     // Fonction pour extraire uniquement les composants jour/mois/année d'une date
-    // sans tenir compte du fuseau horaire
-    function normaliserDate(dateStr) {
-        if (!dateStr) return '';
-        
-        let jour, mois, annee;
-        
-        // Format DD/MM/YYYY
-        if (dateStr.includes('/')) {
-            [jour, mois, annee] = dateStr.split('/');
-            // Si l'année est à 4 chiffres, ne garder que les 2 derniers
-            if (annee.length === 4) {
-                annee = annee.slice(-2);
-            }
-        } 
-        // Format DD-MM-YY
-        else if (dateStr.includes('-')) {
-            [jour, mois, annee] = dateStr.split('-');
-        }
-        // Format non reconnu
-        else {
-            return dateStr;
-        }
-        
-        // Normaliser au format JJ-MM-AA avec padding de zéros si nécessaire
-        return `${jour.padStart(2, '0')}-${mois.padStart(2, '0')}-${annee.padStart(2, '0')}`;
-    }
-    
-    // Convertir à un format de date comparable pour les deux formats de date
     function getComparableDate(dateStr) {
         if (!dateStr) return null;
         let jour, mois, annee;
@@ -909,21 +916,14 @@ function calculerTotalGeneral() {
             }
         } else if (dateStr.includes('-')) { // Format DD-MM-YYYY ou DD-MM-YY
             [jour, mois, annee] = dateStr.split('-');
-             // Vérifier si le premier segment est l'année (YYYY-MM-DD incorrectement capturé)
-             if (jour.length === 4) { // Probablement YYYY-MM-DD
-                 annee = jour;
-                 jour = dateStr.split('-')[2]; // Réassigner correctement
-             } else if (annee.length === 2) {
+            if (jour.length === 4) { // Probablement YYYY-MM-DD
+                annee = jour;
+                jour = dateStr.split('-')[2]; // Réassigner correctement
+            } else if (annee.length === 2) {
                 annee = '20' + annee;
             }
         } else {
             return null; // Format non reconnu
-        }
-
-        // Vérifier que toutes les parties sont valides après parsing
-        if (!jour || !mois || !annee || isNaN(parseInt(jour)) || isNaN(parseInt(mois)) || isNaN(parseInt(annee))) { 
-             console.warn(`[getComparableDate chargerDernieresVentes] Invalid date parts for input: '${dateStr}' -> j:${jour}, m:${mois}, a:${annee}`);
-             return null;
         }
 
         return `${String(jour).padStart(2, '0')}/${String(mois).padStart(2, '0')}/${annee}`;
@@ -936,100 +936,63 @@ function calculerTotalGeneral() {
     const totalSaisie = Array.from(document.querySelectorAll('.total'))
         .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
     
-    // 2. Calculer le total des dernières ventes affichées pour la date sélectionnée et le point de vente sélectionné
-    // On utilise une approche plus directe pour améliorer les performances
-    let totalDernieresVentes = 0;
-    const rows = document.querySelectorAll('#dernieres-ventes tbody tr');
-    
-    // Avant de parcourir les lignes, mettre à jour l'interface pour indiquer le calcul en cours
+    // Indiquer le calcul en cours
     document.getElementById('total-general').textContent = 'Calcul en cours...';
     
-    // Utiliser un tableau pour stocker les montants à additionner
-    const montantsCorrespondants = [];
-    
-    // Traiter les lignes par lots pour éviter de bloquer l'interface utilisateur
+    // 2. Calculer le total asynchrone pour ne pas bloquer l'UI
     setTimeout(() => {
-        // Sélectionner le tbody à l'intérieur du setTimeout pour s'assurer qu'il est à jour
-        const tbody = document.querySelector('#dernieres-ventes tbody');
-        if (!tbody) {
-            console.error('Table body #dernieres-ventes tbody not found during total calculation.');
-            // Mettre à jour l'affichage pour indiquer une erreur ou un état non calculable
-             const totalGeneralElement = document.getElementById('total-general');
-             if (totalGeneralElement) {
-                 totalGeneralElement.textContent = 'Erreur calcul';
-             }
-            return; // Sortir si le tbody n'est pas trouvé
-        }
-        const rows = tbody.querySelectorAll('tr'); // Récupérer les lignes actuelles
-
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
+        try {
+            // Obtenir toutes les lignes de vente
+            const tbody = document.querySelector('#dernieres-ventes tbody');
+            if (!tbody) {
+                throw new Error('Table body not found');
+            }
             
-            // Vérifier l'existence des cellules avant d'accéder à textContent
-            const dateCellElement = row.querySelector('td:nth-child(2)');
-            const pointVenteCellElement = row.querySelector('td:nth-child(4)');
-            const montantCellElement = row.querySelector('td:nth-child(10)');
-
-            // Traiter la ligne uniquement si toutes les cellules nécessaires existent
-            if (dateCellElement && pointVenteCellElement && montantCellElement) {
+            const rows = tbody.querySelectorAll('tr');
+            let totalDernieresVentes = 0;
+            
+            // Parcourir les lignes
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                
+                // Obtenir les cellules de date et point de vente
+                const dateCellElement = row.querySelector('td:nth-child(2)');
+                const pointVenteCellElement = row.querySelector('td:nth-child(4)');
+                const montantCellElement = row.querySelector('td:nth-child(10)');
+                
+                if (!dateCellElement || !pointVenteCellElement || !montantCellElement) {
+                    continue; // Ignorer les lignes incomplètes
+                }
+                
+                // Extraire les valeurs
                 const dateCell = dateCellElement.textContent.trim();
                 const dateVenteComparable = getComparableDate(dateCell);
                 const pointVenteCell = pointVenteCellElement.textContent.trim();
-            
                 
-                // Comparer les dates au format comparable ET vérifier le point de vente
-                if (dateVenteComparable === dateSelectionneeComparable && pointVenteCell === pointVenteSelectionnee) {
+                // Comparer dates et point de vente
+                // Si le point de vente est vide, inclure toutes les ventes de la date
+                if (dateVenteComparable === dateSelectionneeComparable && 
+                    (pointVenteSelectionnee === "" || pointVenteCell === pointVenteSelectionnee)) {
+                    
+                    // Extraire le montant
                     const montantText = montantCellElement.textContent.trim();
                     const montant = parseFloat(montantText.replace(/\s/g, '').replace(/,/g, '.').replace(/FCFA/g, '')) || 0;
-                    montantsCorrespondants.push(montant);
+                    totalDernieresVentes += montant;
                 }
-            } else {
-                // Optionnel: loguer les lignes ignorées pour le débogage
-                // console.log('Skipping row in total calculation due to missing cells:', row.innerHTML);
             }
+            
+            // 3. Calculer et afficher le total général
+            const totalGeneral = totalSaisie + totalDernieresVentes;
+            document.getElementById('total-general').textContent = `${totalGeneral.toLocaleString('fr-FR')} FCFA`;
+            
+        } catch (error) {
+            console.error('Erreur lors du calcul du total:', error);
+            document.getElementById('total-general').textContent = 'Erreur de calcul';
         }
-        
-        // Calculer la somme des montants correspondants
-        totalDernieresVentes = montantsCorrespondants.reduce((sum, montant) => sum + montant, 0);
-        
-        // 3. Calculer le total général
-        const totalGeneral = totalSaisie + totalDernieresVentes;
-        
-        // 4. Afficher le total avec le format français
-        document.getElementById('total-general').textContent = `${totalGeneral.toLocaleString('fr-FR')} FCFA`;
-    }, 0);
+    }, 50);
     
-    // En attendant le calcul asynchrone, retourner le total de saisie uniquement
     return totalSaisie;
 }
-
-// Ajouter un événement pour recalculer le total général quand la date change
-document.addEventListener('DOMContentLoaded', function() {
-    const dateInput = document.getElementById('date');
-    const pointVenteInput = document.getElementById('point-vente');
-    
-    if (dateInput) {
-        dateInput.addEventListener('change', function() {
-            // Recalculer le total général quand la date change
-            setTimeout(calculerTotalGeneral, 0);
-            // Recharger les ventes filtrées par date et point de vente
-            chargerDernieresVentes();
-        });
-    }
-    
-    if (pointVenteInput) {
-        pointVenteInput.addEventListener('change', function() {
-            // Recalculer le total général quand le point de vente change
-            setTimeout(calculerTotalGeneral, 0);
-            // Recharger les ventes filtrées par date et point de vente
-            chargerDernieresVentes();
-        });
-    }
-    
-    // Calculer le total général au chargement de la page
-    setTimeout(calculerTotalGeneral, 100);
-});
-
 // Fonction pour créer une nouvelle entrée de produit
 function creerNouvelleEntree() {
     const div = document.createElement('div');
@@ -1101,6 +1064,7 @@ function creerNouvelleEntree() {
     categorieSelect.addEventListener('change', function() {
         const categorie = this.value;
         produitSelect.innerHTML = '<option value="">Sélectionner...</option>'; // Vider les options précédentes
+        
         
         // Utiliser produitsDB au lieu de produitsParCategorie
         if (categorie && typeof produits !== 'undefined' && produits[categorie]) {
