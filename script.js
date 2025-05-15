@@ -975,9 +975,13 @@ function calculerTotalGeneral() {
                 const dateCell = dateCellElement.textContent.trim();
                 const dateVenteComparable = getComparableDate(dateCell);
                 const pointVenteCell = pointVenteCellElement.textContent.trim();
+                console.log('Saliou 1:', pointVenteCell);
+                console.log('Saliou 1:', pointVenteSelectionnee);
                 
                 // Comparer les dates au format comparable ET vérifier le point de vente
                 if (dateVenteComparable === dateSelectionneeComparable && pointVenteCell === pointVenteSelectionnee) {
+                    console.log('Saliou 2:', pointVenteCell);
+                    console.log('Saliou 2:', pointVenteSelectionnee);
                     const montantText = montantCellElement.textContent.trim();
                     const montant = parseFloat(montantText.replace(/\s/g, '').replace(/,/g, '.').replace(/FCFA/g, '')) || 0;
                     montantsCorrespondants.push(montant);
@@ -1333,9 +1337,9 @@ function afficherDernieresVentes(ventes) {
         row.insertCell().textContent = vente.Mois || "";
         row.insertCell().textContent = displayDate;
         row.insertCell().textContent = vente.Semaine || "";
-        row.insertCell().textContent = vente.PointDeVente || "";
+        row.insertCell().textContent = vente.PointDeVente || vente['Point de Vente'] || vente.pointVente|| "";
         row.insertCell().textContent = vente.Preparation || "";
-        row.insertCell().textContent = vente.Categorie || "";
+        row.insertCell().textContent = vente.Categorie || vente.Catégorie || vente.categorie || "";
         row.insertCell().textContent = vente.Produit || "";
         row.insertCell().textContent = vente.PU !== undefined && vente.PU !== null ? parseFloat(vente.PU).toLocaleString('fr-FR') : "";
         row.insertCell().textContent = vente.Nombre !== undefined && vente.Nombre !== null ? parseFloat(vente.Nombre).toLocaleString('fr-FR') : "";
