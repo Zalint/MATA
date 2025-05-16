@@ -236,7 +236,7 @@ function displayAchatsBoeuf(achats) {
         const beteType = achat.bete.toLowerCase();
         
         if (beteType === 'boeuf') {
-            if (prixKg < 3200) {
+            if (prixKg <= 3200) {
                 statusHtml = '<span class="badge bg-success">Bon</span>'; // Green stick
             } else if (prixKg >= 3201 && prixKg <= 3350) {
                 statusHtml = '<span class="badge bg-warning">Acceptable</span>'; // Yellow stick
@@ -244,9 +244,9 @@ function displayAchatsBoeuf(achats) {
                 statusHtml = '<span class="badge bg-danger">Mauvais</span>'; // Red stick
             }
         } else if (beteType === 'veau') {
-            if (prixKg < 3400) {
+            if (prixKg <= 3400) {
                 statusHtml = '<span class="badge bg-success">Bon</span>'; // Green stick
-            } else if (prixKg >= 3400 && prixKg <= 3550) { // Changed from 34001 as it seemed like a typo
+            } else if (prixKg >= 3401 && prixKg <= 3550) { // Changed from 34001 as it seemed like a typo
                 statusHtml = '<span class="badge bg-warning">Acceptable</span>'; // Yellow stick
             } else if (prixKg > 3550) { // Changed from 3551 as per condition > 3550
                 statusHtml = '<span class="badge bg-danger">Mauvais</span>'; // Red stick
