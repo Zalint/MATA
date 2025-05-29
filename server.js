@@ -3233,3 +3233,119 @@ app.get('/api/external/achats-boeuf', validateApiKey, async (req, res) => {
 
 // External API version for reconciliation
 // ... existing code ...
+
+// Route pour obtenir le prix moyen pondéré des ventes
+app.get('/api/prix-moyen', async (req, res) => {
+    try {
+        const { type, date, pointVente } = req.query;
+
+        // Validation des paramètres obligatoires
+        if (!type || !date) {
+            return res.status(400).json({
+                success: false,
+                message: 'Le type (boeuf/veau) et la date sont obligatoires'
+            });
+        }
+
+        // Standardiser la date au format utilisé dans la base de données
+        const dateStandardisee = standardiserDateFormat(date);
+
+        // Définir les produits à rechercher selon le type
+        const produits = type.toLowerCase() === 'boeuf' 
+            ? ['Boeuf en détail', 'Boeuf en gros']
+            : ['Veau en détail', 'Veau en gros'];
+
+        // Construire la requête de base
+        let query = {
+            attributes: [
+                'date',
+                [sequelize.literal(`
+                    ROUND(
+                        COALESCE(
+                            (SUM("nombre" * "prix_unit") / NULLIF(SUM("nombre"), 0))::numeric,
+                            0
+                        ),
+                    2)
+                `), 'prix_moyen_pondere']
+            ],
+            where: {
+                produit: {
+                    [Op.in]: produits
+                },
+                date: dateStandardisee
+            },
+            group: ['date'],
+            order: [['date', 'ASC']]
+        };
+
+        // Ajouter le filtre par point de vente si spécifié
+        if (pointVente) {
+            query.where.point_vente = pointVente;
+            query.attributes.push('point_vente');
+            query.group.push('point_vente');
+            query.order.push(['point_vente', 'ASC']);
+        }
+
+        const result = await Vente.findAll(query);
+
+        res.json({
+            success: true,
+            data: result
+        });
+
+    } catch (error) {
+        console.error('Erreur lors du calcul du prix moyen:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors du calcul du prix moyen',
+            error: error.message
+        });
+    }
+});
+
+// ... existing code ...
+
+// Test endpoint for price calculation
+app.get('/api/test-prix-moyen', checkAuth, async (req, res) => {
+    try {
+        // Sample data for testing
+        const sampleData = {
+            success: true,
+            data: [
+                {
+                    date: "2025-03-27",
+                    prix_moyen_pondere: 1250.75,
+                    point_vente: "O.Foire"
+                },
+                {
+                    date: "2025-03-27",
+                    prix_moyen_pondere: 1300.25,
+                    point_vente: "Mbao"
+                }
+            ],
+            test_info: {
+                endpoint: "/api/prix-moyen",
+                parameters: {
+                    type: "boeuf ou veau",
+                    date: "YYYY-MM-DD",
+                    pointVente: "optionnel"
+                },
+                example_requests: [
+                    "/api/prix-moyen?type=boeuf&date=2025-03-27",
+                    "/api/prix-moyen?type=veau&date=2025-03-27&pointVente=O.Foire"
+                ]
+            }
+        };
+
+        res.json(sampleData);
+    } catch (error) {
+        console.error('Erreur lors du test du prix moyen:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors du test du prix moyen',
+            error: error.message
+        });
+    }
+});
+
+// ... existing code ...
