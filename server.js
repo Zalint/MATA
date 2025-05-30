@@ -1880,6 +1880,163 @@ app.put('/api/cash-payments/update-aggregated', checkAuth, async (req, res) => {
     }
 });
 
+// Route pour importer des données de paiement en espèces depuis une source externe
+app.post('/api/external/cash-payment/import', validateApiKey, async (req, res) => {
+    const transaction = await sequelize.transaction();
+    try {
+        const data = req.body;
+        
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            await transaction.rollback();
+            return res.status(400).json({ success: false, message: 'Données invalides - un tableau de paiements est requis' });
+        }
+        
+        // Mapping des références de paiement aux points de vente (cohérent avec l'endpoint existant)
+        const paymentRefToPointDeVente = {
+            'V_TB': 'Touba',
+            'V_DHR': 'Dahra',
+            'V_ALS': 'Aliou Sow', // Réajouté pour cohérence
+            'V_LGR': 'Linguere',
+            'V_MBA': 'Mbao',
+            'V_KM': 'Keur Massar',
+            'V_OSF': 'O.Foire',
+            'V_ABATS': 'Abattage'
+        };
+        
+        // Vérifier les doublons par tr_id (ID externe)
+        const externalIds = data.map(item => item.id).filter(Boolean);
+        const existingPayments = await CashPayment.findAll({
+            where: {
+                tr_id: {
+                    [Op.in]: externalIds
+                }
+            },
+            attributes: ['tr_id'],
+            transaction
+        });
+        
+        const existingIds = new Set(existingPayments.map(p => p.tr_id));
+        const newData = data.filter(item => !existingIds.has(item.id));
+        
+        if (newData.length === 0) {
+            await transaction.rollback();
+            return res.json({ 
+                success: true, 
+                message: `Aucun nouveau paiement à importer (${existingIds.size} doublons détectés)`,
+                importedCount: 0,
+                duplicatesCount: existingIds.size
+            });
+        }
+        
+        // Traitement des données pour mapper le format externe vers le format interne
+        const processedData = newData.map(item => {
+            // Conversion du timestamp vers created_at
+            let createdAt = item.timestamp;
+            let dateOnly = null;
+            
+            if (createdAt) {
+                try {
+                    // Le timestamp est au format "2025-05-28 22:11:18.98574"
+                    const dateObj = new Date(createdAt);
+                    createdAt = dateObj.toISOString();
+                    dateOnly = dateObj.toISOString().split('T')[0]; // Format YYYY-MM-DD
+                } catch (error) {
+                    console.warn('Erreur de conversion de date pour:', createdAt);
+                    createdAt = new Date().toISOString();
+                    dateOnly = new Date().toISOString().split('T')[0];
+                }
+            } else {
+                createdAt = new Date().toISOString();
+                dateOnly = new Date().toISOString().split('T')[0];
+            }
+            
+            // Mapper le paymentReference au point de vente (cohérent avec l'endpoint existant)
+            // Normaliser la référence en majuscules ET gérer la conversion G_ -> V_
+            const paymentRef = item.paymentReference;
+            const normalizedRef = paymentRef ? paymentRef.toUpperCase().replace(/^G_/, 'V_') : null;
+            const pointDeVente = normalizedRef ? (paymentRefToPointDeVente[normalizedRef] || 'Non spécifié') : 'Non spécifié';
+            
+            return {
+                // Champs mappés du format externe vers le format interne
+                name: item.customerObject?.name || null,
+                created_at: createdAt,
+                amount: parseFloat(item.amount) || 0,
+                merchant_fee: parseFloat(item.merchantFees) || 0,
+                customer_fee: parseFloat(item.customerFees) || 0,
+                customer_name: item.customerObject?.name || null,
+                customer_phone: item.customerObject?.phone || item.paymentMeans || null,
+                entete_trans_type: item.type || null,
+                psp_name: item.pspName || null,
+                payment_category: item.orderType || null,
+                payment_means: item.paymentMeans || null,
+                payment_reference: item.paymentReference || null,
+                merchant_reference: item.merchantReference || null,
+                trn_status: item.status || null,
+                tr_id: item.id || null, // Utilisé pour détecter les doublons
+                cust_country: item.customerObject?.country || null,
+                aggregation_mt: null,
+                total_nom_marchand: null,
+                total_marchand: null,
+                merchant_id: item.merchantId || null,
+                name_first: item.customerObject?.name ? item.customerObject.name.split(' ')[0] : null,
+                point_de_vente: pointDeVente,
+                date: dateOnly
+            };
+        });
+        
+        // S'assurer que la table existe
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS cash_payments (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255),
+                created_at TIMESTAMP NOT NULL,
+                amount FLOAT NOT NULL,
+                merchant_fee FLOAT,
+                customer_fee FLOAT,
+                customer_name VARCHAR(255),
+                customer_phone VARCHAR(255),
+                entete_trans_type VARCHAR(255),
+                psp_name VARCHAR(255),
+                payment_category VARCHAR(255),
+                payment_means VARCHAR(255),
+                payment_reference VARCHAR(255),
+                merchant_reference VARCHAR(255),
+                trn_status VARCHAR(255),
+                tr_id VARCHAR(255),
+                cust_country VARCHAR(255),
+                aggregation_mt VARCHAR(255),
+                total_nom_marchand VARCHAR(255),
+                total_marchand VARCHAR(255),
+                merchant_id VARCHAR(255),
+                name_first VARCHAR(255),
+                point_de_vente VARCHAR(255),
+                date DATE,
+                "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `, { transaction });
+        
+        // Insérer les données dans la base de données
+        const insertedRecords = await CashPayment.bulkCreate(processedData, { transaction });
+        
+        await transaction.commit();
+        
+        res.json({ 
+            success: true, 
+            message: `${insertedRecords.length} paiements importés avec succès depuis la source externe (${existingIds.size} doublons ignorés)`,
+            importedCount: insertedRecords.length,
+            duplicatesCount: existingIds.size
+        });
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Erreur lors de l\'importation des paiements externes:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: `Erreur lors de l'importation des paiements externes: ${error.message}` 
+        });
+    }
+});
+
 // ===========================================================================
 // SUIVI ACHAT BOEUF - PostgreSQL Implementation
 // ===========================================================================

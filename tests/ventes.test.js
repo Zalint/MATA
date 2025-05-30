@@ -4,7 +4,7 @@ const fetch = require('node-fetch');
 const { spawn } = require('child_process');
 
 // Ensure proper PostgreSQL environment for tests
-process.env.DB_PASSWORD = 'mata2024'; // Set the correct PostgreSQL password
+process.env.DB_PASSWORD = 'bonea2024'; // Set the correct PostgreSQL password
 process.env.NODE_ENV = 'test';
 
 const API_URL = 'http://localhost:3000/api';
