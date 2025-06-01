@@ -399,7 +399,6 @@ function calculateAndDisplayStats(achats) {
     document.getElementById('veau-mean').textContent = veauPrices.length > 0 ? veauMean.toFixed(2) : 'N/A';
     document.getElementById('veau-median').textContent = veauPrices.length > 0 ? veauMedian.toFixed(2) : 'N/A';
     document.getElementById('veau-stddev').textContent = veauPrices.length > 0 ? veauStdDev.toFixed(2) : 'N/A';
-
     // === NOUVELLES STATISTIQUES DÉTAILLÉES ===
     
     // Nombre de bêtes
@@ -407,9 +406,14 @@ function calculateAndDisplayStats(achats) {
     const nombreVeaux = veauData.length;
     const nombreTotal = nombreBoeufs + nombreVeaux;
     
-    document.getElementById('nombre-boeufs').textContent = nombreBoeufs;
-    document.getElementById('nombre-veaux').textContent = nombreVeaux;
-    document.getElementById('nombre-total').textContent = nombreTotal;
+    const setBeteCounts = (elementId, value) => {
+        const element = document.getElementById(elementId);
+        if (element) element.textContent = value;
+    };
+    
+    setBeteCounts('nombre-boeufs', nombreBoeufs);
+    setBeteCounts('nombre-veaux', nombreVeaux);
+    setBeteCounts('nombre-total', nombreTotal);
 
     // Calculs des poids
     const poidsBoeuf = boeufData.map(a => {
