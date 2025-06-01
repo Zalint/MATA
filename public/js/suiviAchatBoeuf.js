@@ -412,14 +412,27 @@ function calculateAndDisplayStats(achats) {
     document.getElementById('nombre-total').textContent = nombreTotal;
 
     // Calculs des poids
-    const poidsBoeuf = boeufData.map(a => parseFloat(a.nbr_kg) || 0);
-    const poidsVeau = veauData.map(a => parseFloat(a.nbr_kg) || 0);
-    const poidsTousAnimaux = achats.map(a => parseFloat(a.nbr_kg) || 0);
+    const poidsBoeuf = boeufData.map(a => {
+        const poids = parseFloat(a.nbr_kg);
+        return isNaN(poids) ? 0 : poids;
+    });
+    const poidsVeau = veauData.map(a => {
+        const poids = parseFloat(a.nbr_kg);
+        return isNaN(poids) ? 0 : poids;
+    });
+    const poidsTousAnimaux = achats.map(a => {
+        const poids = parseFloat(a.nbr_kg);
+        return isNaN(poids) ? 0 : poids;
+    });
     
     const poidsTotal = poidsTousAnimaux.reduce((sum, poids) => sum + poids, 0);
     const poidsMoyenGlobal = nombreTotal > 0 ? poidsTotal / nombreTotal : 0;
-    const poidsMoyenBoeuf = nombreBoeufs > 0 ? poidsBoeuf.reduce((sum, poids) => sum + poids, 0) / nombreBoeufs : 0;
-    const poidsMoyenVeau = nombreVeaux > 0 ? poidsVeau.reduce((sum, poids) => sum + poids, 0) / nombreVeaux : 0;
+    const poidsMoyenBoeuf = nombreBoeufs > 0
+      ? poidsBoeuf.reduce((sum, poids) => sum + poids, 0) / nombreBoeufs
+      : 0;
+    const poidsMoyenVeau = nombreVeaux > 0
+      ? poidsVeau.reduce((sum, poids) => sum + poids, 0) / nombreVeaux
+      : 0;
     
     document.getElementById('poids-total').textContent = poidsTotal.toFixed(2);
     document.getElementById('poids-moyen').textContent = poidsMoyenGlobal.toFixed(2);
