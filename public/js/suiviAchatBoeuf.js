@@ -399,6 +399,53 @@ function calculateAndDisplayStats(achats) {
     document.getElementById('veau-mean').textContent = veauPrices.length > 0 ? veauMean.toFixed(2) : 'N/A';
     document.getElementById('veau-median').textContent = veauPrices.length > 0 ? veauMedian.toFixed(2) : 'N/A';
     document.getElementById('veau-stddev').textContent = veauPrices.length > 0 ? veauStdDev.toFixed(2) : 'N/A';
+
+    // === NOUVELLES STATISTIQUES DÉTAILLÉES ===
+    
+    // Nombre de bêtes
+    const nombreBoeufs = boeufData.length;
+    const nombreVeaux = veauData.length;
+    const nombreTotal = nombreBoeufs + nombreVeaux;
+    
+    document.getElementById('nombre-boeufs').textContent = nombreBoeufs;
+    document.getElementById('nombre-veaux').textContent = nombreVeaux;
+    document.getElementById('nombre-total').textContent = nombreTotal;
+
+    // Calculs des poids
+    const poidsBoeuf = boeufData.map(a => parseFloat(a.nbr_kg) || 0);
+    const poidsVeau = veauData.map(a => parseFloat(a.nbr_kg) || 0);
+    const poidsTousAnimaux = achats.map(a => parseFloat(a.nbr_kg) || 0);
+    
+    const poidsTotal = poidsTousAnimaux.reduce((sum, poids) => sum + poids, 0);
+    const poidsMoyenGlobal = nombreTotal > 0 ? poidsTotal / nombreTotal : 0;
+    const poidsMoyenBoeuf = nombreBoeufs > 0 ? poidsBoeuf.reduce((sum, poids) => sum + poids, 0) / nombreBoeufs : 0;
+    const poidsMoyenVeau = nombreVeaux > 0 ? poidsVeau.reduce((sum, poids) => sum + poids, 0) / nombreVeaux : 0;
+    
+    document.getElementById('poids-total').textContent = poidsTotal.toFixed(2);
+    document.getElementById('poids-moyen').textContent = poidsMoyenGlobal.toFixed(2);
+    document.getElementById('poids-moyen-boeuf').textContent = poidsMoyenBoeuf.toFixed(2);
+    document.getElementById('poids-moyen-veau').textContent = poidsMoyenVeau.toFixed(2);
+
+    // Prix totaux
+    const prixTotalAbats = achats.reduce((sum, a) => sum + (parseFloat(a.abats) || 0), 0);
+    const fraisAbattageTotal = achats.reduce((sum, a) => sum + (parseFloat(a.frais_abattage) || 0), 0);
+    const prixTotalAchat = achats.reduce((sum, a) => sum + (parseFloat(a.prix) || 0), 0);
+    
+    document.getElementById('prix-total-abats').textContent = prixTotalAbats.toLocaleString('fr-FR');
+    document.getElementById('frais-abattage-total').textContent = fraisAbattageTotal.toLocaleString('fr-FR');
+    document.getElementById('prix-total-achat').textContent = prixTotalAchat.toLocaleString('fr-FR');
+
+    // Prix moyens par bête
+    const prixTotalBoeuf = boeufData.reduce((sum, a) => sum + (parseFloat(a.prix) || 0), 0);
+    const prixTotalVeau = veauData.reduce((sum, a) => sum + (parseFloat(a.prix) || 0), 0);
+    
+    const prixMoyenBoeuf = nombreBoeufs > 0 ? prixTotalBoeuf / nombreBoeufs : 0;
+    const prixMoyenVeau = nombreVeaux > 0 ? prixTotalVeau / nombreVeaux : 0;
+    const prixMoyenGlobal = nombreTotal > 0 ? prixTotalAchat / nombreTotal : 0;
+    
+    document.getElementById('prix-moyen-boeuf').textContent = prixMoyenBoeuf.toLocaleString('fr-FR');
+    document.getElementById('prix-moyen-veau').textContent = prixMoyenVeau.toLocaleString('fr-FR');
+    document.getElementById('prix-moyen-global').textContent = prixMoyenGlobal.toLocaleString('fr-FR');
 }
 
 // Create price evolution charts for Boeuf and Veau
