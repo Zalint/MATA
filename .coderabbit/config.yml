@@ -1,0 +1,11 @@
+review:
+  enabled: true
+  mode: auto
+  model: gpt-4
+  summarize: true
+  rules:
+    - "Respecter les conventions de nommage JavaScript"
+    - "Limiter la duplication de code"
+    - "Utiliser les middlewares de façon modulaire"
+    - "Vérifier la gestion des erreurs"
+    - "Éviter les secrets ou tokens dans le code"
