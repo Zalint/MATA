@@ -85,11 +85,14 @@ async function exportStockInventaireToExcel() {
         `;
         document.body.insertAdjacentHTML('beforeend', loadingHtml);
 
+        // Get base URL from environment or default to current origin
+        const baseUrl = window.location.origin;
+
         // Fetch data from the APIs
         const [stockMatinResponse, stockSoirResponse, transfertsResponse] = await Promise.all([
-            fetch(`http://localhost:3000/api/stock/matin?date=${encodeURIComponent(date)}`),
-            fetch(`http://localhost:3000/api/stock/soir?date=${encodeURIComponent(date)}`),
-            fetch(`http://localhost:3000/api/transferts?date=${encodeURIComponent(date)}`)
+            fetch(`${baseUrl}/api/stock/matin?date=${encodeURIComponent(date)}`),
+            fetch(`${baseUrl}/api/stock/soir?date=${encodeURIComponent(date)}`),
+            fetch(`${baseUrl}/api/transferts?date=${encodeURIComponent(date)}`)
         ]);
         // Validate and parse responses
         if (!stockMatinResponse.ok) {
@@ -134,24 +137,72 @@ async function exportStockInventaireToExcel() {
         const transfertsRows = [];
         transfertsRows.push(['Point de Vente', 'Produit', 'Impact (+/-)', 'Quantité', 'Prix Unitaire', 'Total', 'Commentaire']);
 
-        if (transfertsData && transfertsData.length > 0) {
-            transfertsData.forEach(transfert => {
-                const quantite = parseFloat(transfert.quantite || 0);
-                const prixUnitaire = parseFloat(transfert.prixUnitaire || 0);
-                const impact = parseInt(transfert.impact || 1);
-                const total = quantite * prixUnitaire * impact;
+        // Debug: Log transferts data structure
+        console.log('Transferts data:', transfertsData);
+        
+        // Extract the actual transferts array from the API response
+        let actualTransfertsData = [];
+        if (transfertsData && transfertsData.success && transfertsData.transferts) {
+            actualTransfertsData = transfertsData.transferts;
+        } else if (transfertsData && Array.isArray(transfertsData)) {
+            // Fallback if data comes as direct array
+            actualTransfertsData = transfertsData;
+        }
+        
+        console.log('Actual transferts array:', actualTransfertsData);
+        if (actualTransfertsData.length > 0) {
+            console.log('First transfert item:', actualTransfertsData[0]);
+        }
+
+        if (actualTransfertsData && actualTransfertsData.length > 0) {
+            actualTransfertsData.forEach((transfert, index) => {
+                // Try multiple possible property names for the fields
+                const quantite = parseFloat(
+                    transfert.quantite || 
+                    transfert.Quantite || 
+                    transfert.quantity || 
+                    transfert.Quantity || 
+                    0
+                );
+                
+                const prixUnitaire = parseFloat(
+                    transfert.prixUnitaire || 
+                    transfert.PU || 
+                    transfert['Prix Unitaire'] || 
+                    transfert.prixUnit ||
+                    transfert.prix_unitaire ||
+                    transfert.price ||
+                    transfert.prix ||
+                    0
+                );
+                
+                const impact = parseInt(
+                    transfert.impact || 
+                    transfert.Impact || 
+                    1
+                );
+                
+                const total = quantite * prixUnitaire * Math.abs(impact);
+
+                // Debug problematic entries
+                if (quantite === 0) {
+                    console.log(`Transfert ${index}: quantité zéro détectée`, transfert);
+                }
 
                 transfertsRows.push([
-                    transfert.pointVente || '',
-                    transfert.produit || '',
+                    transfert.pointVente || transfert.PointVente || transfert['Point de Vente'] || transfert.point_vente || '',
+                    transfert.produit || transfert.Produit || transfert.product || '',
                     impact > 0 ? '+' : '-',
                     quantite,
                     prixUnitaire,
                     total,
-                    transfert.commentaire || ''
+                    transfert.commentaire || transfert.Commentaire || transfert.comment || ''
                 ]);
             });
+            
+            console.log(`Processed ${actualTransfertsData.length} transferts for Excel export`);
         } else {
+            console.log('No transferts data available for export');
             transfertsRows.push(['Aucune donnée disponible', '', '', '', '', '', '']);
         }
 
@@ -218,9 +269,9 @@ async function exportStockInventaireToExcel() {
         formatWorksheet(wsStockSoir, stockSoirRows);
         formatWorksheet(wsTransferts, transfertsRows);
 
-        // Generate filename
-        const formattedDate = date.replace(/[\/\-]/g, '_');
-        const filename = `Stock_Inventaire_${formattedDate}.xlsx`;
+        // Generate filename with proper sanitization
+        const sanitizedDate = date.replace(/[^a-zA-Z0-9\-_]/g, '_');
+        const filename = `Stock_Inventaire_${sanitizedDate}.xlsx`;
 
         // Write file
         XLSX.writeFile(workbook, filename);
@@ -234,7 +285,7 @@ async function exportStockInventaireToExcel() {
         // Show success message
         const totalStockMatin = Object.keys(stockMatinData).length;
         const totalStockSoir = Object.keys(stockSoirData).length;
-        const totalTransferts = transfertsData.length;
+        const totalTransferts = actualTransfertsData.length;
 
         alert(`Export Excel réussi !\n\nDonnées exportées pour le ${date}:\n- Stock Matin: ${totalStockMatin} entrées\n- Stock Soir: ${totalStockSoir} entrées\n- Transferts: ${totalTransferts} entrées\n\nFichier: ${filename}`);
 
