@@ -673,6 +673,9 @@
                         </div>
                     </div>
                     <div class="col-md-6 text-end">
+                        <button id="export-stock-excel" class="btn btn-success me-2">
+                            <i class="bi bi-file-earmark-excel"></i> Export Excel
+                        </button>
                         <button id="btn-aller-reconciliation" class="btn btn-primary">Aller à la rec.</button>
                     </div>
                 </div>
@@ -1481,9 +1484,10 @@
                                  <label for="achat-date-fin" class="form-label">Date de fin</label>
                                  <input type="text" class="form-control" id="achat-date-fin" placeholder="Date fin">
                              </div>
-                             <div class="col-md-6">
-                                 <!-- Optional: Add a button to apply filters manually if needed -->
-                                 <!-- <button id="apply-date-filter-btn" class="btn btn-secondary">Appliquer</button> -->
+                             <div class="col-md-6 d-flex align-items-end">
+                                 <button class="btn btn-success" id="export-achat-boeuf-excel">
+                                     <i class="bi bi-file-earmark-excel"></i> Export Excel
+                                 </button>
                              </div>
                          </div>
                          <!-- Table Section -->
@@ -1702,6 +1706,7 @@
     <script src="transfert.js"></script>
     <script src="public/js/suiviAchatBoeuf.js"></script>
     <script src="public/js/estimation.js"></script>
+    <script src="stock-export.js"></script>
     <!-- Script de débogage des filtres -->
     <script src="filter-debug.js"></script>
     <!-- Script pour corriger la visibilité des sections -->

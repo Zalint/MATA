@@ -29,6 +29,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (saveBtn) {
         saveBtn.addEventListener('click', saveTableData); // Assuming a function like this exists or needs to be created
     }
+
+    // Add event listener for Excel export button
+    const exportBtn = document.getElementById('export-achat-boeuf-excel');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportToExcel);
+    }
 });
 
 // Initialize UI components like datepickers
@@ -841,4 +847,127 @@ function saveTableData() {
     console.warn("saveTableData function not implemented yet.");
     // Logic to collect data from all editable rows in 'achat-boeuf-table-body'
     // and send it to the backend (likely via multiple POST/PUT requests).
+}
+
+// Function to export filtered data to Excel
+function exportToExcel() {
+    try {
+        // Get filtered data
+        const dateDebutStr = document.getElementById('achat-date-debut')?.value;
+        const dateFinStr = document.getElementById('achat-date-fin')?.value;
+
+        let filteredData = allAchatsData;
+
+        // Apply same filtering logic as in filterAndDisplayData
+        if (dateDebutStr && dateFinStr) {
+            try {
+                const startDate = new Date(dateDebutStr + 'T00:00:00');
+                const endDate = new Date(dateFinStr + 'T23:59:59');
+
+                if (!isNaN(startDate) && !isNaN(endDate)) {
+                    filteredData = allAchatsData.filter(achat => {
+                        const achatDate = new Date(achat.date + 'T00:00:00');
+                        return !isNaN(achatDate) && achatDate >= startDate && achatDate <= endDate;
+                    });
+                }
+            } catch (e) {
+                console.error("Error parsing filter dates:", e);
+            }
+        } else if (dateDebutStr) {
+            try {
+                const startDate = new Date(dateDebutStr + 'T00:00:00');
+                if (!isNaN(startDate)) {
+                    filteredData = allAchatsData.filter(achat => {
+                        const achatDate = new Date(achat.date + 'T00:00:00');
+                        return !isNaN(achatDate) && achatDate >= startDate;
+                    });
+                }
+            } catch (e) { console.error("Error parsing start date:", e); }
+        } else if (dateFinStr) {
+            try {
+                const endDate = new Date(dateFinStr + 'T23:59:59');
+                if (!isNaN(endDate)) {
+                    filteredData = allAchatsData.filter(achat => {
+                        const achatDate = new Date(achat.date + 'T00:00:00');
+                        return !isNaN(achatDate) && achatDate <= endDate;
+                    });
+                }
+            } catch (e) { console.error("Error parsing end date:", e); }
+        }
+
+        if (filteredData.length === 0) {
+            showNotification('Aucune donnée à exporter pour la période sélectionnée', 'warning');
+            return;
+        }
+
+        // Prepare data for Excel export
+        const exportData = filteredData.map(achat => ({
+            'Mois': achat.mois || '',
+            'Date': achat.date,
+            'Bête': achat.bete,
+            'Prix': parseFloat(achat.prix) || 0,
+            'Abats': parseFloat(achat.abats) || 0,
+            'Frais Abattage': parseFloat(achat.frais_abattage) || 0,
+            'Nombre Kg': parseFloat(achat.nbr_kg) || 0,
+            'Prix Achat/Kg': parseFloat(achat.prix_achat_kg) || 0
+        }));
+
+        // Calculate summary statistics for the period
+        const boeufData = filteredData.filter(a => a.bete.toLowerCase() === 'boeuf');
+        const veauData = filteredData.filter(a => a.bete.toLowerCase() === 'veau');
+        
+        const nombreBoeufs = boeufData.length;
+        const nombreVeaux = veauData.length;
+        const nombreTotal = nombreBoeufs + nombreVeaux;
+        
+        const poidsTotal = filteredData.reduce((sum, a) => sum + (parseFloat(a.nbr_kg) || 0), 0);
+        const prixTotalAchat = filteredData.reduce((sum, a) => sum + (parseFloat(a.prix) || 0), 0);
+        const prixTotalAbats = filteredData.reduce((sum, a) => sum + (parseFloat(a.abats) || 0), 0);
+        const fraisAbattageTotal = filteredData.reduce((sum, a) => sum + (parseFloat(a.frais_abattage) || 0), 0);
+        
+        const prixMoyenBoeuf = nombreBoeufs > 0 ? boeufData.reduce((sum, a) => sum + (parseFloat(a.prix) || 0), 0) / nombreBoeufs : 0;
+        const prixMoyenVeau = nombreVeaux > 0 ? veauData.reduce((sum, a) => sum + (parseFloat(a.prix) || 0), 0) / nombreVeaux : 0;
+
+        // Add summary data at the end
+        exportData.push({}); // Empty row separator
+        exportData.push({ 'Mois': 'RÉSUMÉ PÉRIODE', 'Date': '', 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+        exportData.push({ 'Mois': 'Nombre de bœufs:', 'Date': nombreBoeufs, 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+        exportData.push({ 'Mois': 'Nombre de veaux:', 'Date': nombreVeaux, 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+        exportData.push({ 'Mois': 'Total bêtes:', 'Date': nombreTotal, 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+        exportData.push({ 'Mois': 'Poids total (kg):', 'Date': poidsTotal.toFixed(2), 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+        exportData.push({ 'Mois': 'Prix total achat:', 'Date': prixTotalAchat.toFixed(2), 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+        exportData.push({ 'Mois': 'Prix total abats:', 'Date': prixTotalAbats.toFixed(2), 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+        exportData.push({ 'Mois': 'Frais abattage total:', 'Date': fraisAbattageTotal.toFixed(2), 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+        exportData.push({ 'Mois': 'Prix moyen bœuf:', 'Date': prixMoyenBoeuf.toFixed(2), 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+        exportData.push({ 'Mois': 'Prix moyen veau:', 'Date': prixMoyenVeau.toFixed(2), 'Bête': '', 'Prix': '', 'Abats': '', 'Frais Abattage': '', 'Nombre Kg': '', 'Prix Achat/Kg': '' });
+
+        // Create workbook and worksheet
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+        // Add the worksheet to the workbook
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Achats Boeuf');
+
+        // Generate filename with date range
+        let filename = 'achats_boeuf';
+        if (dateDebutStr && dateFinStr) {
+            filename += `_${dateDebutStr}_${dateFinStr}`;
+        } else if (dateDebutStr) {
+            filename += `_depuis_${dateDebutStr}`;
+        } else if (dateFinStr) {
+            filename += `_jusqu_${dateFinStr}`;
+        } else {
+            filename += '_toutes_donnees';
+        }
+        filename += '.xlsx';
+
+        // Save the file
+        XLSX.writeFile(workbook, filename);
+
+        showNotification(`Export Excel réussi : ${filteredData.length} entrées exportées`, 'success');
+
+    } catch (error) {
+        console.error('Error exporting to Excel:', error);
+        showNotification('Erreur lors de l\'export Excel : ' + error.message, 'error');
+    }
 }
