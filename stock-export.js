@@ -94,14 +94,22 @@ async function exportStockInventaireToExcel() {
             fetch(`${baseUrl}/api/stock/soir?date=${encodeURIComponent(date)}`),
             fetch(`${baseUrl}/api/transferts?date=${encodeURIComponent(date)}`)
         ]);
-
-        // Parse responses
+        // Validate and parse responses
+        if (!stockMatinResponse.ok) {
+            throw new Error(`Erreur lors de la récupération du stock matin: ${stockMatinResponse.status}`);
+        }
+        if (!stockSoirResponse.ok) {
+            throw new Error(`Erreur lors de la récupération du stock soir: ${stockSoirResponse.status}`);
+        }
+        if (!transfertsResponse.ok) {
+            throw new Error(`Erreur lors de la récupération des transferts: ${transfertsResponse.status}`);
+        }
+        
         const stockMatinData = await stockMatinResponse.json();
         const stockSoirData = await stockSoirResponse.json();
         const transfertsData = await transfertsResponse.json();
 
         console.log('Données récupérées:', { stockMatinData, stockSoirData, transfertsData });
-
         // Debug: Log the structure of the first item to understand the data format
         if (stockMatinData && Object.keys(stockMatinData).length > 0) {
             const firstKey = Object.keys(stockMatinData)[0];
@@ -257,12 +265,15 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('export-stock-excel button not found yet');
         
         // Try again after a delay in case the button is added dynamically
-        setTimeout(function() {
+        // Use MutationObserver for dynamic element detection
+        const observer = new MutationObserver(function(mutations) {
             const btn = document.getElementById('export-stock-excel');
             if (btn) {
                 btn.addEventListener('click', exportStockInventaireToExcel);
-                console.log('Event listener added to export-stock-excel button (delayed)');
+                console.log('Event listener added to export-stock-excel button (observed)');
+                observer.disconnect();
             }
-        }, 1000);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 }); 

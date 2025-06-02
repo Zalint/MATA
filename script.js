@@ -609,12 +609,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Add event listener for stock export Excel button
-    document.addEventListener('DOMContentLoaded', function() {
-        const exportStockExcelBtn = document.getElementById('export-stock-excel');
-        if (exportStockExcelBtn) {
-            exportStockExcelBtn.addEventListener('click', exportStockInventaireToExcel);
-        }
-    });
+    const exportStockExcelBtn = document.getElementById('export-stock-excel');
+    if (exportStockExcelBtn) {
+        exportStockExcelBtn.addEventListener('click', exportStockInventaireToExcel);
+    }
 });
 
 // Modification de la fonction checkAuth pour gérer l'affichage de l'onglet Stock inventaire
