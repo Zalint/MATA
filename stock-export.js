@@ -85,11 +85,14 @@ async function exportStockInventaireToExcel() {
         `;
         document.body.insertAdjacentHTML('beforeend', loadingHtml);
 
+        // Get base URL from environment or default to current origin
+        const baseUrl = window.location.origin;
+
         // Fetch data from the APIs
         const [stockMatinResponse, stockSoirResponse, transfertsResponse] = await Promise.all([
-            fetch(`http://localhost:3000/api/stock/matin?date=${encodeURIComponent(date)}`),
-            fetch(`http://localhost:3000/api/stock/soir?date=${encodeURIComponent(date)}`),
-            fetch(`http://localhost:3000/api/transferts?date=${encodeURIComponent(date)}`)
+            fetch(`${baseUrl}/api/stock/matin?date=${encodeURIComponent(date)}`),
+            fetch(`${baseUrl}/api/stock/soir?date=${encodeURIComponent(date)}`),
+            fetch(`${baseUrl}/api/transferts?date=${encodeURIComponent(date)}`)
         ]);
 
         // Parse responses
@@ -210,9 +213,9 @@ async function exportStockInventaireToExcel() {
         formatWorksheet(wsStockSoir, stockSoirRows);
         formatWorksheet(wsTransferts, transfertsRows);
 
-        // Generate filename
-        const formattedDate = date.replace(/[\/\-]/g, '_');
-        const filename = `Stock_Inventaire_${formattedDate}.xlsx`;
+        // Generate filename with proper sanitization
+        const sanitizedDate = date.replace(/[^a-zA-Z0-9\-_]/g, '_');
+        const filename = `Stock_Inventaire_${sanitizedDate}.xlsx`;
 
         // Write file
         XLSX.writeFile(workbook, filename);
