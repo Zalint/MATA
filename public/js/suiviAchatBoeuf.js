@@ -162,13 +162,13 @@ async function loadAchatsBoeuf() {
     }
 }
 
-// Filter data based on selected dates and update display
-function filterAndDisplayData() {
+// Extract filtering logic to reusable function
+function getFilteredData() {
     const dateDebutStr = document.getElementById('achat-date-debut')?.value;
     const dateFinStr = document.getElementById('achat-date-fin')?.value;
-
+    
     let filteredData = allAchatsData;
-
+    
     if (dateDebutStr && dateFinStr) {
         try {
             // Add time component to ensure inclusivity
@@ -208,6 +208,13 @@ function filterAndDisplayData() {
             }
         } catch (e) { console.error("Error parsing end date:", e); }
     }
+    
+    return filteredData;
+}
+
+// Filter data based on selected dates and update display
+function filterAndDisplayData() {
+    const filteredData = getFilteredData();
 
     // Pass the filtered data to display functions
     displayAchatsBoeuf(filteredData);
@@ -853,47 +860,7 @@ function saveTableData() {
 function exportToExcel() {
     try {
         // Get filtered data
-        const dateDebutStr = document.getElementById('achat-date-debut')?.value;
-        const dateFinStr = document.getElementById('achat-date-fin')?.value;
-
-        let filteredData = allAchatsData;
-
-        // Apply same filtering logic as in filterAndDisplayData
-        if (dateDebutStr && dateFinStr) {
-            try {
-                const startDate = new Date(dateDebutStr + 'T00:00:00');
-                const endDate = new Date(dateFinStr + 'T23:59:59');
-
-                if (!isNaN(startDate) && !isNaN(endDate)) {
-                    filteredData = allAchatsData.filter(achat => {
-                        const achatDate = new Date(achat.date + 'T00:00:00');
-                        return !isNaN(achatDate) && achatDate >= startDate && achatDate <= endDate;
-                    });
-                }
-            } catch (e) {
-                console.error("Error parsing filter dates:", e);
-            }
-        } else if (dateDebutStr) {
-            try {
-                const startDate = new Date(dateDebutStr + 'T00:00:00');
-                if (!isNaN(startDate)) {
-                    filteredData = allAchatsData.filter(achat => {
-                        const achatDate = new Date(achat.date + 'T00:00:00');
-                        return !isNaN(achatDate) && achatDate >= startDate;
-                    });
-                }
-            } catch (e) { console.error("Error parsing start date:", e); }
-        } else if (dateFinStr) {
-            try {
-                const endDate = new Date(dateFinStr + 'T23:59:59');
-                if (!isNaN(endDate)) {
-                    filteredData = allAchatsData.filter(achat => {
-                        const achatDate = new Date(achat.date + 'T00:00:00');
-                        return !isNaN(achatDate) && achatDate <= endDate;
-                    });
-                }
-            } catch (e) { console.error("Error parsing end date:", e); }
-        }
+        const filteredData = getFilteredData();
 
         if (filteredData.length === 0) {
             showNotification('Aucune donnée à exporter pour la période sélectionnée', 'warning');
@@ -950,6 +917,8 @@ function exportToExcel() {
 
         // Generate filename with date range
         let filename = 'achats_boeuf';
+        const dateDebutStr = document.getElementById('achat-date-debut')?.value;
+        const dateFinStr = document.getElementById('achat-date-fin')?.value;
         if (dateDebutStr && dateFinStr) {
             filename += `_${dateDebutStr}_${dateFinStr}`;
         } else if (dateDebutStr) {

@@ -1,3 +1,56 @@
+// Utility function for processing stock data
+function processStockData(stockData, sheetName) {
+    const rows = [];
+    rows.push(['Point de Vente', 'Produit', 'Quantité', 'Prix Unitaire', 'Total', 'Commentaire']);
+
+    if (stockData && Object.keys(stockData).length > 0) {
+        Object.entries(stockData).forEach(([key, item]) => {
+            // Try multiple possible property names for quantity and price
+            const quantite = parseFloat(
+                item.Nombre ||
+                item.quantite || 
+                item.Quantite || 
+                item.quantity || 
+                item.Quantity ||
+                item.qte ||
+                item.Qte ||
+                0
+            );
+            
+            const prixUnitaire = parseFloat(
+                item.PU ||
+                item.prixUnitaire || 
+                item['Prix Unitaire'] || 
+                item.prixUnit ||
+                item.prix_unitaire ||
+                item.price ||
+                item.prix ||
+                0
+            );
+            
+            const total = quantite * prixUnitaire;
+
+            // Debug log for problematic entries
+            if (quantite === 0 && (item.Nombre || item.quantite || item.Quantite || item.quantity)) {
+                console.log(`Quantité zéro détectée pour ${sheetName}:`, key, item);
+            }
+
+            rows.push([
+                item['Point de Vente'] || item.pointVente || item.point_vente || '',
+                item.Produit || item.produit || item.product || '',
+                quantite,
+                prixUnitaire,
+                total,
+                item.Commentaire || item.commentaire || item.comment || ''
+            ]);
+        });
+    } else {
+        rows.push(['Aucune donnée disponible', '', '', '', '', '']);
+    }
+    
+    return rows;
+}
+
 // Function to export stock inventaire data to Excel (Stock Matin, Stock Soir, Transferts)
 async function exportStockInventaireToExcel() {
     try {
@@ -16,7 +69,7 @@ async function exportStockInventaireToExcel() {
         }
 
         const date = dateInventaire.value;
-        console.log(`Début de l'export Excel pour la date: ${date}`);
+        console.log('Début de l\'export Excel pour la date:', date);
 
         // Show loading indicator
         const loadingHtml = `
@@ -32,30 +85,17 @@ async function exportStockInventaireToExcel() {
         `;
         document.body.insertAdjacentHTML('beforeend', loadingHtml);
 
-        // Fetch all three types of data
-        const [stockMatinResponse, stockSoirResponse, transfertsResponse] = await Promise.allSettled([
-            fetch(`/api/stock/matin?date=${date}`, { method: 'GET', credentials: 'include' }),
-            fetch(`/api/stock/soir?date=${date}`, { method: 'GET', credentials: 'include' }),
-            fetch(`/api/transferts?date=${date}`, { method: 'GET', credentials: 'include' })
+        // Fetch data from the APIs
+        const [stockMatinResponse, stockSoirResponse, transfertsResponse] = await Promise.all([
+            fetch(`http://localhost:3000/api/stock/matin?date=${encodeURIComponent(date)}`),
+            fetch(`http://localhost:3000/api/stock/soir?date=${encodeURIComponent(date)}`),
+            fetch(`http://localhost:3000/api/transferts?date=${encodeURIComponent(date)}`)
         ]);
 
-        // Process responses
-        let stockMatinData = {};
-        let stockSoirData = {};
-        let transfertsData = [];
-
-        if (stockMatinResponse.status === 'fulfilled' && stockMatinResponse.value.ok) {
-            stockMatinData = await stockMatinResponse.value.json();
-        }
-
-        if (stockSoirResponse.status === 'fulfilled' && stockSoirResponse.value.ok) {
-            stockSoirData = await stockSoirResponse.value.json();
-        }
-
-        if (transfertsResponse.status === 'fulfilled' && transfertsResponse.value.ok) {
-            const transfertsResult = await transfertsResponse.value.json();
-            transfertsData = transfertsResult.success && transfertsResult.transferts ? transfertsResult.transferts : [];
-        }
+        // Parse responses
+        const stockMatinData = await stockMatinResponse.json();
+        const stockSoirData = await stockSoirResponse.json();
+        const transfertsData = await transfertsResponse.json();
 
         console.log('Données récupérées:', { stockMatinData, stockSoirData, transfertsData });
 
@@ -73,106 +113,12 @@ async function exportStockInventaireToExcel() {
         const workbook = XLSX.utils.book_new();
 
         // === SHEET 1: STOCK MATIN ===
-        const stockMatinRows = [];
-        stockMatinRows.push(['Point de Vente', 'Produit', 'Quantité', 'Prix Unitaire', 'Total', 'Commentaire']);
-
-        if (stockMatinData && Object.keys(stockMatinData).length > 0) {
-            Object.entries(stockMatinData).forEach(([key, item]) => {
-                // Try multiple possible property names for quantity and price
-                const quantite = parseFloat(
-                    item.Nombre ||
-                    item.quantite || 
-                    item.Quantite || 
-                    item.quantity || 
-                    item.Quantity ||
-                    item.qte ||
-                    item.Qte ||
-                    0
-                );
-                
-                const prixUnitaire = parseFloat(
-                    item.PU ||
-                    item.prixUnitaire || 
-                    item['Prix Unitaire'] || 
-                    item.prixUnit ||
-                    item.prix_unitaire ||
-                    item.price ||
-                    item.prix ||
-                    0
-                );
-                
-                const total = quantite * prixUnitaire;
-
-                // Debug log for problematic entries
-                if (quantite === 0 && (item.Nombre || item.quantite || item.Quantite || item.quantity)) {
-                    console.log('Quantité zéro détectée pour:', key, item);
-                }
-
-                stockMatinRows.push([
-                    item['Point de Vente'] || item.pointVente || item.point_vente || '',
-                    item.Produit || item.produit || item.product || '',
-                    quantite,
-                    prixUnitaire,
-                    total,
-                    item.Commentaire || item.commentaire || item.comment || ''
-                ]);
-            });
-        } else {
-            stockMatinRows.push(['Aucune donnée disponible', '', '', '', '', '']);
-        }
-
+        const stockMatinRows = processStockData(stockMatinData, 'Stock Matin');
         const wsStockMatin = XLSX.utils.aoa_to_sheet(stockMatinRows);
         XLSX.utils.book_append_sheet(workbook, wsStockMatin, 'Stock Matin');
 
         // === SHEET 2: STOCK SOIR ===
-        const stockSoirRows = [];
-        stockSoirRows.push(['Point de Vente', 'Produit', 'Quantité', 'Prix Unitaire', 'Total', 'Commentaire']);
-
-        if (stockSoirData && Object.keys(stockSoirData).length > 0) {
-            Object.entries(stockSoirData).forEach(([key, item]) => {
-                // Try multiple possible property names for quantity and price
-                const quantite = parseFloat(
-                    item.Nombre ||
-                    item.quantite || 
-                    item.Quantite || 
-                    item.quantity || 
-                    item.Quantity ||
-                    item.qte ||
-                    item.Qte ||
-                    0
-                );
-                
-                const prixUnitaire = parseFloat(
-                    item.PU ||
-                    item.prixUnitaire || 
-                    item['Prix Unitaire'] || 
-                    item.prixUnit ||
-                    item.prix_unitaire ||
-                    item.price ||
-                    item.prix ||
-                    0
-                );
-                
-                const total = quantite * prixUnitaire;
-
-                // Debug log for problematic entries
-                if (quantite === 0 && (item.Nombre || item.quantite || item.Quantite || item.quantity)) {
-                    console.log('Quantité zéro détectée pour:', key, item);
-                }
-
-                stockSoirRows.push([
-                    item['Point de Vente'] || item.pointVente || item.point_vente || '',
-                    item.Produit || item.produit || item.product || '',
-                    quantite,
-                    prixUnitaire,
-                    total,
-                    item.Commentaire || item.commentaire || item.comment || ''
-                ]);
-            });
-        } else {
-            stockSoirRows.push(['Aucune donnée disponible', '', '', '', '', '']);
-        }
-
+        const stockSoirRows = processStockData(stockSoirData, 'Stock Soir');
         const wsStockSoir = XLSX.utils.aoa_to_sheet(stockSoirRows);
         XLSX.utils.book_append_sheet(workbook, wsStockSoir, 'Stock Soir');
 
