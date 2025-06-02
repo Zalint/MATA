@@ -262,12 +262,15 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('export-stock-excel button not found yet');
         
         // Try again after a delay in case the button is added dynamically
-        setTimeout(function() {
+        // Use MutationObserver for dynamic element detection
+        const observer = new MutationObserver(function(mutations) {
             const btn = document.getElementById('export-stock-excel');
             if (btn) {
                 btn.addEventListener('click', exportStockInventaireToExcel);
-                console.log('Event listener added to export-stock-excel button (delayed)');
+                console.log('Event listener added to export-stock-excel button (observed)');
+                observer.disconnect();
             }
-        }, 1000);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 }); 
