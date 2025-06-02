@@ -91,14 +91,22 @@ async function exportStockInventaireToExcel() {
             fetch(`http://localhost:3000/api/stock/soir?date=${encodeURIComponent(date)}`),
             fetch(`http://localhost:3000/api/transferts?date=${encodeURIComponent(date)}`)
         ]);
-
-        // Parse responses
+        // Validate and parse responses
+        if (!stockMatinResponse.ok) {
+            throw new Error(`Erreur lors de la récupération du stock matin: ${stockMatinResponse.status}`);
+        }
+        if (!stockSoirResponse.ok) {
+            throw new Error(`Erreur lors de la récupération du stock soir: ${stockSoirResponse.status}`);
+        }
+        if (!transfertsResponse.ok) {
+            throw new Error(`Erreur lors de la récupération des transferts: ${transfertsResponse.status}`);
+        }
+        
         const stockMatinData = await stockMatinResponse.json();
         const stockSoirData = await stockSoirResponse.json();
         const transfertsData = await transfertsResponse.json();
 
         console.log('Données récupérées:', { stockMatinData, stockSoirData, transfertsData });
-
         // Debug: Log the structure of the first item to understand the data format
         if (stockMatinData && Object.keys(stockMatinData).length > 0) {
             const firstKey = Object.keys(stockMatinData)[0];
