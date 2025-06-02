@@ -29,6 +29,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (saveBtn) {
         saveBtn.addEventListener('click', saveTableData); // Assuming a function like this exists or needs to be created
     }
+
+    // Add event listener for Excel export button
+    const exportBtn = document.getElementById('export-achat-boeuf-excel');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportToExcel);
+    }
 });
 
 // Initialize UI components like datepickers
@@ -156,13 +162,13 @@ async function loadAchatsBoeuf() {
     }
 }
 
-// Filter data based on selected dates and update display
-function filterAndDisplayData() {
+// Extract filtering logic to reusable function
+function getFilteredData() {
     const dateDebutStr = document.getElementById('achat-date-debut')?.value;
     const dateFinStr = document.getElementById('achat-date-fin')?.value;
-
+    
     let filteredData = allAchatsData;
-
+    
     if (dateDebutStr && dateFinStr) {
         try {
             // Add time component to ensure inclusivity
@@ -202,6 +208,13 @@ function filterAndDisplayData() {
             }
         } catch (e) { console.error("Error parsing end date:", e); }
     }
+    
+    return filteredData;
+}
+
+// Filter data based on selected dates and update display
+function filterAndDisplayData() {
+    const filteredData = getFilteredData();
 
     // Pass the filtered data to display functions
     displayAchatsBoeuf(filteredData);
@@ -858,4 +871,42 @@ function saveTableData() {
     console.warn("saveTableData function not implemented yet.");
     // Logic to collect data from all editable rows in 'achat-boeuf-table-body'
     // and send it to the backend (likely via multiple POST/PUT requests).
+}
+
+function exportToExcel() {
+    try {
+        // Guard against missing SheetJS
+        if (typeof XLSX === 'undefined') {
+            showNotification(
+              'Bibliothèque XLSX non disponible. Veuillez recharger la page.',
+              'error'
+            );
+            return;
+        }
+
+        // Get filtered data
+        const filteredData = getFilteredData();
+
+        if (filteredData.length === 0) {
+            showNotification('Aucune donnée à exporter pour la période sélectionnée', 'warning');
+            return;
+        }
+
+        // Prepare data for Excel export
+        const exportData = filteredData.map(achat => ({
+            'Mois': achat.mois || '',
+            'Date': achat.date,
+            'Bête': achat.bete,
+            'Prix': parseFloat(achat.prix) || 0,
+            'Abats': parseFloat(achat.abats) || 0,
+            'Frais Abattage': parseFloat(achat.frais_abattage) || 0,
+            'Nombre Kg': parseFloat(achat.nbr_kg) || 0,
+            'Prix Achat/Kg': parseFloat(achat.prix_achat_kg) || 0
+        }));
+
+        // ... rest of the function unchanged ...
+    } catch (error) {
+        console.error('Error exporting to Excel:', error);
+        showNotification('Erreur lors de l\'export Excel : ' + error.message, 'error');
+    }
 }
