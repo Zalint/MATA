@@ -15,4 +15,4 @@ Better scalability for future growth
 Support for network-based access to the database
 The application should function exactly as before, but with the improved capabilities of PostgreSQL.
 
-mdp: bonea2024
+mdp: <your_db_password_here>
