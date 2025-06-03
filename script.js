@@ -6059,4 +6059,188 @@ function showSection(sectionId) {
     }
 }
 
-// ... rest of the code ...
+
+window.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Loaded - Adding button...');
+    
+    // Définir les prix par défaut acceptables
+    const PRIX_DEFAUT_RANGES = {
+        'Boeuf': [3400, 3500, 3600, 3700, 3800, 3900],
+        'Veau': [3500, 3600, 3700, 3800, 3900]
+    };
+
+    // Fonction pour vérifier si un prix est considéré comme "par défaut"
+    function isPrixDefaut(produit, prix) {
+        const prixNum = parseFloat(prix) || 0;
+        const validPrices = PRIX_DEFAUT_RANGES[produit];
+        return !prix || prixNum === 0 || (validPrices && validPrices.includes(prixNum));
+    }
+    
+    // Add the button only if not already present
+    if (!document.getElementById('btn-prix-pondere')) {
+        const btn = document.createElement('button');
+        btn.id = 'btn-prix-pondere';
+        btn.className = 'btn btn-info mb-2';
+        btn.textContent = 'Remplir Prix Moyen Pondéré (Boeuf/Veau)';
+        
+         // Style pour aligner à droite
+         btn.style.cssText = `
+         margin: 10px;
+         float: right;
+         margin-right: 20px;
+     `;
+        
+        // Try multiple locations to insert the button
+        const stockSection = document.getElementById('stock-inventaire-section');
+        const stockTable = document.getElementById('stock-table');
+        
+        if (stockSection) {
+            stockSection.insertBefore(btn, stockSection.firstChild);
+            console.log('Button added to stock section');
+        } else if (stockTable && stockTable.parentElement) {
+            stockTable.parentElement.insertBefore(btn, stockTable);
+            console.log('Button added before stock table');
+        } else {
+            // Fallback: add to the top of the page
+            document.body.insertBefore(btn, document.body.firstChild);
+            console.log('Button added to body');
+        }
+        
+        console.log('Button "Remplir Prix Moyen Pondéré" has been added!');
+    }
+
+    // Add click event listener
+    setTimeout(function() {
+        const button = document.getElementById('btn-prix-pondere');
+        if (button) {
+            button.addEventListener('click', async function() {
+                const typeStock = document.getElementById('type-stock') ? document.getElementById('type-stock').value : '';
+                const date = document.getElementById('date-inventaire') ? document.getElementById('date-inventaire').value : '';
+
+                console.log('=== DEBUG: Button clicked ===');
+                console.log('typeStock:', typeStock);
+                console.log('date:', date);
+                console.log('PRIX_DEFAUT_RANGES:', PRIX_DEFAUT_RANGES);
+
+                // --- STOCK TABLE ---
+                const stockRows = Array.from(document.querySelectorAll('#stock-table tbody tr'));
+                console.log('Stock rows found:', stockRows.length);
+                
+                for (const row of stockRows) {
+                    const produitSelect = row.querySelector('.produit-select');
+                    const pointVenteSelect = row.querySelector('.point-vente-select');
+                    const prixInput = row.querySelector('.prix-unitaire-input');
+                    
+                    if (!produitSelect || !pointVenteSelect || !prixInput) {
+                        console.log('Missing elements in row, skipping');
+                        continue;
+                    }
+                    
+                    const produit = produitSelect.value;
+                    const pointVente = pointVenteSelect.value;
+                    
+                    console.log('=== Row Debug ===');
+                    console.log('Produit:', produit);
+                    console.log('Point de Vente:', pointVente);
+                    console.log('Prix Input Value:', prixInput.value);
+                    console.log('Is Boeuf or Veau?', (produit === 'Boeuf' || produit === 'Veau'));
+                    console.log('Is prix défaut?', isPrixDefaut(produit, prixInput.value));
+                    
+                    if ((produit === 'Boeuf' || produit === 'Veau') && isPrixDefaut(produit, prixInput.value)) {
+                        console.log('*** MAKING API CALL FOR:', produit);
+                        try {
+                            if (typeStock === 'matin' || typeStock === 'soir') {
+                                const url = `/api/prix-moyen?type=${encodeURIComponent(produit.toLowerCase())}&date=${encodeURIComponent(date)}&pointVente=${encodeURIComponent(pointVente)}`;
+                                console.log('API URL:', url);
+                                const response = await fetch(url);
+                                console.log('API Response status:', response.status);
+                                if (!response.ok) throw new Error('API error: ' + response.status);
+                                const data = await response.json();
+                                console.log('API Response:', data);
+                                if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+                                    prixInput.value = parseFloat(data.data[0].prix_moyen_pondere);
+                                    console.log('Updated price to:', prixInput.value);
+                                    // Trigger change event to update totals
+                                    prixInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                } else {
+                                    // Fallback to default if no data
+                                    const fallbackPrice = (typeof PRIX_DEFAUT !== 'undefined' && PRIX_DEFAUT[produit]) ? PRIX_DEFAUT[produit] : (PRIX_DEFAUT_RANGES[produit] ? PRIX_DEFAUT_RANGES[produit][3] : 0);
+                                    prixInput.value = fallbackPrice;
+                                    console.log('Stock - No data, using fallback:', fallbackPrice);
+                                    prixInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Erreur lors de la récupération du prix moyen (stock):', err);
+                            // Use fallback on error
+                            const fallbackPrice = (typeof PRIX_DEFAUT !== 'undefined' && PRIX_DEFAUT[produit]) ? PRIX_DEFAUT[produit] : (PRIX_DEFAUT_RANGES[produit] ? PRIX_DEFAUT_RANGES[produit][3] : 0);
+                            prixInput.value = fallbackPrice;
+                            console.log('Stock - Error, using fallback:', fallbackPrice);
+                            prixInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    } else {
+                        console.log('*** SKIPPING ROW - conditions not met');
+                    }
+                }
+
+                // --- TRANSFERT TABLE ---
+                const transfertRows = Array.from(document.querySelectorAll('#transfertTable tbody tr'));
+                console.log('Transfert rows found:', transfertRows.length);
+                
+                for (const row of transfertRows) {
+                    const produitSelect = row.querySelector('.produit-select');
+                    const prixInput = row.querySelector('.prix-unitaire-input');
+                    
+                    if (!produitSelect || !prixInput) {
+                        console.log('Missing elements in transfert row, skipping');
+                        continue;
+                    }
+                    
+                    const produit = produitSelect.value;
+                    console.log('Transfert - Produit:', produit, 'Prix:', prixInput.value);
+                    
+                    // For transfert: Only check if it's Boeuf or Veau (no strict price condition)
+                    if (produit === 'Boeuf' || produit === 'Veau') {
+                        console.log('*** MAKING TRANSFERT API CALL FOR:', produit);
+                        try {
+                            // TRANSFERT: Call API without pointVente parameter
+                            const url = `/api/prix-moyen?type=${encodeURIComponent(produit.toLowerCase())}&date=${encodeURIComponent(date)}`;
+                            console.log('Transfert API URL:', url);
+                            const response = await fetch(url);
+                            console.log('Transfert API Response status:', response.status);
+                            if (!response.ok) throw new Error('API error: ' + response.status);
+                            const data = await response.json();
+                            console.log('Transfert API Response:', data);
+                            if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+                                prixInput.value = parseFloat(data.data[0].prix_moyen_pondere);
+                                console.log('Transfert - Updated price to:', prixInput.value);
+                                // Trigger change event to update totals
+                                prixInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            } else {
+                                // Fallback to default if no data
+                                const defaultPrice = (typeof PRIX_DEFAUT !== 'undefined' && PRIX_DEFAUT[produit]) ? PRIX_DEFAUT[produit] : (PRIX_DEFAUT_RANGES[produit] ? PRIX_DEFAUT_RANGES[produit][3] : 0);
+                                prixInput.value = defaultPrice;
+                                console.log('Transfert - No data, using fallback:', defaultPrice);
+                                prixInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                        } catch (err) {
+                            console.error('Erreur lors de la récupération du prix moyen (transfert):', err);
+                            // Use fallback on error
+                            const defaultPrice = (typeof PRIX_DEFAUT !== 'undefined' && PRIX_DEFAUT[produit]) ? PRIX_DEFAUT[produit] : (PRIX_DEFAUT_RANGES[produit] ? PRIX_DEFAUT_RANGES[produit][3] : 0);
+                            prixInput.value = defaultPrice;
+                            console.log('Transfert - Error, using fallback:', defaultPrice);
+                            prixInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    } else {
+                        console.log('*** SKIPPING TRANSFERT ROW - not Boeuf/Veau');
+                    }
+                }
+
+                alert('Prix moyen pondéré appliqué (si disponible) pour Boeuf/Veau dans Stock et Transfert.');
+            });
+            console.log('Click event listener added to button');
+        } else {
+            console.error('Button not found after creation!');
+        }
+    }, 100);
+});
