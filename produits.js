@@ -81,6 +81,10 @@ const produits = {
         "Tete Agneau": { 
             default: 1000, 
             alternatives: [1000, 1500] 
+        },
+        "Mouton sur pied": { 
+            default: 0, 
+            alternatives: [] 
         }
     },
     "Volaille": {
@@ -137,6 +141,12 @@ const produits = {
         "Pack20000": { 
             default: 20000, 
             alternatives: [20000] 
+        }
+    },
+    "Caprin": {
+        "Chevre sur pied": { 
+            default: 4000, 
+            alternatives: [4000] 
         }
     },
     "Autres": {

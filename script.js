@@ -613,6 +613,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (exportStockExcelBtn) {
         exportStockExcelBtn.addEventListener('click', exportStockInventaireToExcel);
     }
+
+    // Add event listener for visualization export Excel button
+    const exportVisualisationExcelBtn = document.getElementById('export-visualisation-excel');
+    if (exportVisualisationExcelBtn) {
+        exportVisualisationExcelBtn.addEventListener('click', exportVisualisationToExcel);
+    }
 });
 
 // Modification de la fonction checkAuth pour gérer l'affichage de l'onglet Stock inventaire
@@ -808,6 +814,24 @@ if (typeof produits === 'undefined') {
     alert('Erreur: Base de données des produits non chargée. Veuillez recharger la page.');
 }
 
+// Fonction pour peupler les catégories
+function populateCategories() {
+    // Peupler tous les sélecteurs de catégories (existants et futurs)
+    document.querySelectorAll('.categorie-select').forEach(select => {
+        // Vérifier si les options sont déjà peuplées
+        if (select.children.length <= 1) { // Seulement l'option par défaut
+            Object.keys(produits).forEach(categorie => {
+                if (typeof produits[categorie] === 'object' && produits[categorie] !== null) {
+                    const option = document.createElement('option');
+                    option.value = categorie;
+                    option.textContent = categorie;
+                    select.appendChild(option);
+                }
+            });
+        }
+    });
+}
+
 // Gestion des catégories et produits
 document.querySelectorAll('.categorie-select').forEach(select => {
     select.addEventListener('change', function() {
@@ -862,6 +886,9 @@ document.querySelectorAll('.quantite, .prix-unit').forEach(input => {
 
 // Ajouter un événement pour recalculer le total général quand la date change
 document.addEventListener('DOMContentLoaded', function() {
+    // Peupler les catégories au chargement de la page
+    populateCategories();
+    
     const dateInput = document.getElementById('date');
     const pointVenteInput = document.getElementById('point-vente');
     
@@ -1009,11 +1036,6 @@ function creerNouvelleEntree() {
                 <label class="form-label">Catégorie</label>
                 <select class="form-select categorie-select" required>
                     <option value="">Sélectionner...</option>
-                    <option value="Bovin">Bovin</option>
-                    <option value="Ovin">Ovin</option>
-                    <option value="Volaille">Volaille</option>
-                    <option value="Pack">Pack</option>
-                    <option value="Autres">Autres</option>
                 </select>
             </div>
             <div class="col-md-4">
@@ -1064,9 +1086,12 @@ function creerNouvelleEntree() {
         </div>
     `;
 
-    // Gestion dynamique des produits
+    // Peupler dynamiquement les catégories depuis produits.js
     const categorieSelect = div.querySelector('.categorie-select');
     const produitSelect = div.querySelector('.produit-select');
+    
+    // Peupler les catégories pour ce nouvel élément
+    populateCategories();
     categorieSelect.addEventListener('change', function() {
         const categorie = this.value;
         produitSelect.innerHTML = '<option value="">Sélectionner...</option>'; // Vider les options précédentes
@@ -3449,29 +3474,21 @@ function initTableauStock() {
 const POINTS_VENTE_PHYSIQUES = [
     'Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba', 'Keur Massar','Abattage'
 ];
-// Configuration pour l'inventaire to refac to read produits.js
-const PRODUITS = [
-    'Boeuf', 'Veau', 'Poulet', 'Tete De Mouton', 'Tablette',
-    'Foie', 'Yell', 'Agneau', 'Déchet 400', 'Autres', 'Mergez', 'Déchet 2000','Abats'
-];
+// Configuration pour l'inventaire - lecture depuis produits.js
+const PRODUITS = [];
+const PRIX_DEFAUT = {};
 
-// Configuration des prix par défaut
-// refacto to read produits.js
-const PRIX_DEFAUT = {
-    'Boeuf': 3700,
-    'Veau': 3900,
-    'Poulet': 3500,
-    'Tete De Mouton': 1000,
-    'Tablette': 2800,
-    'Foie': 4000,
-    'Yell': 2500,
-    'Agneau': 4500,
-    'Déchet 400': 400,
-    'Autres': 1,
-    'Mergez': 5000,
-    'Déchet 2000': 2000,
-    'Abats': 1000
-};
+// Extraire tous les produits de toutes les catégories de produits.js
+Object.keys(produits).forEach(categorie => {
+    if (typeof produits[categorie] === 'object' && produits[categorie] !== null) {
+        Object.keys(produits[categorie]).forEach(produit => {
+            if (typeof produits[categorie][produit] === 'object' && produits[categorie][produit].default !== undefined) {
+                PRODUITS.push(produit);
+                PRIX_DEFAUT[produit] = produits[categorie][produit].default;
+            }
+        });
+    }
+});
 
 // Tous les points de vente (physiques et virtuels)
 const TOUS_POINTS_VENTE = [
@@ -6244,3 +6261,350 @@ window.addEventListener('DOMContentLoaded', function() {
         }
     }, 100);
 });
+
+// Function to export visualization/ventes data to Excel
+function exportVisualisationToExcel() {
+    try {
+        // Check if XLSX library is loaded
+        if (typeof XLSX === 'undefined') {
+            console.error("Erreur: La bibliothèque XLSX n'est pas chargée.");
+            alert("Erreur: La bibliothèque XLSX n'est pas chargée. Veuillez rafraîchir la page.");
+            return;
+        }
+
+        // Get data from the visualization table
+        const table = document.getElementById('tableau-ventes');
+        if (!table) {
+            alert('Tableau des ventes non trouvé');
+            return;
+        }
+
+        const tbody = table.querySelector('tbody');
+        if (!tbody || tbody.rows.length === 0) {
+            alert('Aucune donnée à exporter dans le tableau des ventes');
+            return;
+        }
+
+        // Extract headers
+        const headers = [];
+        const headerCells = table.querySelectorAll('thead th');
+        headerCells.forEach(cell => {
+            headers.push(cell.textContent.trim());
+        });
+
+        // Extract data rows
+        const exportData = [];
+        
+        // Process each row in the table
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const rowData = {};
+            const cells = row.querySelectorAll('td');
+            
+            cells.forEach((cell, index) => {
+                if (index < headers.length) {
+                    const headerName = headers[index];
+                    let cellValue = cell.textContent.trim();
+                    
+                    // Convert numeric fields to numbers for proper Excel formatting
+                    if (headerName === 'Prix Unitaire' || headerName === 'Quantité' || headerName === 'Montant') {
+                        // Remove any formatting and convert to number
+                        const numericValue = parseFloat(cellValue.replace(/[^0-9.,]/g, '').replace(',', '.'));
+                        cellValue = isNaN(numericValue) ? 0 : numericValue;
+                    }
+                    
+                    rowData[headerName] = cellValue;
+                }
+            });
+            
+            // Only add rows that have actual data
+            if (Object.values(rowData).some(value => value !== '' && value !== 0)) {
+                exportData.push(rowData);
+            }
+        });
+
+        if (exportData.length === 0) {
+            alert('Aucune donnée valide à exporter');
+            return;
+        }
+
+        // Create workbook and worksheet
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+        // Format currency columns
+        const currencyFormat = '#,##0 FCFA';
+        const range = XLSX.utils.decode_range(worksheet['!ref']);
+        
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+            // Prix Unitaire, Montant columns (adjust indices based on actual headers)
+            const prixUnitaireCol = headers.indexOf('Prix Unitaire');
+            const montantCol = headers.indexOf('Montant');
+            const quantiteCol = headers.indexOf('Quantité');
+            
+            [prixUnitaireCol, montantCol].forEach(C => {
+                if (C >= 0) {
+                    const cell_address = { c: C, r: R };
+                    const cell_ref = XLSX.utils.encode_cell(cell_address);
+                    if (worksheet[cell_ref] && typeof worksheet[cell_ref].v === 'number') {
+                        worksheet[cell_ref].t = 'n';
+                        worksheet[cell_ref].z = currencyFormat;
+                    }
+                }
+            });
+            
+            // Format quantity column
+            if (quantiteCol >= 0) {
+                const qty_cell_address = { c: quantiteCol, r: R };
+                const qty_cell_ref = XLSX.utils.encode_cell(qty_cell_address);
+                if (worksheet[qty_cell_ref] && typeof worksheet[qty_cell_ref].v === 'number') {
+                    worksheet[qty_cell_ref].t = 'n';
+                }
+            }
+        }
+
+        // Set column widths
+        const colWidths = headers.map(header => {
+            switch (header) {
+                case 'Date': return { wch: 12 };
+                case 'Point de Vente': case 'Préparation': return { wch: 15 };
+                case 'Produit': return { wch: 18 };
+                case 'Catégorie': return { wch: 12 };
+                case 'Prix Unitaire': case 'Montant': return { wch: 15 };
+                case 'Nom Client': case 'Adresse Client': return { wch: 20 };
+                case 'Numéro Client': return { wch: 15 };
+                default: return { wch: 10 };
+            }
+        });
+        worksheet['!cols'] = colWidths;
+
+        // Add the worksheet to the workbook
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Tableau des Ventes');
+
+        // Generate filename with current date
+        const currentDate = new Date();
+        const dateStr = currentDate.toISOString().slice(0, 10).replace(/-/g, '');
+        const filename = `Tableau_Ventes_${dateStr}.xlsx`;
+
+        // Save the file
+        XLSX.writeFile(workbook, filename);
+
+        alert(`Export Excel réussi !\n\nDonnées exportées: ${exportData.length} entrées\nFichier: ${filename}`);
+
+    } catch (error) {
+        console.error('Erreur lors de l\'export Excel visualization:', error);
+        alert('Erreur lors de l\'export Excel : ' + error.message);
+    }
+}
+
+// Function to export monthly reconciliation data to Excel
+function exportReconciliationMoisToExcel() {
+    try {
+        // Check if XLSX library is loaded
+        if (typeof XLSX === 'undefined') {
+            console.error("Erreur: La bibliothèque XLSX n'est pas chargée.");
+            alert("Erreur: La bibliothèque XLSX n'est pas chargée. Veuillez rafraîchir la page.");
+            return;
+        }
+
+        // Get data from the monthly reconciliation table
+        const table = document.getElementById('reconciliation-mois-table');
+        if (!table) {
+            alert('Tableau de réconciliation mensuelle non trouvé');
+            return;
+        }
+
+        const tbody = table.querySelector('tbody');
+        if (!tbody || tbody.rows.length === 0) {
+            alert('Aucune donnée à exporter dans le tableau de réconciliation mensuelle');
+            return;
+        }
+
+        // Extract headers
+        const headers = [];
+        const headerCells = table.querySelectorAll('thead th');
+        headerCells.forEach(cell => {
+            headers.push(cell.textContent.trim());
+        });
+
+        // Extract data rows
+        const exportData = [];
+        
+        // Process each row in the table
+        const rows = tbody.querySelectorAll('tr');
+        let processedRows = 0;
+        
+        rows.forEach(row => {
+            // Skip hidden rows (filtered out)
+            if (row.style.display === 'none') {
+                return;
+            }
+            
+            const rowData = {};
+            const cells = row.querySelectorAll('td');
+            
+            cells.forEach((cell, index) => {
+                if (index < headers.length) {
+                    const headerName = headers[index];
+                    let cellValue;
+                    
+                    // Handle comment input fields
+                    if (headerName === 'Commentaire' || headerName.toLowerCase().includes('commentaire')) {
+                        const input = cell.querySelector('input');
+                        cellValue = input ? input.value.trim() : cell.textContent.trim();
+                    } else {
+                        cellValue = cell.textContent.trim();
+                    }
+                    
+                    // Convert numeric/currency fields to numbers for proper Excel formatting
+                    if (headerName.includes('Stock') || headerName.includes('Transfert') || 
+                        headerName.includes('Vente') || headerName.includes('Montant') || 
+                        headerName.includes('Cash') || headerName.includes('Ecart')) {
+                        
+                        // Remove currency formatting and convert to number
+                        let numericValue = cellValue.replace(/[^0-9.,-]/g, '').replace(',', '.');
+                        
+                        // Handle percentage values
+                        if (cellValue.includes('%')) {
+                            numericValue = parseFloat(numericValue);
+                            cellValue = isNaN(numericValue) ? 0 : numericValue;
+                        } else {
+                            numericValue = parseFloat(numericValue);
+                            cellValue = isNaN(numericValue) ? 0 : numericValue;
+                        }
+                    }
+                    
+                    rowData[headerName] = cellValue;
+                }
+            });
+            
+            // Only add rows that have actual data
+            if (Object.values(rowData).some(value => value !== '' && value !== 0)) {
+                exportData.push(rowData);
+                processedRows++;
+            }
+        });
+
+        if (exportData.length === 0) {
+            alert('Aucune donnée valide à exporter dans la réconciliation mensuelle');
+            return;
+        }
+
+        // Create workbook and worksheet
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+        // Format currency and percentage columns
+        const currencyFormat = '#,##0 FCFA';
+        const percentageFormat = '0.00%';
+        const range = XLSX.utils.decode_range(worksheet['!ref']);
+        
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+            headers.forEach((header, C) => {
+                const cell_address = { c: C, r: R };
+                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                
+                if (worksheet[cell_ref] && typeof worksheet[cell_ref].v === 'number') {
+                    // Apply currency format to monetary columns
+                    if (header.includes('Stock') || header.includes('Transfert') || 
+                        header.includes('Vente') || header.includes('Montant') || 
+                        header.includes('Cash') || header.includes('Ecart')) {
+                        
+                        if (header.includes('%') || header.includes('Ecart %')) {
+                            worksheet[cell_ref].t = 'n';
+                            worksheet[cell_ref].z = percentageFormat;
+                            // Convert percentage value back to decimal for Excel
+                            worksheet[cell_ref].v = worksheet[cell_ref].v / 100;
+                        } else {
+                            worksheet[cell_ref].t = 'n';
+                            worksheet[cell_ref].z = currencyFormat;
+                        }
+                    }
+                }
+            });
+        }
+
+        // Set column widths
+        const colWidths = headers.map(header => {
+            switch (true) {
+                case header === 'Date': return { wch: 12 };
+                case header === 'Point de Vente': return { wch: 15 };
+                case header.includes('Stock') || header.includes('Vente') || header.includes('Cash'): return { wch: 15 };
+                case header === 'Commentaire': return { wch: 30 };
+                case header.includes('Ecart'): return { wch: 12 };
+                default: return { wch: 12 };
+            }
+        });
+        worksheet['!cols'] = colWidths;
+
+        // Add summary data
+        const moisSelect = document.getElementById('mois-reconciliation');
+        const anneeSelect = document.getElementById('annee-reconciliation');
+        
+        // Get summary values from the page
+        const totalVentesTheoriques = document.getElementById('total-ventes-theoriques-mois')?.textContent || '0';
+        const totalVentesSaisies = document.getElementById('total-ventes-saisies-mois')?.textContent || '0';
+        const totalVersements = document.getElementById('total-versements-mois')?.textContent || '0';
+        const estimationVersements = document.getElementById('estimation-versements-mois')?.textContent || '0';
+
+        // Add empty rows and summary
+        const summaryData = [
+            {},
+            { [headers[0]]: 'RÉSUMÉ DU MOIS', [headers[1]]: `${moisSelect?.value || ''}/${anneeSelect?.value || ''}` },
+            { [headers[0]]: 'Total Ventes Théoriques:', [headers[1]]: totalVentesTheoriques },
+            { [headers[0]]: 'Total Ventes Saisies:', [headers[1]]: totalVentesSaisies },
+            { [headers[0]]: 'Total Versements:', [headers[1]]: totalVersements },
+            { [headers[0]]: 'Estimation Versements:', [headers[1]]: estimationVersements }
+        ];
+
+        // Add summary to export data
+        exportData.push(...summaryData);
+
+        // Recreate worksheet with summary data
+        const finalWorksheet = XLSX.utils.json_to_sheet(exportData);
+        
+        // Reapply formatting
+        const finalRange = XLSX.utils.decode_range(finalWorksheet['!ref']);
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+            headers.forEach((header, C) => {
+                const cell_address = { c: C, r: R };
+                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                
+                if (finalWorksheet[cell_ref] && typeof finalWorksheet[cell_ref].v === 'number') {
+                    if (header.includes('Stock') || header.includes('Transfert') || 
+                        header.includes('Vente') || header.includes('Montant') || 
+                        header.includes('Cash') || header.includes('Ecart')) {
+                        
+                        if (header.includes('%') || header.includes('Ecart %')) {
+                            finalWorksheet[cell_ref].t = 'n';
+                            finalWorksheet[cell_ref].z = percentageFormat;
+                            finalWorksheet[cell_ref].v = finalWorksheet[cell_ref].v / 100;
+                        } else {
+                            finalWorksheet[cell_ref].t = 'n';
+                            finalWorksheet[cell_ref].z = currencyFormat;
+                        }
+                    }
+                }
+            });
+        }
+        
+        finalWorksheet['!cols'] = colWidths;
+
+        // Add the worksheet to the workbook
+        XLSX.utils.book_append_sheet(workbook, finalWorksheet, 'Réconciliation Mensuelle');
+
+        // Generate filename
+        const mois = moisSelect?.value || 'XX';
+        const annee = anneeSelect?.value || 'XXXX';
+        const filename = `Reconciliation_Mensuelle_${mois}_${annee}.xlsx`;
+
+        // Save the file
+        XLSX.writeFile(workbook, filename);
+
+        alert(`Export Excel réussi !\n\nDonnées exportées: ${processedRows} entrées pour ${mois}/${annee}\nFichier: ${filename}`);
+
+    } catch (error) {
+        console.error('Erreur lors de l\'export Excel réconciliation mensuelle:', error);
+        alert('Erreur lors de l\'export Excel : ' + error.message);
+    }
+}
