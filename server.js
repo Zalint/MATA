@@ -2253,7 +2253,7 @@ app.get('/api/ventes-effectuees', checkAuth, async (req, res) => {
 });
 
 // Route pour créer une estimation
-app.post('/api/estimations', checkAuth, async (req, res) => {
+app.post('/api/estimations', async (req, res) => {
     try {
         const estimation = req.body;
         
@@ -2283,7 +2283,7 @@ app.post('/api/estimations', checkAuth, async (req, res) => {
 });
 
 // Route pour récupérer les estimations
-app.get('/api/estimations', checkAuth, async (req, res) => {
+app.get('/api/estimations', async (req, res) => {
     try {
         const estimations = await Estimation.findAll({
             order: [['date', 'DESC']]
@@ -2300,7 +2300,7 @@ app.get('/api/estimations', checkAuth, async (req, res) => {
 });
 
 // Route pour supprimer une estimation
-app.delete('/api/estimations/:id', checkAuth, async (req, res) => {
+app.delete('/api/estimations/:id', async (req, res) => {
     try {
         const id = req.params.id;
         
@@ -2319,7 +2319,7 @@ app.delete('/api/estimations/:id', checkAuth, async (req, res) => {
 });
 
 // Routes pour les estimations
-app.get('/api/stock/:date/:type/:pointVente/:categorie', checkAuth, async (req, res) => {
+app.get('/api/stock/:date/:type/:pointVente/:categorie', async (req, res) => {
     console.log('=== ESTIMATION STOCK API REQUEST START ===');
     console.log('Request params:', req.params);
     
@@ -2335,45 +2335,87 @@ app.get('/api/stock/:date/:type/:pointVente/:categorie', checkAuth, async (req, 
             });
         }
 
-        // Get the file path
-        const filePath = path.join(__dirname, 'data', 'by-date', date, `stock-${type}.json`);
-        console.log('Looking for stock file:', filePath);
-
-        // Check if file exists
-        if (!fs.existsSync(filePath)) {
-            console.log(`Stock file not found: ${filePath}`);
-            return res.json({ 
-                success: true,
-                stock: 0,
-                message: 'No stock data found for this date'
-            });
+        // Convertir la date du format DD-MM-YYYY vers YYYY-MM-DD pour le chemin
+        let formattedDate = date;
+        if (date.includes('-') && date.split('-')[0].length === 2) {
+            // Format DD-MM-YYYY vers YYYY-MM-DD
+            const parts = date.split('-');
+            formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
-
-        // Read and parse the JSON file
-        const fileContent = await fsPromises.readFile(filePath, 'utf8');
-        const data = JSON.parse(fileContent);
         
-        // Look for the entry with the matching key format: pointVente-categorie
-        const key = `${pointVente}-${categorie}`;
-        console.log('Looking for stock entry with key:', key);
-        
-        const entry = data[key];
-        console.log('Found stock entry:', entry);
+        if (type === 'transfert') {
+            // Logique spéciale pour les transferts
+            const filePath = path.join(__dirname, 'data', 'by-date', formattedDate, 'transferts.json');
+            console.log('Looking for transfert file:', filePath);
 
-        if (entry && entry.Nombre !== undefined) {
-            const stockValue = parseFloat(entry.Nombre) || 0;
-            console.log(`Stock value found for ${key}:`, stockValue);
+            if (!fs.existsSync(filePath)) {
+                console.log(`Transfert file not found: ${filePath}`);
+                return res.json({ 
+                    success: true,
+                    transfert: 0,
+                    message: 'No transfert data found for this date'
+                });
+            }
+
+            const fileContent = await fsPromises.readFile(filePath, 'utf8');
+            const transferts = JSON.parse(fileContent);
+            
+            // Calculer la somme des transferts pour ce produit et ce point de vente
+            let totalTransfert = 0;
+            transferts.forEach(transfert => {
+                if (transfert.pointVente === pointVente && transfert.produit === categorie) {
+                    const impact = parseInt(transfert.impact) || 1;
+                    const quantite = parseFloat(transfert.quantite || 0);
+                    totalTransfert += quantite * impact;
+                }
+            });
+
+            console.log(`Total transfert for ${pointVente}-${categorie}:`, totalTransfert);
             res.json({ 
                 success: true,
-                stock: stockValue
+                transfert: totalTransfert
             });
         } else {
-            console.log(`No stock value found for ${key}`);
-            res.json({ 
-                success: true,
-                stock: 0,
-                message: 'No stock value found'
-            });
+            // Logique pour stock matin et soir
+            const filePath = path.join(__dirname, 'data', 'by-date', formattedDate, `stock-${type}.json`);
+            console.log('Looking for stock file:', filePath);
+
+            // Check if file exists
+            if (!fs.existsSync(filePath)) {
+                console.log(`Stock file not found: ${filePath}`);
+                return res.json({ 
+                    success: true,
+                    stock: 0,
+                    message: 'No stock data found for this date'
+                });
+            }
+
+            // Read and parse the JSON file
+            const fileContent = await fsPromises.readFile(filePath, 'utf8');
+            const data = JSON.parse(fileContent);
+            
+            // Look for the entry with the matching key format: pointVente-categorie
+            const key = `${pointVente}-${categorie}`;
+            console.log('Looking for stock entry with key:', key);
+            
+            const entry = data[key];
+            console.log('Found stock entry:', entry);
+
+            if (entry && entry.Nombre !== undefined) {
+                const stockValue = parseFloat(entry.Nombre) || 0;
+                console.log(`Stock value found for ${key}:`, stockValue);
+                res.json({ 
+                    success: true,
+                    stock: stockValue
+                });
+            } else {
+                console.log(`No stock value found for ${key}`);
+                res.json({ 
+                    success: true,
+                    stock: 0,
+                    message: 'No stock value found'
+                });
+            }
         }
     } catch (error) {
         console.error('Error reading stock data:', error);
@@ -2386,36 +2428,53 @@ app.get('/api/stock/:date/:type/:pointVente/:categorie', checkAuth, async (req, 
     console.log('=== ESTIMATION STOCK API REQUEST END ===');
 });
 
-// Route pour calculer le stock du matin
-app.get('/api/stock/:date/matin/:pointVente/:categorie', checkAuth, async (req, res) => {
+// Route pour calculer le stock du matin par produit
+app.get('/api/stock/:date/matin/:pointVente/:produit', async (req, res) => {
     try {
-        const { date, pointVente, categorie } = req.params;
+        const { date, pointVente, produit } = req.params;
         
-        if (!date || !pointVente || !categorie) {
+        if (!date || !pointVente || !produit) {
             return res.status(400).json({ 
                 success: false, 
-                message: 'Date, point de vente et catégorie sont requis' 
+                message: 'Date, point de vente et produit sont requis' 
             });
         }
 
-        const dateStandardisee = standardiserDateFormat(date);
+        // Convertir la date du format DD-MM-YYYY vers YYYY-MM-DD pour le chemin
+        let formattedDate = date;
+        if (date.includes('-') && date.split('-')[0].length === 2) {
+            // Format DD-MM-YYYY vers YYYY-MM-DD
+            const parts = date.split('-');
+            formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
         
-        // Calculer le stock du matin pour la date et le point de vente donnés
-        const stock = await Stock.findAll({
-            where: {
-                date: dateStandardisee,
-                pointVente,
-                typeStock: 'matin'
-            }
-        });
+        console.log(`[API Stock Matin] Date reçue: ${date}, Date formatée: ${formattedDate}`);
+        
+        // Lire les données depuis le fichier JSON
+        const datePath = path.join(__dirname, 'data', 'by-date', formattedDate, 'stock-matin.json');
+        console.log(`[API Stock Matin] Chemin du fichier: ${datePath}`);
+        
+        if (!fs.existsSync(datePath)) {
+            console.log(`[API Stock Matin] Fichier non trouvé: ${datePath}`);
+            return res.json({ 
+                success: true, 
+                stock: 0,
+                message: 'No stock data found for this date'
+            });
+        }
+        
+        console.log(`[API Stock Matin] Fichier trouvé, lecture en cours...`);
 
-        // Calculer la somme du stock pour la catégorie donnée
+        const fileContent = await fsPromises.readFile(datePath, 'utf8');
+        const stockData = JSON.parse(fileContent);
+        
+        // Chercher directement la clé produit
+        const key = `${pointVente}-${produit}`;
         let stockMatin = 0;
-        stock.forEach(s => {
-            if (s.categorie === categorie) {
-                stockMatin += parseFloat(s.quantite) || 0;
-            }
-        });
+        
+        if (stockData[key]) {
+            stockMatin = parseFloat(stockData[key].Nombre || stockData[key].quantite || 0);
+        }
 
         res.json({ success: true, stock: stockMatin });
     } catch (error) {
@@ -2427,40 +2486,109 @@ app.get('/api/stock/:date/matin/:pointVente/:categorie', checkAuth, async (req, 
     }
 });
 
-// Route pour calculer les transferts
-app.get('/api/stock/:date/transfert/:pointVente/:categorie', checkAuth, async (req, res) => {
+// Route pour calculer le stock du soir par produit
+app.get('/api/stock/:date/soir/:pointVente/:produit', async (req, res) => {
     try {
-        const { date, pointVente, categorie } = req.params;
+        const { date, pointVente, produit } = req.params;
         
-        if (!date || !pointVente || !categorie) {
+        if (!date || !pointVente || !produit) {
             return res.status(400).json({ 
                 success: false, 
-                message: 'Date, point de vente et catégorie sont requis pour les transferts' 
+                message: 'Date, point de vente et produit sont requis' 
             });
         }
 
-        const dateStandardisee = standardiserDateFormat(date);
+        // Convertir la date du format DD-MM-YYYY vers YYYY-MM-DD pour le chemin
+        let formattedDate = date;
+        if (date.includes('-') && date.split('-')[0].length === 2) {
+            // Format DD-MM-YYYY vers YYYY-MM-DD
+            const parts = date.split('-');
+            formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
         
-        // Calculer les transferts pour la date et le point de vente donnés
-        const transferts = await Transfert.findAll({
-            where: {
-                date: dateStandardisee,
-                pointVente
-            }
-        });
+        // Lire les données depuis le fichier JSON
+        const datePath = path.join(__dirname, 'data', 'by-date', formattedDate, 'stock-soir.json');
+        
+        if (!fs.existsSync(datePath)) {
+            return res.json({ 
+                success: true, 
+                stock: 0,
+                message: 'Aucune donnée de stock soir trouvée pour cette date'
+            });
+        }
 
-        // Calculer la somme des transferts pour la catégorie donnée
+        const fileContent = await fsPromises.readFile(datePath, 'utf8');
+        const stockData = JSON.parse(fileContent);
+        
+        // Chercher directement la clé produit
+        const key = `${pointVente}-${produit}`;
+        let stockSoir = 0;
+        
+        if (stockData[key]) {
+            stockSoir = parseFloat(stockData[key].Nombre || stockData[key].quantite || 0);
+        }
+
+        res.json({ 
+            success: true, 
+            stock: stockSoir
+        });
+    } catch (error) {
+        console.error('Erreur lors du calcul du stock soir:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors du calcul du stock soir' 
+        });
+    }
+});
+
+// Route pour calculer les transferts par produit
+app.get('/api/stock/:date/transfert/:pointVente/:produit', async (req, res) => {
+    try {
+        const { date, pointVente, produit } = req.params;
+        
+        if (!date || !pointVente || !produit) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Date, point de vente et produit sont requis pour les transferts' 
+            });
+        }
+
+        // Convertir la date du format DD-MM-YYYY vers YYYY-MM-DD pour le chemin
+        let formattedDate = date;
+        if (date.includes('-') && date.split('-')[0].length === 2) {
+            // Format DD-MM-YYYY vers YYYY-MM-DD
+            const parts = date.split('-');
+            formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        
+        // Lire les données depuis le fichier JSON
+        const datePath = path.join(__dirname, 'data', 'by-date', formattedDate, 'transferts.json');
+        
+        if (!fs.existsSync(datePath)) {
+            return res.json({ 
+                success: true, 
+                transfert: 0,
+                message: 'Aucune donnée de transfert trouvée pour cette date'
+            });
+        }
+
+        const fileContent = await fsPromises.readFile(datePath, 'utf8');
+        const transfertsData = JSON.parse(fileContent);
+        
+        // Calculer la somme des transferts pour ce produit spécifique et ce point de vente
         let totalTransfert = 0;
-        transferts.forEach(t => {
-            if (t.categorie === categorie) {
-                totalTransfert += parseFloat(t.quantite) || 0;
+        transfertsData.forEach(transfert => {
+            if (transfert.pointVente === pointVente && transfert.produit === produit) {
+                const impact = parseInt(transfert.impact) || 1;
+                const quantite = parseFloat(transfert.quantite || 0);
+                totalTransfert += quantite * impact;
             }
         });
 
         res.json({ 
             success: true, 
             transfert: totalTransfert,
-            message: transferts.length === 0 ? "Aucune donnée de transfert trouvée pour cette date" : ""
+            message: transfertsData.length === 0 ? "Aucune donnée de transfert trouvée pour cette date" : ""
         });
     } catch (error) {
         console.error('Erreur lors du calcul des transferts:', error);

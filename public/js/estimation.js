@@ -64,6 +64,9 @@ function initializeEstimationForm(form) {
         initializeDateInput(dateInput);
     }
     
+    // Charge les catégories depuis produitsInventaire
+    chargerProduits();
+    
     // Set up form submission handler
     form.addEventListener('submit', handleFormSubmission);
     
@@ -77,6 +80,46 @@ function initializeEstimationForm(form) {
     loadData();
     
     console.log('Estimation form initialized successfully');
+}
+
+// Function to load products from produitsInventaire
+function chargerProduits() {
+    try {
+        const produitSelect = document.getElementById('estimation-produit');
+        if (!produitSelect) {
+            console.error('Element estimation-produit not found');
+            return;
+        }
+        
+        produitSelect.innerHTML = '<option value="">Sélectionner un produit</option>';
+        
+        // Utiliser les clés de produitsInventaire pour les produits
+        if (window.produitsInventaire && typeof window.produitsInventaire.getTousLesProduits === 'function') {
+            const produits = window.produitsInventaire.getTousLesProduits();
+            
+            produits.forEach(produit => {
+                const option = document.createElement('option');
+                option.value = produit;
+                option.textContent = produit;
+                produitSelect.appendChild(option);
+            });
+            
+            console.log('Products loaded successfully:', produits);
+        } else {
+            console.error('produitsInventaire non disponible ou fonction getTousLesProduits manquante');
+            
+            // Fallback: attendre que produitsInventaire soit chargé
+            setTimeout(() => {
+                if (window.produitsInventaire && typeof window.produitsInventaire.getTousLesProduits === 'function') {
+                    chargerProduits();
+                } else {
+                    console.error('produitsInventaire still not available after delay');
+                }
+            }, 1000);
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des produits:', error);
+    }
 }
 
 // Function to initialize date input - handles flatpickr errors gracefully
@@ -170,7 +213,7 @@ function setupInputHandlers() {
     // Form selection fields
     const dateInput = document.getElementById('estimation-date');
     const pointVenteSelect = document.getElementById('estimation-point-vente');
-    const categorieSelect = document.getElementById('estimation-categorie');
+    const produitSelect = document.getElementById('estimation-produit');
     
     // Input fields
     const stockMatinInput = document.getElementById('stock-matin-estimation');
@@ -191,7 +234,7 @@ function setupInputHandlers() {
     // Add event listeners for selection fields
     if (dateInput) dateInput.addEventListener('change', handleSelectionChange);
     if (pointVenteSelect) pointVenteSelect.addEventListener('change', handleSelectionChange);
-    if (categorieSelect) categorieSelect.addEventListener('change', handleSelectionChange);
+    if (produitSelect) produitSelect.addEventListener('change', handleSelectionChange);
     
     // Add event listeners for input fields that affect the difference calculation
     if (stockMatinInput) stockMatinInput.addEventListener('input', updateDifference);
@@ -273,11 +316,11 @@ async function updateEstimationStock() {
     
     const dateInput = document.getElementById('estimation-date');
     const pointVente = document.getElementById('estimation-point-vente').value;
-    const categorie = document.getElementById('estimation-categorie').value;
+    const produit = document.getElementById('estimation-produit').value;
     const stockSoirInput = document.getElementById('stock-soir');
     const stockSoirOriginal = document.getElementById('stock-soir-original');
 
-    if (!dateInput || !pointVente || !categorie) {
+    if (!dateInput || !pointVente || !produit) {
         stockSoirInput.value = '';
         stockSoirOriginal.style.display = 'none';
         return;
@@ -285,7 +328,7 @@ async function updateEstimationStock() {
 
     try {
         const date = dateInput.value;
-        const url = `/api/stock/${date}/soir/${pointVente}/${categorie}`;
+        const url = `/api/stock/${date}/soir/${pointVente}/${produit}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -315,7 +358,7 @@ async function updateEstimationStockMatin() {
     
     const dateInput = document.getElementById('estimation-date');
     const pointVente = document.getElementById('estimation-point-vente').value;
-    const categorie = document.getElementById('estimation-categorie').value;
+    const produit = document.getElementById('estimation-produit').value;
     
     // Use the new ID for the stock matin input in the estimation section
     const stockMatinInput = document.getElementById('stock-matin-estimation');
@@ -323,7 +366,7 @@ async function updateEstimationStockMatin() {
     
     console.log('Stock matin input element:', stockMatinInput);
 
-    if (!dateInput || !pointVente || !categorie || !stockMatinInput) {
+    if (!dateInput || !pointVente || !produit || !stockMatinInput) {
         console.error('Missing required elements for stock matin update');
         if (stockMatinOriginal) stockMatinOriginal.style.display = 'none';
         return;
@@ -331,7 +374,7 @@ async function updateEstimationStockMatin() {
 
     try {
         const date = dateInput.value;
-        const url = `/api/stock/${date}/matin/${pointVente}/${categorie}`;
+        const url = `/api/stock/${date}/matin/${pointVente}/${produit}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -365,11 +408,11 @@ async function updateEstimationTransfert() {
     
     const dateInput = document.getElementById('estimation-date');
     const pointVente = document.getElementById('estimation-point-vente').value;
-    const categorie = document.getElementById('estimation-categorie').value;
+    const produit = document.getElementById('estimation-produit').value;
     const transfertInput = document.getElementById('transfert-estimation');
     const transfertOriginal = document.getElementById('transfert-original');
 
-    if (!dateInput || !pointVente || !categorie) {
+    if (!dateInput || !pointVente || !produit) {
         transfertInput.value = '';
         transfertOriginal.style.display = 'none';
         return;
@@ -377,7 +420,7 @@ async function updateEstimationTransfert() {
 
     try {
         const date = dateInput.value;
-        const url = `/api/stock/${date}/transfert/${pointVente}/${categorie}`;
+        const url = `/api/stock/${date}/transfert/${pointVente}/${produit}`;
         const response = await fetch(url);
         const data = await response.json();
         
@@ -423,10 +466,16 @@ async function updateEstimationTransfert() {
 
 // Function to check if a field has been modified from its original value
 function checkFieldModified(input, originalDisplay) {
+    // Check if originalDisplay element exists
+    if (!originalDisplay) return;
+    
     const originalValue = parseFloat(input.dataset.originalValue) || 0;
     const currentValue = parseFloat(input.value) || 0;
     
-    if (originalValue !== currentValue) {
+    // Only show original value if:
+    // 1. The value has been modified from the original
+    // 2. The original value is meaningful (not 0 or undefined)
+    if (originalValue !== currentValue && input.dataset.originalValue !== undefined && input.dataset.originalValue !== '') {
         originalDisplay.textContent = `Valeur calculée: ${originalValue.toFixed(3)}`;
         originalDisplay.style.display = 'block';
     } else {
@@ -442,10 +491,11 @@ function updateDifference() {
     const transfert = parseFloat(document.getElementById('transfert-estimation').value) || 0;
     const stockSoir = parseFloat(document.getElementById('stock-soir').value) || 0;
     const previsionKg = parseFloat(document.getElementById('prevision-kg').value) || 0;
+    const precommandeKg = parseFloat(document.getElementById('precommande-kg').value) || 0;
     const differenceInput = document.getElementById('difference');
     
-    // Formula: stock matin + transfert - stock soir - prévision (kg)
-    const difference = stockMatin + transfert - stockSoir - previsionKg;
+    // Formula: stock matin + transfert - stock soir - prévision (kg) - pré-commande (kg)
+    const difference = stockMatin + transfert - stockSoir - previsionKg - precommandeKg;
     
     differenceInput.value = difference.toFixed(3);
     console.log('Difference calculated:', difference);
@@ -501,7 +551,7 @@ async function sauvegarderEstimation() {
     const estimation = {
         date: document.getElementById('estimation-date').value,
         pointVente: document.getElementById('estimation-point-vente').value,
-        categorie: document.getElementById('estimation-categorie').value,
+        produit: document.getElementById('estimation-produit').value,
         stockSoir: parseFloat(stockSoirInput.value) || 0,
         stockSoirOriginal: parseFloat(stockSoirInput.dataset.originalValue) || 0,
         stockMatin: parseFloat(stockMatinInput.value) || 0,
@@ -705,7 +755,8 @@ function afficherEstimations(estimations) {
             // Recreate the calculation if needed
             const stockMatin = estimation.stockMatin || 0;
             const transfert = estimation.transfert || 0;
-            difference = stockMatin + transfert - estimation.stockSoir - estimation.previsionVentes;
+            const preCommandeDemain = estimation.preCommandeDemain || 0;
+            difference = stockMatin + transfert - estimation.stockSoir - estimation.previsionVentes - preCommandeDemain;
         }
         
         // Format difference with color
