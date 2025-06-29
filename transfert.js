@@ -84,13 +84,8 @@ class TransfertManager {
         const prixUnitaireInput = row.querySelector('.prix-unitaire-input');
 
         if (produitSelected) {
-            // Trouver la catégorie du produit
-            let prixDefaut = 0;
-            Object.keys(produits).forEach(categorie => {
-                if (produits[categorie][produitSelected]) {
-                    prixDefaut = produits.getPrixPreferePour(categorie, produitSelected);
-                }
-            });
+            // Utiliser le prix par défaut de produitsInventaire
+            const prixDefaut = produitsInventaire.getPrixDefaut(produitSelected) || 0;
 
             // Mettre à jour le prix unitaire
             prixUnitaireInput.value = prixDefaut;

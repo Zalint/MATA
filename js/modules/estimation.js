@@ -54,19 +54,22 @@ async function initEstimation() {
  */
 async function chargerCategories() {
     try {
-        const response = await fetch('/api/categories');
-        const data = await response.json();
+        const categorieSelect = document.getElementById('estimation-categorie');
+        categorieSelect.innerHTML = '<option value="">Sélectionner une catégorie</option>';
         
-        if (data.success) {
-            const categorieSelect = document.getElementById('estimation-categorie');
-            categorieSelect.innerHTML = '<option value="">Sélectionner une catégorie</option>';
+        // Utiliser les clés de produitsInventaire pour les catégories
+        if (window.produitsInventaire && typeof window.produitsInventaire.getTousLesProduits === 'function') {
+            const categories = window.produitsInventaire.getTousLesProduits();
             
-            data.categories.forEach(categorie => {
+            categories.forEach(categorie => {
                 const option = document.createElement('option');
                 option.value = categorie;
                 option.textContent = categorie;
                 categorieSelect.appendChild(option);
             });
+        } else {
+            console.error('produitsInventaire non disponible ou fonction getTousLesProduits manquante');
+            alert('Erreur lors du chargement des catégories: produitsInventaire non disponible');
         }
     } catch (error) {
         console.error('Erreur lors du chargement des catégories:', error);

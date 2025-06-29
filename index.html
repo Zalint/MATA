@@ -640,18 +640,8 @@
                         <div class="form-group">
                             <label for="filtre-produit" class="form-label">Filtrer par Produit</label>
                             <select id="filtre-produit" class="form-select">
-                                <!-- refacto to read produits.js -->
+                                <!-- Options peuplées dynamiquement depuis produitsInventaire.js -->
                                 <option value="tous">Tous les produits</option>
-                                <option value="Boeuf">Boeuf</option>
-                                <option value="Veau">Veau</option>
-                                <option value="Poulet">Poulet</option>
-                                <option value="Tete De Mouton">Tête de Mouton</option>
-                                <option value="Tablette">Tablette</option>
-                                <option value="Foie">Foie</option>
-                                <option value="Yell">Yell</option>
-                                <option value="Agneau">Agneau</option>
-                                <option value="Autres">Autres</option>
-                                <option value="Abats">Abats</option>
                             </select>
                         </div>
                     </div>
@@ -1547,9 +1537,9 @@
                                     </select>
                                 </div>
                                 <div class="col-md-4">
-                                    <label for="estimation-categorie" class="form-label">Catégorie</label>
-                                    <select class="form-select" id="estimation-categorie" required>
-                                        <option value="">Sélectionner une catégorie</option>
+                                    <label for="estimation-produit" class="form-label">Produit</label>
+                                    <select class="form-select" id="estimation-produit" required>
+                                        <option value="">Sélectionner un produit</option>
                                     </select>
                                 </div>
                             </div>
@@ -1581,8 +1571,8 @@
                                 </div>
                                 <div class="col-md-3">
                                     <label for="difference" class="form-label">Difference</label>
-                                    <input type="number" class="form-control" id="difference" readonly title="Calculé comme: Stock Matin + Transfert - Stock Soir - Prévision (kg)">
-                                    <small class="form-text text-muted">Stock Matin + Transfert - Stock Soir - Prévision</small>
+                                    <input type="number" class="form-control" id="difference" readonly title="Calculé comme: Stock Matin + Transfert - Stock Soir - Prévision (kg) - Pré-commande (kg)">
+                                    <small class="form-text text-muted">Stock Matin + Transfert - Stock Soir - Prévision - Pré-commande</small>
                                 </div>
                             </div>
                             <div class="row">

@@ -18,7 +18,11 @@ const Estimation = sequelize.define('Estimation', {
   },
   categorie: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true
+  },
+  produit: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
   stockMatin: {
     type: DataTypes.FLOAT,

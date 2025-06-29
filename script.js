@@ -816,6 +816,12 @@ if (typeof produits === 'undefined') {
 
 // Fonction pour peupler les catégories
 function populateCategories() {
+    // Vérifier la disponibilité de l'objet produits
+    if (typeof produits === 'undefined' || !produits) {
+        console.error('Erreur: L\'objet produits n\'est pas disponible pour populateCategories');
+        return;
+    }
+    
     // Peupler tous les sélecteurs de catégories (existants et futurs)
     document.querySelectorAll('.categorie-select').forEach(select => {
         // Vérifier si les options sont déjà peuplées
@@ -1090,14 +1096,28 @@ function creerNouvelleEntree() {
     const categorieSelect = div.querySelector('.categorie-select');
     const produitSelect = div.querySelector('.produit-select');
     
-    // Peupler les catégories pour ce nouvel élément
-    populateCategories();
+    // Peupler les catégories directement pour ce nouvel élément
+    if (typeof produits !== 'undefined' && produits) {
+        Object.keys(produits).forEach(categorie => {
+            if (typeof produits[categorie] === 'object' && produits[categorie] !== null) {
+                // Ignorer les fonctions
+                if (typeof produits[categorie] === 'function') return;
+                
+                const option = document.createElement('option');
+                option.value = categorie;
+                option.textContent = categorie;
+                categorieSelect.appendChild(option);
+            }
+        });
+    } else {
+        console.error('Objet produits non disponible lors de la création de la nouvelle entrée');
+    }
     categorieSelect.addEventListener('change', function() {
         const categorie = this.value;
+        
         produitSelect.innerHTML = '<option value="">Sélectionner...</option>'; // Vider les options précédentes
         
-        
-        // Utiliser produitsDB au lieu de produitsParCategorie
+        // Utiliser produits depuis produits.js
         if (categorie && typeof produits !== 'undefined' && produits[categorie]) {
             Object.keys(produits[categorie]).forEach(produit => {
                 const option = document.createElement('option');
@@ -1106,8 +1126,7 @@ function creerNouvelleEntree() {
                 produitSelect.appendChild(option);
             });
         } else if (categorie) {
-            console.error(`Données produits non trouvées ou catégorie vide: ${categorie}`);
-            // Vous pourriez vouloir afficher un message à l'utilisateur ici
+            console.error(`Données produits non trouvées pour la catégorie: ${categorie}`);
         }
         
         // Déclencher manuellement l'événement change sur produitSelect pour mettre à jour le prix
@@ -1276,7 +1295,8 @@ document.getElementById('vente-form').addEventListener('submit', async function(
 // Modifier l'ajout de nouveaux produits
 document.getElementById('ajouter-produit').addEventListener('click', function() {
     const container = document.getElementById('produits-container');
-    container.appendChild(creerNouvelleEntree());
+    const nouvelleEntree = creerNouvelleEntree();
+    container.appendChild(nouvelleEntree);
 });
 
 // Fonction pour vérifier si une date est aujourd'hui
@@ -2274,7 +2294,7 @@ async function chargerTransferts(date) {
                     const tdProduit = document.createElement('td');
                     const selectProduit = document.createElement('select');
                     selectProduit.className = 'form-select form-select-sm produit-select';
-                    PRODUITS.forEach(prod => {
+                    PRODUITS_INVENTAIRE.forEach(prod => {
                         const option = document.createElement('option');
                         option.value = prod;
                         option.textContent = prod;
@@ -2433,7 +2453,7 @@ function ajouterLigneTransfert() {
     const tdProduit = document.createElement('td');
     const selectProduit = document.createElement('select');
     selectProduit.className = 'form-select form-select-sm produit-select';
-    PRODUITS.forEach(prod => {
+    PRODUITS_INVENTAIRE.forEach(prod => {
         const option = document.createElement('option');
         option.value = prod;
         option.textContent = prod;
@@ -2520,7 +2540,7 @@ function ajouterLigneTransfert() {
     // Gestionnaire pour la mise à jour du prix unitaire par défaut
     selectProduit.addEventListener('change', function() {
         const nouveauProduit = this.value;
-        inputPrixUnitaire.value = PRIX_DEFAUT[nouveauProduit] || '0';
+        inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[nouveauProduit] || '0';
         calculateTotal();
     });
     
@@ -3123,7 +3143,7 @@ function ajouterLigneStock() {
     const inputPrixUnitaire = document.createElement('input');
     inputPrixUnitaire.type = 'number';
     inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
-    inputPrixUnitaire.value = PRIX_DEFAUT[selectProduit.value] || '0';
+    inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[selectProduit.value] || '0';
     tdPrixUnitaire.appendChild(inputPrixUnitaire);
     
     // Total
@@ -3164,7 +3184,7 @@ function ajouterLigneStock() {
     // Gestionnaire pour la mise à jour du prix unitaire par défaut
     selectProduit.addEventListener('change', function() {
         const nouveauProduit = this.value;
-        inputPrixUnitaire.value = PRIX_DEFAUT[nouveauProduit] || '0';
+        inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[nouveauProduit] || '0';
         calculateTotal();
     });
     
@@ -3238,12 +3258,12 @@ async function sauvegarderDonneesStock() {
             let fetchedPrix = null;
             if (isNaN(prixUnitaire) || prixUnitaireInput === '') {
                 fetchedPrix = await fetchPrixMoyen(produit, date, pointVente, isTransfert);
-                prixUnitaire = fetchedPrix !== null ? fetchedPrix : (PRIX_DEFAUT[produit] || 0);
+                prixUnitaire = fetchedPrix !== null ? fetchedPrix : (PRIX_DEFAUT_INVENTAIRE[produit] || 0);
             }
             // If user entered a value, keep it (manual override)
         } else {
             if (isNaN(prixUnitaire) || prixUnitaireInput === '') {
-                prixUnitaire = PRIX_DEFAUT[produit] || 0;
+                prixUnitaire = PRIX_DEFAUT_INVENTAIRE[produit] || 0;
             }
         }
 
@@ -3337,7 +3357,7 @@ function initTableauStock() {
         console.log('%c=== Traitement du point de vente: ' + pointVente + ' ===', 'background: #4a4a4a; color: #fff; padding: 3px;');
         
         // Pour chaque produit
-        PRODUITS.forEach(produit => {
+        PRODUITS_INVENTAIRE.forEach(produit => {
             const key = `${pointVente}-${produit}`;
             console.log('%cCréation de la ligne pour:', 'color: #00aaff;', key);
             
@@ -3364,7 +3384,7 @@ function initTableauStock() {
             const tdProduit = document.createElement('td');
             const selectProduit = document.createElement('select');
             selectProduit.className = 'form-select form-select-sm produit-select';
-            PRODUITS.forEach(prod => {
+            PRODUITS_INVENTAIRE.forEach(prod => {
                 const option = document.createElement('option');
                 option.value = prod;
                 option.textContent = prod;
@@ -3412,18 +3432,18 @@ function initTableauStock() {
                     total: (parseFloat(donnees.Nombre || donnees.quantite) * parseFloat(donnees.PU || donnees.prixUnitaire)).toString()
                 });
                 inputQuantite.value = donnees.Nombre || donnees.quantite || '0';
-                inputPrixUnitaire.value = donnees.PU || donnees.prixUnitaire || PRIX_DEFAUT[produit] || '0';
+                inputPrixUnitaire.value = donnees.PU || donnees.prixUnitaire || PRIX_DEFAUT_INVENTAIRE[produit] || '0';
                 inputCommentaire.value = donnees.Commentaire || donnees.commentaire || '';
                 tdTotal.textContent = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value)).toLocaleString('fr-FR');
         } else {
                 console.log('%cPas de données sauvegardées pour ' + key + ', utilisation des valeurs par défaut:', 'color: #ff9900;', {
                     quantite: '0',
-                    prixUnitaire: PRIX_DEFAUT[produit],
+                    prixUnitaire: PRIX_DEFAUT_INVENTAIRE[produit],
                     commentaire: '',
                     total: '0'
                 });
                 inputQuantite.value = '0';
-                inputPrixUnitaire.value = PRIX_DEFAUT[produit] || '0';
+                inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[produit] || '0';
                 inputCommentaire.value = '';
                 tdTotal.textContent = '0';
             }
@@ -3456,7 +3476,7 @@ function initTableauStock() {
             // Gestionnaire pour la mise à jour du prix unitaire par défaut
             selectProduit.addEventListener('change', function() {
                 const nouveauProduit = this.value;
-                inputPrixUnitaire.value = PRIX_DEFAUT[nouveauProduit] || '0';
+                inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[nouveauProduit] || '0';
                 calculateTotal();
             });
             
@@ -3474,11 +3494,31 @@ function initTableauStock() {
 const POINTS_VENTE_PHYSIQUES = [
     'Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba', 'Keur Massar','Abattage'
 ];
-// Configuration pour l'inventaire - lecture depuis produits.js
+// Configuration pour l'inventaire - lecture depuis produitsInventaire.js (pour Stock inventaire seulement)
+const PRODUITS_INVENTAIRE = [];
+const PRIX_DEFAUT_INVENTAIRE = {};
+
+// Extraire tous les produits depuis produitsInventaire.js pour la section Stock inventaire
+if (typeof produitsInventaire !== 'undefined' && typeof produitsInventaire.getTousLesProduits === 'function') {
+    const produitsList = produitsInventaire.getTousLesProduits();
+    produitsList.forEach(produit => {
+        PRODUITS_INVENTAIRE.push(produit);
+        PRIX_DEFAUT_INVENTAIRE[produit] = produitsInventaire.getPrixDefaut(produit);
+    });
+} else {
+    // Fallback: liste hardcodée des produits principaux
+    const produitsBasiques = ['Boeuf', 'Veau', 'Poulet', 'Tete De Mouton', 'Tablette', 'Foie', 'Yell', 'Agneau', 'Déchet 400', 'Autres', 'Mergez', 'Déchet 2000', 'Abats', 'Boeuf sur pieds', 'Veau sur pieds', 'Mouton sur pieds', 'Chevre sur pieds'];
+    produitsBasiques.forEach(produit => {
+        PRODUITS_INVENTAIRE.push(produit);
+        PRIX_DEFAUT_INVENTAIRE[produit] = 0; // Prix par défaut de 0
+    });
+}
+
+// Configuration pour les autres sections - lecture depuis produits.js
 const PRODUITS = [];
 const PRIX_DEFAUT = {};
 
-// Extraire tous les produits de toutes les catégories de produits.js
+// Extraire tous les produits de toutes les catégories de produits.js (pour les autres sections)
 Object.keys(produits).forEach(categorie => {
     if (typeof produits[categorie] === 'object' && produits[categorie] !== null) {
         Object.keys(produits[categorie]).forEach(produit => {
@@ -3543,7 +3583,7 @@ async function onTypeStockChange() {
 
         // Recréer les lignes pour chaque point de vente et produit
         POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
-            PRODUITS.forEach(produit => {
+            PRODUITS_INVENTAIRE.forEach(produit => {
                 const tr = document.createElement('tr');
                 
                 // Point de vente (modifiable)
@@ -3566,7 +3606,7 @@ async function onTypeStockChange() {
                 const tdProduit = document.createElement('td');
                 const selectProduit = document.createElement('select');
                 selectProduit.className = 'form-select form-select-sm produit-select';
-                PRODUITS.forEach(prod => {
+                PRODUITS_INVENTAIRE.forEach(prod => {
                     const option = document.createElement('option');
                     option.value = prod;
                     option.textContent = prod;
@@ -3631,7 +3671,7 @@ async function onTypeStockChange() {
                 if (donnees[key]) {
                     console.log(`%cRestauration des données pour ${key}:`, 'color: #00ff00;', donnees[key]);
                     inputQuantite.value = donnees[key].Nombre || donnees[key].quantite || '0';
-                    inputPrixUnitaire.value = donnees[key].PU || donnees[key].prixUnitaire || PRIX_DEFAUT[produit] || '0';
+                    inputPrixUnitaire.value = donnees[key].PU || donnees[key].prixUnitaire || PRIX_DEFAUT_INVENTAIRE[produit] || '0';
                     inputCommentaire.value = donnees[key].Commentaire || donnees[key].commentaire || '';
                     // Recalculer le total
                     const total = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value));
@@ -3639,7 +3679,7 @@ async function onTypeStockChange() {
                 } else {
                     console.log(`%cPas de données pour ${key}, utilisation des valeurs par défaut`, 'color: #ff9900;');
                     inputQuantite.value = '0';
-                    inputPrixUnitaire.value = PRIX_DEFAUT[produit] || '0';
+                    inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[produit] || '0';
                     inputCommentaire.value = '';
                     tdTotal.textContent = '0';
                 }
@@ -3658,7 +3698,7 @@ async function onTypeStockChange() {
                 // Gestionnaire pour la mise à jour du prix unitaire par défaut
                 selectProduit.addEventListener('change', function() {
                     const nouveauProduit = this.value;
-                    inputPrixUnitaire.value = PRIX_DEFAUT[nouveauProduit] || '0';
+                    inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[nouveauProduit] || '0';
                     calculateTotal();
                 });
 
@@ -5288,6 +5328,25 @@ function initFilterStock() {
     const filtrePointVente = document.getElementById('filtre-point-vente');
     const filtreProduit = document.getElementById('filtre-produit');
     const masquerQuantiteZero = document.getElementById('masquer-quantite-zero');
+    
+    // Peupler le filtre de produits avec les produits de produitsInventaire.js
+    if (filtreProduit && typeof produitsInventaire !== 'undefined') {
+        // Vider les options existantes (sauf la première "Tous les produits")
+        while (filtreProduit.children.length > 1) {
+            filtreProduit.removeChild(filtreProduit.lastChild);
+        }
+        
+        // Ajouter les produits de produitsInventaire.js
+        if (typeof produitsInventaire.getTousLesProduits === 'function') {
+            const produitsList = produitsInventaire.getTousLesProduits();
+            produitsList.forEach(produit => {
+                const option = document.createElement('option');
+                option.value = produit;
+                option.textContent = produit;
+                filtreProduit.appendChild(option);
+            });
+        }
+    }
     
     if (filtrePointVente) {
         filtrePointVente.addEventListener('change', filtrerStock);
