@@ -579,6 +579,10 @@ async function sauvegarderEstimation() {
 
         if (data.success) {
             alert('Estimation enregistrée avec succès');
+            
+            // Reset the form but keep the Point de Vente
+            resetEstimationForm();
+            
             // Reload estimations table if needed
             if (typeof chargerEstimations === 'function') {
                 await chargerEstimations();
@@ -617,6 +621,91 @@ function isStockModified() {
     return stockMatinOriginal !== stockMatinCurrent ||
            transfertOriginal !== transfertCurrent ||
            stockSoirOriginal !== stockSoirCurrent;
+}
+
+// Function to reset the estimation form while keeping the Point de Vente
+function resetEstimationForm() {
+    console.log('=== RESET ESTIMATION FORM START ===');
+    
+    // Get form elements
+    const dateInput = document.getElementById('estimation-date');
+    const pointVenteSelect = document.getElementById('estimation-point-vente');
+    const categorieSelect = document.getElementById('estimation-categorie');
+    const stockMatinInput = document.getElementById('stock-matin-estimation');
+    const transfertInput = document.getElementById('transfert-estimation');
+    const stockSoirInput = document.getElementById('stock-soir');
+    const precommandeInput = document.getElementById('precommande-kg');
+    const previsionInput = document.getElementById('prevision-kg');
+    const differenceInput = document.getElementById('difference');
+    
+    // Store the current Point de Vente selection
+    const currentPointVente = pointVenteSelect ? pointVenteSelect.value : '';
+    
+    // Reset date to today
+    if (dateInput) {
+        const today = new Date();
+        const formattedDate = formatDateForInput(today);
+        dateInput.value = formattedDate;
+        
+        // If using flatpickr, update it too
+        if (dateInput._flatpickr) {
+            dateInput._flatpickr.setDate(today);
+        }
+    }
+    
+    // Reset category selection
+    if (categorieSelect) {
+        categorieSelect.selectedIndex = 0; // Select the first option (usually "Sélectionner une catégorie")
+    }
+    
+    // Clear all input fields
+    if (stockMatinInput) {
+        stockMatinInput.value = '';
+        stockMatinInput.style.fontStyle = 'normal';
+        delete stockMatinInput.dataset.originalValue;
+    }
+    
+    if (transfertInput) {
+        transfertInput.value = '';
+        transfertInput.style.fontStyle = 'normal';
+        delete transfertInput.dataset.originalValue;
+    }
+    
+    if (stockSoirInput) {
+        stockSoirInput.value = '';
+        stockSoirInput.style.fontStyle = 'normal';
+        delete stockSoirInput.dataset.originalValue;
+    }
+    
+    if (precommandeInput) {
+        precommandeInput.value = '';
+    }
+    
+    if (previsionInput) {
+        previsionInput.value = '';
+    }
+    
+    if (differenceInput) {
+        differenceInput.value = '';
+        differenceInput.style.color = 'black';
+    }
+    
+    // Restore the Point de Vente selection
+    if (pointVenteSelect && currentPointVente) {
+        pointVenteSelect.value = currentPointVente;
+    }
+    
+    // Hide any original value indicators
+    const stockMatinOriginal = document.getElementById('stock-matin-original');
+    const transfertOriginal = document.getElementById('transfert-original');
+    const stockSoirOriginal = document.getElementById('stock-soir-original');
+    
+    if (stockMatinOriginal) stockMatinOriginal.style.display = 'none';
+    if (transfertOriginal) transfertOriginal.style.display = 'none';
+    if (stockSoirOriginal) stockSoirOriginal.style.display = 'none';
+    
+    console.log('Form reset completed, Point de Vente preserved:', currentPointVente);
+    console.log('=== RESET ESTIMATION FORM END ===');
 }
 
 // Function to load estimations from the server
