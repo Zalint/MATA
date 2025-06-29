@@ -85,26 +85,26 @@ function initializeEstimationForm(form) {
 // Function to load products from produitsInventaire
 function chargerProduits() {
     try {
-        const produitSelect = document.getElementById('estimation-produit');
-        if (!produitSelect) {
-            console.error('Element estimation-produit not found');
+        const categorieSelect = document.getElementById('estimation-categorie');
+        if (!categorieSelect) {
+            console.error('Element estimation-categorie not found');
             return;
         }
         
-        produitSelect.innerHTML = '<option value="">Sélectionner un produit</option>';
+        categorieSelect.innerHTML = '<option value="">Sélectionner une catégorie</option>';
         
-        // Utiliser les clés de produitsInventaire pour les produits
+        // Utiliser les clés de produitsInventaire pour les catégories
         if (window.produitsInventaire && typeof window.produitsInventaire.getTousLesProduits === 'function') {
-            const produits = window.produitsInventaire.getTousLesProduits();
+            const categories = window.produitsInventaire.getTousLesProduits();
             
-            produits.forEach(produit => {
+            categories.forEach(categorie => {
                 const option = document.createElement('option');
-                option.value = produit;
-                option.textContent = produit;
-                produitSelect.appendChild(option);
+                option.value = categorie;
+                option.textContent = categorie;
+                categorieSelect.appendChild(option);
             });
             
-            console.log('Products loaded successfully:', produits);
+            console.log('Categories loaded successfully:', categories);
         } else {
             console.error('produitsInventaire non disponible ou fonction getTousLesProduits manquante');
             
@@ -213,7 +213,7 @@ function setupInputHandlers() {
     // Form selection fields
     const dateInput = document.getElementById('estimation-date');
     const pointVenteSelect = document.getElementById('estimation-point-vente');
-    const produitSelect = document.getElementById('estimation-produit');
+    const categorieSelect = document.getElementById('estimation-categorie');
     
     // Input fields
     const stockMatinInput = document.getElementById('stock-matin-estimation');
@@ -234,7 +234,7 @@ function setupInputHandlers() {
     // Add event listeners for selection fields
     if (dateInput) dateInput.addEventListener('change', handleSelectionChange);
     if (pointVenteSelect) pointVenteSelect.addEventListener('change', handleSelectionChange);
-    if (produitSelect) produitSelect.addEventListener('change', handleSelectionChange);
+    if (categorieSelect) categorieSelect.addEventListener('change', handleSelectionChange);
     
     // Add event listeners for input fields that affect the difference calculation
     if (stockMatinInput) stockMatinInput.addEventListener('input', updateDifference);
@@ -320,7 +320,7 @@ async function updateEstimationStock() {
     const stockSoirInput = document.getElementById('stock-soir');
     const stockSoirOriginal = document.getElementById('stock-soir-original');
 
-    if (!dateInput || !pointVente || !produit) {
+    if (!dateInput || !pointVente || !categorie) {
         stockSoirInput.value = '';
         stockSoirOriginal.style.display = 'none';
         return;
@@ -328,7 +328,7 @@ async function updateEstimationStock() {
 
     try {
         const date = dateInput.value;
-        const url = `/api/stock/${date}/soir/${pointVente}/${produit}`;
+        const url = `/api/stock/${date}/soir/${pointVente}/${categorie}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -358,7 +358,7 @@ async function updateEstimationStockMatin() {
     
     const dateInput = document.getElementById('estimation-date');
     const pointVente = document.getElementById('estimation-point-vente').value;
-    const produit = document.getElementById('estimation-produit').value;
+    const categorie = document.getElementById('estimation-categorie').value;
     
     // Use the new ID for the stock matin input in the estimation section
     const stockMatinInput = document.getElementById('stock-matin-estimation');
@@ -366,7 +366,7 @@ async function updateEstimationStockMatin() {
     
     console.log('Stock matin input element:', stockMatinInput);
 
-    if (!dateInput || !pointVente || !produit || !stockMatinInput) {
+    if (!dateInput || !pointVente || !categorie || !stockMatinInput) {
         console.error('Missing required elements for stock matin update');
         if (stockMatinOriginal) stockMatinOriginal.style.display = 'none';
         return;
@@ -374,7 +374,7 @@ async function updateEstimationStockMatin() {
 
     try {
         const date = dateInput.value;
-        const url = `/api/stock/${date}/matin/${pointVente}/${produit}`;
+        const url = `/api/stock/${date}/matin/${pointVente}/${categorie}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -408,11 +408,11 @@ async function updateEstimationTransfert() {
     
     const dateInput = document.getElementById('estimation-date');
     const pointVente = document.getElementById('estimation-point-vente').value;
-    const produit = document.getElementById('estimation-produit').value;
+    const categorie = document.getElementById('estimation-categorie').value;
     const transfertInput = document.getElementById('transfert-estimation');
     const transfertOriginal = document.getElementById('transfert-original');
 
-    if (!dateInput || !pointVente || !produit) {
+    if (!dateInput || !pointVente || !categorie) {
         transfertInput.value = '';
         transfertOriginal.style.display = 'none';
         return;
@@ -420,7 +420,7 @@ async function updateEstimationTransfert() {
 
     try {
         const date = dateInput.value;
-        const url = `/api/stock/${date}/transfert/${pointVente}/${produit}`;
+        const url = `/api/stock/${date}/transfert/${pointVente}/${categorie}`;
         const response = await fetch(url);
         const data = await response.json();
         
@@ -551,7 +551,7 @@ async function sauvegarderEstimation() {
     const estimation = {
         date: document.getElementById('estimation-date').value,
         pointVente: document.getElementById('estimation-point-vente').value,
-        produit: document.getElementById('estimation-produit').value,
+        categorie: document.getElementById('estimation-categorie').value,
         stockSoir: parseFloat(stockSoirInput.value) || 0,
         stockSoirOriginal: parseFloat(stockSoirInput.dataset.originalValue) || 0,
         stockMatin: parseFloat(stockMatinInput.value) || 0,

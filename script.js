@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize all sections
     initTabListeners();
-    initEstimation();
+    // initEstimation(); // Function moved to public/js/estimation.js
     initReconciliation();
     initStockAlerte();
     initReconciliationMensuelle();
@@ -5515,7 +5515,7 @@ function initTabListeners() {
             if (tabId === 'estimation-tab') {
                 e.preventDefault();
                 showSection('estimation-section');
-                initEstimation();
+                // initEstimation(); // Function is automatically called by estimation.js
             }
         });
     });

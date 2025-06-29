@@ -2378,43 +2378,43 @@ app.get('/api/stock/:date/:type/:pointVente/:categorie', async (req, res) => {
         } else {
             // Logique pour stock matin et soir
             const filePath = path.join(__dirname, 'data', 'by-date', formattedDate, `stock-${type}.json`);
-            console.log('Looking for stock file:', filePath);
+        console.log('Looking for stock file:', filePath);
 
-            // Check if file exists
-            if (!fs.existsSync(filePath)) {
-                console.log(`Stock file not found: ${filePath}`);
-                return res.json({ 
-                    success: true,
-                    stock: 0,
-                    message: 'No stock data found for this date'
-                });
-            }
+        // Check if file exists
+        if (!fs.existsSync(filePath)) {
+            console.log(`Stock file not found: ${filePath}`);
+            return res.json({ 
+                success: true,
+                stock: 0,
+                message: 'No stock data found for this date'
+            });
+        }
 
-            // Read and parse the JSON file
-            const fileContent = await fsPromises.readFile(filePath, 'utf8');
-            const data = JSON.parse(fileContent);
-            
-            // Look for the entry with the matching key format: pointVente-categorie
-            const key = `${pointVente}-${categorie}`;
-            console.log('Looking for stock entry with key:', key);
-            
-            const entry = data[key];
-            console.log('Found stock entry:', entry);
+        // Read and parse the JSON file
+        const fileContent = await fsPromises.readFile(filePath, 'utf8');
+        const data = JSON.parse(fileContent);
+        
+        // Look for the entry with the matching key format: pointVente-categorie
+        const key = `${pointVente}-${categorie}`;
+        console.log('Looking for stock entry with key:', key);
+        
+        const entry = data[key];
+        console.log('Found stock entry:', entry);
 
-            if (entry && entry.Nombre !== undefined) {
-                const stockValue = parseFloat(entry.Nombre) || 0;
-                console.log(`Stock value found for ${key}:`, stockValue);
-                res.json({ 
-                    success: true,
-                    stock: stockValue
-                });
-            } else {
-                console.log(`No stock value found for ${key}`);
-                res.json({ 
-                    success: true,
-                    stock: 0,
-                    message: 'No stock value found'
-                });
+        if (entry && entry.Nombre !== undefined) {
+            const stockValue = parseFloat(entry.Nombre) || 0;
+            console.log(`Stock value found for ${key}:`, stockValue);
+            res.json({ 
+                success: true,
+                stock: stockValue
+            });
+        } else {
+            console.log(`No stock value found for ${key}`);
+            res.json({ 
+                success: true,
+                stock: 0,
+                message: 'No stock value found'
+            });
             }
         }
     } catch (error) {
@@ -2474,7 +2474,7 @@ app.get('/api/stock/:date/matin/:pointVente/:produit', async (req, res) => {
         
         if (stockData[key]) {
             stockMatin = parseFloat(stockData[key].Nombre || stockData[key].quantite || 0);
-        }
+            }
 
         res.json({ success: true, stock: stockMatin });
     } catch (error) {
@@ -2505,7 +2505,7 @@ app.get('/api/stock/:date/soir/:pointVente/:produit', async (req, res) => {
             const parts = date.split('-');
             formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
-        
+
         // Lire les données depuis le fichier JSON
         const datePath = path.join(__dirname, 'data', 'by-date', formattedDate, 'stock-soir.json');
         
@@ -2540,7 +2540,7 @@ app.get('/api/stock/:date/soir/:pointVente/:produit', async (req, res) => {
         });
     }
 });
-
+        
 // Route pour calculer les transferts par produit
 app.get('/api/stock/:date/transfert/:pointVente/:produit', async (req, res) => {
     try {
@@ -2574,7 +2574,7 @@ app.get('/api/stock/:date/transfert/:pointVente/:produit', async (req, res) => {
 
         const fileContent = await fsPromises.readFile(datePath, 'utf8');
         const transfertsData = JSON.parse(fileContent);
-        
+
         // Calculer la somme des transferts pour ce produit spécifique et ce point de vente
         let totalTransfert = 0;
         transfertsData.forEach(transfert => {
