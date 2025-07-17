@@ -4,67 +4,67 @@ const bcrypt = require('bcrypt');
 const users = [
     {
         username: 'ADMIN',
-        password: '$2b$10$4W650UJUiyI5tN5bOUJc5eQGZQktwHwIlXQ3N8e0L0CaBhd6vPnLO',
+        password: '$2b$10$0gnk9xZ774hXJoLR0rQNyOpgT4ujywPi9VBkSnfctnAVy1btuZrBK',
         role: 'admin',
         pointVente: 'tous'
     },
     {
         username: 'MBA',
-        password: '$2b$10$U2qh70byuyCmn4Ri/eqk9.htN7feiHBPLRbrRqE3HGn8NVXmPn.va',
+        password: '$2b$10$SGgkVN9qBf.nChuQYfWs5OFfu9yduQ5YAp4YhFPwLySW1naAXywmK',
         role: 'user',
         pointVente: 'Mbao'
     },
     {
         username: 'OSF',
-        password: '$2b$10$1Krqxz/lvZ5xshqpCMLD6O2umeNiRcNdqXZQXEDgrHVQbqbDRSdzG',
+        password: '$2b$10$sZr41Lpfz3dFM3UBdl38deaWSWB6lYzZw0uTJEIxtWXD3oEBMLJq6',
         role: 'user',
         pointVente: 'O.Foire'
     },
     {
         username: 'KMS',
-        password: '$2b$10$duAuWxvCYTuwWb8dW.1puuCyoY8bXdcCKGNxM14T4FnDe3cYMJcXu',
+        password: '$2b$10$fM8r6G5YXoQbMweovFX4dewL4h3YiIKkGAdRgXXthVaKoVzhaf68W',
         role: 'user',
         pointVente: 'Keur Massar'
     },
     {
         username: 'LNG',
-        password: '$2b$10$QIugefA9E4.WPH72CHzCu.UIpadTiixovkZZcDCTUdr53pfZUgUkO',
+        password: '$2b$10$5/Ufo00FlSk2vq9.Smuoh.ub4XpiuqiJLya1HrvvuSwl5vcAtYOoK',
         role: 'user',
         pointVente: 'Linguere'
     },
     {
         username: 'DHR',
-        password: '$2b$10$KJnH3tzfT50B5PiynAZzfuSmihrTRjnhTgphYQlXoDEnKB4EHHfnG',
+        password: '$2b$10$Pc4VgsIWK7BXyw2mcWa5/OMDydUgBHR3HkCaSWaqNWSCZ1gOp6jgC',
         role: 'user',
         pointVente: 'Dahra'
     },
     {
         username: 'TBM',
-        password: '$2b$10$x4HAGjhGDWblBU61bxJ0iuoM7ZCysSH6Rksyyr7zcGTwAWfmMDmeu',
+        password: '$2b$10$3lnpwyz.WNC3Ac3LDIIHfOWnQUuglBDHlk4sHB4nB/VV6ZD9fLLZ.',
         role: 'user',
         pointVente: 'Touba'
     },
     {
         username: 'NADOU',
-        password: '$2b$10$fyISzXljT.if6mkzvlYeveRCs6pwFrqRGUkkb/NcPju5Lx3ddC3D6',
+        password: '$2b$10$K7k5RmHjo.z52EWo8UdQBufVmFS65BS1by85QVzNk8x2w8faFoluW',
         role: 'user',
         pointVente: 'tous'
     },
     {
         username: 'OUSMANE',
-        password: '$2b$10$NlPen1rg0FeM37xou4kv9.pzp6wbwr8xTaRyqtW1rF1sJ3tP8O7fO',
+        password: '$2b$10$C7/yS945tfuFFe8VoaL8E.YyzakG5HqmHh9D79spRiVcq8/ASI./6',
         role: 'user',
         pointVente: 'tous'
     },
     {
         username: 'PAPI',
-        password: '$2b$10$V.pagWV0K0fDRSydwUh97OYx7eyBYUjtHEwRLv6h6tGWmN7GZoSdG',
+        password: '$2b$10$mo1zaS1mo/GAl3jOR3f4ZuxwpVjr28nISR4jviHUpCY2GetfWE2Ve',
         role: 'user',
         pointVente: 'tous'
     },
     {
         username: 'SALIOU',
-        password: '$2b$10$xGpg.vOKpuP5zS3KO60bXOf.xvmwkDb4d.qmzi.m4zIHeuuix42/e',
+        password: '$2b$10$XM0wQV5kI0lJqld3aMwlmuNSmTivlFAEKXDwZEg0ePIcG6o9/jVmu',
         role: 'user',
         pointVente: 'tous'
     }
