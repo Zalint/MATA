@@ -6477,7 +6477,7 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 // Function to export visualization/ventes data to Excel
-function exportVisualisationToExcel() {
+async function exportVisualisationToExcel() {
     try {
         // Check if XLSX library is loaded
         if (typeof XLSX === 'undefined') {
@@ -6486,61 +6486,89 @@ function exportVisualisationToExcel() {
             return;
         }
 
-        // Get data from the visualization table
-        const table = document.getElementById('tableau-ventes');
-        if (!table) {
-            alert('Tableau des ventes non trouvé');
-            return;
-        }
+        // Show loading indicator
+        const loadingHtml = `
+            <div id="export-loading" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                 background: white; padding: 20px; border: 2px solid #007bff; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Export de toutes les données en cours...</p>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', loadingHtml);
 
-        const tbody = table.querySelector('tbody');
-        if (!tbody || tbody.rows.length === 0) {
-            alert('Aucune donnée à exporter dans le tableau des ventes');
-            return;
-        }
+        // Get current filter parameters
+        const dateDebut = document.getElementById('date-debut').value;
+        const dateFin = document.getElementById('date-fin').value;
+        const pointVente = document.getElementById('point-vente-select').value;
 
-        // Extract headers
-        const headers = [];
-        const headerCells = table.querySelectorAll('thead th');
-        headerCells.forEach(cell => {
-            headers.push(cell.textContent.trim());
-        });
+        console.log('Export avec les paramètres:', { dateDebut, dateFin, pointVente });
 
-        // Extract data rows
-        const exportData = [];
-        
-        // Process each row in the table
-        const rows = tbody.querySelectorAll('tr');
-        rows.forEach(row => {
-            const rowData = {};
-            const cells = row.querySelectorAll('td');
+        // Convert dates to API format
+        const formatDateForApi = (dateStr, isEndDate = false) => {
+            if (!dateStr) return '';
+            const [jour, mois, annee] = dateStr.split('/');
+            const date = new Date(annee, parseInt(mois) - 1, parseInt(jour));
             
-            cells.forEach((cell, index) => {
-                if (index < headers.length) {
-                    const headerName = headers[index];
-                    let cellValue = cell.textContent.trim();
-                    
-                    // Convert numeric fields to numbers for proper Excel formatting
-                    if (headerName === 'Prix Unitaire' || headerName === 'Quantité' || headerName === 'Montant') {
-                        // Remove any formatting and convert to number
-                        const numericValue = parseFloat(cellValue.replace(/[^0-9.,]/g, '').replace(',', '.'));
-                        cellValue = isNaN(numericValue) ? 0 : numericValue;
-                    }
-                    
-                    rowData[headerName] = cellValue;
-                }
-            });
-            
-            // Only add rows that have actual data
-            if (Object.values(rowData).some(value => value !== '' && value !== 0)) {
-                exportData.push(rowData);
+            if (isEndDate) {
+                date.setDate(date.getDate() + 1);
             }
+            
+            return date.toISOString().split('T')[0];
+        };
+
+        const debut = formatDateForApi(dateDebut);
+        const fin = formatDateForApi(dateFin, true);
+
+        // Fetch all data from API (not just current page)
+        const response = await fetch(`/api/ventes?dateDebut=${debut}&dateFin=${fin}&pointVente=${pointVente}`, {
+            credentials: 'include'
         });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.message || 'Erreur lors de la récupération des données');
+        }
+
+        // Format the data for export
+        const exportData = data.ventes.map(vente => ({
+            'Mois': vente.Mois || vente.mois || '',
+            'Date': vente.Date || vente.date || '',
+            'Semaine': vente.Semaine || vente.semaine || '',
+            'Point de Vente': vente['Point de Vente'] || vente.pointVente || '',
+            'Préparation': vente.Preparation || vente.preparation || vente['Point de Vente'] || vente.pointVente || '',
+            'Catégorie': vente.Catégorie || vente.categorie || '',
+            'Produit': vente.Produit || vente.produit || '',
+            'Prix Unitaire': parseFloat(vente.PU || vente.prixUnit || 0),
+            'Quantité': parseFloat(vente.Nombre || vente.quantite || 0),
+            'Montant': parseFloat(vente.Montant || vente.total || 0),
+            'Nom Client': vente.nomClient || '',
+            'Numéro Client': vente.numeroClient || '',
+            'Adresse Client': vente.adresseClient || '',
+            'Créance': vente.creance ? 'Oui' : 'Non'
+        }));
 
         if (exportData.length === 0) {
-            alert('Aucune donnée valide à exporter');
+            // Remove loading indicator
+            const loadingElement = document.getElementById('export-loading');
+            if (loadingElement) {
+                loadingElement.remove();
+            }
+            alert('Aucune donnée à exporter pour les critères sélectionnés');
             return;
         }
+
+        // Get headers from the first data row
+        const headers = Object.keys(exportData[0]);
 
         // Create workbook and worksheet
         const workbook = XLSX.utils.book_new();
@@ -6551,7 +6579,7 @@ function exportVisualisationToExcel() {
         const range = XLSX.utils.decode_range(worksheet['!ref']);
         
         for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-            // Prix Unitaire, Montant columns (adjust indices based on actual headers)
+            // Prix Unitaire, Montant columns
             const prixUnitaireCol = headers.indexOf('Prix Unitaire');
             const montantCol = headers.indexOf('Montant');
             const quantiteCol = headers.indexOf('Quantité');
@@ -6595,24 +6623,57 @@ function exportVisualisationToExcel() {
         // Add the worksheet to the workbook
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Tableau des Ventes');
 
-        // Generate filename with current date
+        // Generate filename with current date and filter info
         const currentDate = new Date();
         const dateStr = currentDate.toISOString().slice(0, 10).replace(/-/g, '');
-        const filename = `Tableau_Ventes_${dateStr}.xlsx`;
+        let filename = `Tableau_Ventes_${dateStr}`;
+        
+        // Add filter information to filename if filters are applied
+        if (dateDebut || dateFin || (pointVente && pointVente !== 'tous')) {
+            filename += '_';
+            if (dateDebut && dateFin) {
+                filename += `${dateDebut.replace(/\//g, '-')}_${dateFin.replace(/\//g, '-')}`;
+            } else if (dateDebut) {
+                filename += `depuis_${dateDebut.replace(/\//g, '-')}`;
+            } else if (dateFin) {
+                filename += `jusqu_${dateFin.replace(/\//g, '-')}`;
+            }
+            if (pointVente && pointVente !== 'tous') {
+                filename += `_${pointVente}`;
+            }
+        }
+        filename += '.xlsx';
 
         // Save the file
         XLSX.writeFile(workbook, filename);
 
-        alert(`Export Excel réussi !\n\nDonnées exportées: ${exportData.length} entrées\nFichier: ${filename}`);
+        // Remove loading indicator
+        const loadingElement = document.getElementById('export-loading');
+        if (loadingElement) {
+            loadingElement.remove();
+        }
+
+        // Calculate total amount for summary
+        const totalAmount = exportData.reduce((sum, vente) => sum + (parseFloat(vente['Montant']) || 0), 0);
+        const totalQuantity = exportData.reduce((sum, vente) => sum + (parseFloat(vente['Quantité']) || 0), 0);
+
+        alert(`Export Excel réussi !\n\nDonnées exportées: ${exportData.length} entrées\nMontant total: ${totalAmount.toLocaleString('fr-FR')} FCFA\nQuantité totale: ${totalQuantity.toLocaleString('fr-FR')}\nFichier: ${filename}`);
 
     } catch (error) {
         console.error('Erreur lors de l\'export Excel visualization:', error);
+        
+        // Remove loading indicator in case of error
+        const loadingElement = document.getElementById('export-loading');
+        if (loadingElement) {
+            loadingElement.remove();
+        }
+        
         alert('Erreur lors de l\'export Excel : ' + error.message);
     }
 }
 
 // Function to export monthly reconciliation data to Excel
-function exportReconciliationMoisToExcel() {
+async function exportReconciliationMoisToExcel() {
     try {
         // Check if XLSX library is loaded
         if (typeof XLSX === 'undefined') {
@@ -6621,86 +6682,151 @@ function exportReconciliationMoisToExcel() {
             return;
         }
 
-        // Get data from the monthly reconciliation table
-        const table = document.getElementById('reconciliation-mois-table');
-        if (!table) {
-            alert('Tableau de réconciliation mensuelle non trouvé');
-            return;
+        // Show loading indicator
+        const loadingHtml = `
+            <div id="export-loading" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                 background: white; padding: 20px; border: 2px solid #007bff; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Export de la réconciliation mensuelle en cours...</p>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', loadingHtml);
+
+        // Get current month and year
+        const moisSelect = document.getElementById('mois-reconciliation');
+        const anneeSelect = document.getElementById('annee-reconciliation');
+        
+        if (!moisSelect || !anneeSelect) {
+            throw new Error('Sélecteurs de mois/année non trouvés');
         }
 
-        const tbody = table.querySelector('tbody');
-        if (!tbody || tbody.rows.length === 0) {
-            alert('Aucune donnée à exporter dans le tableau de réconciliation mensuelle');
-            return;
+        const mois = moisSelect.value;
+        const annee = anneeSelect.value;
+
+        if (!mois) {
+            throw new Error('Aucun mois sélectionné');
         }
 
-        // Extract headers
-        const headers = [];
-        const headerCells = table.querySelectorAll('thead th');
-        headerCells.forEach(cell => {
-            headers.push(cell.textContent.trim());
-        });
+        console.log(`Export de la réconciliation pour ${mois}/${annee}`);
 
-        // Extract data rows
+        // Recalculate all data for the month to ensure we have complete data
+        const anneeNum = parseInt(annee);
+        const moisNum = parseInt(mois);
+        const totalDaysInMonth = new Date(anneeNum, moisNum, 0).getDate();
+        
         const exportData = [];
-        
-        // Process each row in the table
-        const rows = tbody.querySelectorAll('tr');
-        let processedRows = 0;
-        
-        rows.forEach(row => {
-            // Skip hidden rows (filtered out)
-            if (row.style.display === 'none') {
-                return;
-            }
+        let totalVentesTheoriques = 0;
+        let totalVentesSaisies = 0;
+        let totalVersements = 0;
+
+        // Process each day of the month
+        for (let jour = 1; jour <= totalDaysInMonth; jour++) {
+            const dateStr = `${jour.toString().padStart(2, '0')}/${mois}/${annee}`;
             
-            const rowData = {};
-            const cells = row.querySelectorAll('td');
-            
-            cells.forEach((cell, index) => {
-                if (index < headers.length) {
-                    const headerName = headers[index];
-                    let cellValue;
-                    
-                    // Handle comment input fields
-                    if (headerName === 'Commentaire' || headerName.toLowerCase().includes('commentaire')) {
-                        const input = cell.querySelector('input');
-                        cellValue = input ? input.value.trim() : cell.textContent.trim();
-                    } else {
-                        cellValue = cell.textContent.trim();
-                    }
-                    
-                    // Convert numeric/currency fields to numbers for proper Excel formatting
-                    if (headerName.includes('Stock') || headerName.includes('Transfert') || 
-                        headerName.includes('Vente') || headerName.includes('Montant') || 
-                        headerName.includes('Cash') || headerName.includes('Ecart')) {
-                        
-                        // Remove currency formatting and convert to number
-                        let numericValue = cellValue.replace(/[^0-9.,-]/g, '').replace(',', '.');
-                        
-                        // Handle percentage values
-                        if (cellValue.includes('%')) {
-                            numericValue = parseFloat(numericValue);
-                            cellValue = isNaN(numericValue) ? 0 : numericValue;
-                        } else {
-                            numericValue = parseFloat(numericValue);
-                            cellValue = isNaN(numericValue) ? 0 : numericValue;
-                        }
-                    }
-                    
-                    rowData[headerName] = cellValue;
+            try {
+                // Fetch data for this day
+                const [stockMatin, stockSoir, transferts, ventesData] = await Promise.all([
+                    getStockForDate(dateStr, 'matin'),
+                    getStockForDate(dateStr, 'soir'),
+                    getTransfersForDate(dateStr),
+                    fetch(`/api/ventes-date?date=${dateStr}`, { method: 'GET', credentials: 'include' }).then(res => res.ok ? res.json() : { success: false })
+                ]);
+
+                const ventesSaisies = ventesData.success && ventesData.totaux ? ventesData.totaux : {};
+
+                // Check if any data exists for this date
+                const dayHasData =
+                    Object.keys(stockMatin).length > 0 ||
+                    Object.keys(stockSoir).length > 0 ||
+                    transferts.length > 0 ||
+                    Object.keys(ventesSaisies).length > 0;
+
+                if (!dayHasData) {
+                    continue; // Skip this day if no data
                 }
-            });
-            
-            // Only add rows that have actual data
-            if (Object.values(rowData).some(value => value !== '' && value !== 0)) {
-                exportData.push(rowData);
-                processedRows++;
+
+                // Calculate reconciliation for each point of sale
+                const dailyReconciliation = {};
+                
+                // Process each point of sale
+                POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
+                    const stockMatinValue = stockMatin[pointVente] || 0;
+                    const stockSoirValue = stockSoir[pointVente] || 0;
+                    const transfertsValue = transferts
+                        .filter(t => t.pointVente === pointVente)
+                        .reduce((sum, t) => sum + (parseFloat(t.montant) || 0), 0);
+                    const ventesSaisiesValue = ventesSaisies[pointVente] || 0;
+
+                    // Calculate theoretical sales
+                    const ventesTheoriques = stockMatinValue + transfertsValue - stockSoirValue;
+
+                    // Calculate difference
+                    const difference = ventesTheoriques - ventesSaisiesValue;
+
+                    // Calculate percentage difference
+                    const pourcentageEcart = ventesTheoriques > 0 ? (difference / ventesTheoriques) * 100 : 0;
+
+                    // Get cash payment data (you may need to implement this based on your data structure)
+                    const cashPayment = 0; // Placeholder - implement based on your cash payment data
+
+                    // Calculate cash difference
+                    const ecartCash = ventesSaisiesValue - cashPayment;
+
+                    dailyReconciliation[pointVente] = {
+                        stockMatin: stockMatinValue,
+                        stockSoir: stockSoirValue,
+                        transferts: transfertsValue,
+                        ventes: ventesTheoriques,
+                        ventesSaisies: ventesSaisiesValue,
+                        difference: difference,
+                        cashPayment: cashPayment,
+                        pourcentageEcart: pourcentageEcart,
+                        ecartCash: ecartCash,
+                        commentaire: '' // You can implement comment loading if needed
+                    };
+
+                    // Accumulate totals
+                    totalVentesTheoriques += ventesTheoriques;
+                    totalVentesSaisies += ventesSaisiesValue;
+                    totalVersements += cashPayment;
+                });
+
+                // Add data to export array
+                Object.keys(dailyReconciliation).forEach(pointVente => {
+                    const data = dailyReconciliation[pointVente];
+                    exportData.push({
+                        'Date': dateStr,
+                        'Point de Vente': pointVente,
+                        'Stock Matin': data.stockMatin,
+                        'Stock Soir': data.stockSoir,
+                        'Transferts': data.transferts,
+                        'Ventes Théoriques': data.ventes,
+                        'Ventes Saisies': data.ventesSaisies,
+                        'Écart': data.difference,
+                        'Montant Total Cash': data.cashPayment,
+                        'Écart %': data.pourcentageEcart,
+                        'Écart Cash': data.ecartCash,
+                        'Commentaire': data.commentaire
+                    });
+                });
+
+            } catch (error) {
+                console.error(`Erreur lors du traitement du jour ${dateStr}:`, error);
+                continue; // Skip this day if there's an error
             }
-        });
+        }
 
         if (exportData.length === 0) {
-            alert('Aucune donnée valide à exporter dans la réconciliation mensuelle');
+            // Remove loading indicator
+            const loadingElement = document.getElementById('export-loading');
+            if (loadingElement) {
+                loadingElement.remove();
+            }
+            alert('Aucune donnée à exporter pour ce mois');
             return;
         }
 
@@ -6714,17 +6840,17 @@ function exportReconciliationMoisToExcel() {
         const range = XLSX.utils.decode_range(worksheet['!ref']);
         
         for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+            const headers = Object.keys(exportData[0]);
             headers.forEach((header, C) => {
                 const cell_address = { c: C, r: R };
                 const cell_ref = XLSX.utils.encode_cell(cell_address);
                 
                 if (worksheet[cell_ref] && typeof worksheet[cell_ref].v === 'number') {
-                    // Apply currency format to monetary columns
                     if (header.includes('Stock') || header.includes('Transfert') || 
                         header.includes('Vente') || header.includes('Montant') || 
                         header.includes('Cash') || header.includes('Ecart')) {
                         
-                        if (header.includes('%') || header.includes('Ecart %')) {
+                        if (header.includes('%') || header.includes('Écart %')) {
                             worksheet[cell_ref].t = 'n';
                             worksheet[cell_ref].z = percentageFormat;
                             // Convert percentage value back to decimal for Excel
@@ -6739,36 +6865,26 @@ function exportReconciliationMoisToExcel() {
         }
 
         // Set column widths
+        const headers = Object.keys(exportData[0]);
         const colWidths = headers.map(header => {
             switch (true) {
                 case header === 'Date': return { wch: 12 };
                 case header === 'Point de Vente': return { wch: 15 };
                 case header.includes('Stock') || header.includes('Vente') || header.includes('Cash'): return { wch: 15 };
                 case header === 'Commentaire': return { wch: 30 };
-                case header.includes('Ecart'): return { wch: 12 };
+                case header.includes('Écart'): return { wch: 12 };
                 default: return { wch: 12 };
             }
         });
         worksheet['!cols'] = colWidths;
 
         // Add summary data
-        const moisSelect = document.getElementById('mois-reconciliation');
-        const anneeSelect = document.getElementById('annee-reconciliation');
-        
-        // Get summary values from the page
-        const totalVentesTheoriques = document.getElementById('total-ventes-theoriques-mois')?.textContent || '0';
-        const totalVentesSaisies = document.getElementById('total-ventes-saisies-mois')?.textContent || '0';
-        const totalVersements = document.getElementById('total-versements-mois')?.textContent || '0';
-        const estimationVersements = document.getElementById('estimation-versements-mois')?.textContent || '0';
-
-        // Add empty rows and summary
         const summaryData = [
             {},
-            { [headers[0]]: 'RÉSUMÉ DU MOIS', [headers[1]]: `${moisSelect?.value || ''}/${anneeSelect?.value || ''}` },
+            { [headers[0]]: 'RÉSUMÉ DU MOIS', [headers[1]]: `${mois}/${annee}` },
             { [headers[0]]: 'Total Ventes Théoriques:', [headers[1]]: totalVentesTheoriques },
             { [headers[0]]: 'Total Ventes Saisies:', [headers[1]]: totalVentesSaisies },
-            { [headers[0]]: 'Total Versements:', [headers[1]]: totalVersements },
-            { [headers[0]]: 'Estimation Versements:', [headers[1]]: estimationVersements }
+            { [headers[0]]: 'Total Versements:', [headers[1]]: totalVersements }
         ];
 
         // Add summary to export data
@@ -6787,9 +6903,9 @@ function exportReconciliationMoisToExcel() {
                 if (finalWorksheet[cell_ref] && typeof finalWorksheet[cell_ref].v === 'number') {
                     if (header.includes('Stock') || header.includes('Transfert') || 
                         header.includes('Vente') || header.includes('Montant') || 
-                        header.includes('Cash') || header.includes('Ecart')) {
+                        header.includes('Cash') || header.includes('Écart')) {
                         
-                        if (header.includes('%') || header.includes('Ecart %')) {
+                        if (header.includes('%') || header.includes('Écart %')) {
                             finalWorksheet[cell_ref].t = 'n';
                             finalWorksheet[cell_ref].z = percentageFormat;
                             finalWorksheet[cell_ref].v = finalWorksheet[cell_ref].v / 100;
@@ -6808,17 +6924,31 @@ function exportReconciliationMoisToExcel() {
         XLSX.utils.book_append_sheet(workbook, finalWorksheet, 'Réconciliation Mensuelle');
 
         // Generate filename
-        const mois = moisSelect?.value || 'XX';
-        const annee = anneeSelect?.value || 'XXXX';
         const filename = `Reconciliation_Mensuelle_${mois}_${annee}.xlsx`;
 
         // Save the file
         XLSX.writeFile(workbook, filename);
 
+        // Remove loading indicator
+        const loadingElement = document.getElementById('export-loading');
+        if (loadingElement) {
+            loadingElement.remove();
+        }
+
+        // Calculate processed rows (excluding summary rows)
+        const processedRows = exportData.length - summaryData.length;
+
         alert(`Export Excel réussi !\n\nDonnées exportées: ${processedRows} entrées pour ${mois}/${annee}\nFichier: ${filename}`);
 
     } catch (error) {
         console.error('Erreur lors de l\'export Excel réconciliation mensuelle:', error);
+        
+        // Remove loading indicator in case of error
+        const loadingElement = document.getElementById('export-loading');
+        if (loadingElement) {
+            loadingElement.remove();
+        }
+        
         alert('Erreur lors de l\'export Excel : ' + error.message);
     }
 }
