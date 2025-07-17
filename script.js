@@ -642,6 +642,7 @@ async function checkAuth() {
 
         await populatePointVenteDropdowns();
         await initPointsVentePhysiques();
+        await initTousPointsVente();
         
         // Afficher les informations de l'utilisateur
         document.getElementById('user-info').textContent = `Connecté en tant que ${currentUser.username}`;
@@ -1420,6 +1421,9 @@ async function populatePointVenteDropdowns() {
 
         // Mettre à jour POINTS_VENTE_PHYSIQUES avec les points de vente actifs
         POINTS_VENTE_PHYSIQUES = activePointsVente;
+        
+        // Mettre à jour TOUS_POINTS_VENTE avec les nouveaux points de vente actifs
+        await initTousPointsVente();
 
         // Add the IDs of all point-de-vente dropdowns here
         const dropdownIds = [
@@ -3588,6 +3592,9 @@ async function initPointsVentePhysiques() {
             console.log('Type des données:', typeof activePointsVente, Array.isArray(activePointsVente));
             POINTS_VENTE_PHYSIQUES = activePointsVente;
             console.log('POINTS_VENTE_PHYSIQUES mis à jour depuis l\'API:', POINTS_VENTE_PHYSIQUES);
+            
+            // Mettre à jour TOUS_POINTS_VENTE avec les nouveaux points de vente actifs
+            await initTousPointsVente();
         }
     } catch (error) {
         console.error('Erreur lors de l\'initialisation de POINTS_VENTE_PHYSIQUES:', error);
@@ -3630,10 +3637,36 @@ Object.keys(produits).forEach(categorie => {
 });
 
 // Tous les points de vente (physiques et virtuels)
-const TOUS_POINTS_VENTE = [
+let TOUS_POINTS_VENTE = [
     ...POINTS_VENTE_PHYSIQUES,
     'Abattage', 'Depot', 'Gros Client'
 ];
+
+// Fonction pour mettre à jour TOUS_POINTS_VENTE
+function updateTousPointsVente() {
+    TOUS_POINTS_VENTE = [
+        ...POINTS_VENTE_PHYSIQUES,
+        'Abattage', 'Depot', 'Gros Client'
+    ];
+    console.log('TOUS_POINTS_VENTE mis à jour:', TOUS_POINTS_VENTE);
+}
+
+// Fonction pour initialiser TOUS_POINTS_VENTE depuis l'API spécifique aux transferts
+async function initTousPointsVente() {
+    try {
+        const response = await fetch('/api/points-vente/transferts');
+        if (response.ok) {
+            const tousPointsVente = await response.json();
+            console.log('Données reçues de l\'API /api/points-vente/transferts:', tousPointsVente);
+            TOUS_POINTS_VENTE = tousPointsVente;
+            console.log('TOUS_POINTS_VENTE mis à jour depuis l\'API transferts:', TOUS_POINTS_VENTE);
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation de TOUS_POINTS_VENTE:', error);
+        // Fallback: utiliser la méthode locale
+        updateTousPointsVente();
+    }
+}
 
 // Variables globales pour stocker les données de stock
 let stockData = {

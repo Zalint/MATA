@@ -84,6 +84,27 @@ app.get('/api/points-vente', (req, res) => {
     }
 });
 
+// Route pour obtenir tous les points de vente (physiques + virtuels) pour les transferts
+app.get('/api/points-vente/transferts', (req, res) => {
+    try {
+        // The `pointsVente` object is already required at the top of server.js
+        const activePointsVente = Object.entries(pointsVente)
+            .filter(([_, properties]) => properties.active)
+            .map(([name, _]) => name);
+        
+        // Ajouter les points de vente virtuels pour les transferts
+        const tousPointsVente = [
+            ...activePointsVente,
+            'Abattage', 'Depot', 'Gros Client'
+        ];
+        
+        res.json(tousPointsVente);
+    } catch (error) {
+        console.error("Erreur lors de la lecture des points de vente pour transferts :", error);
+        res.status(500).json({ success: false, message: "Erreur serveur" });
+    }
+});
+
 // Middleware de vérification d'authentification
 const checkAuth = (req, res, next) => {
     if (!req.session.user) {
