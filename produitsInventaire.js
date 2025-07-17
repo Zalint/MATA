@@ -1,15 +1,18 @@
 const produitsInventaire = {
     "Boeuf": {
         "prixDefault": 3700,
-        "alternatives": [3700]
+        "alternatives": [3700],
+        "Sacre Coeur": 3900
     },
     "Veau": {
         "prixDefault": 3900,
-        "alternatives": [3900]
+        "alternatives": [3900],
+        "Sacre Coeur": 4200
     },
     "Poulet": {
         "prixDefault": 3500,
-        "alternatives": [3500]
+        "alternatives": [3500],
+        "Sacre Coeur": 3400
     },
     "Tete De Mouton": {
         "prixDefault": 1000,
@@ -17,11 +20,13 @@ const produitsInventaire = {
     },
     "Tablette": {
         "prixDefault": 2800,
-        "alternatives": [2800]
+        "alternatives": [2800],
+        "Sacre Coeur": 2500
     },
     "Foie": {
         "prixDefault": 4000,
-        "alternatives": [4000]
+        "alternatives": [4000],
+        "Sacre Coeur": 3000
     },
     "Yell": {
         "prixDefault": 2500,
@@ -29,7 +34,8 @@ const produitsInventaire = {
     },
     "Agneau": {
         "prixDefault": 4500,
-        "alternatives": [4500]
+        "alternatives": [4500],
+        "Sacre Coeur": 4900
     },
     "Déchet 400": {
         "prixDefault": 400,
@@ -71,9 +77,17 @@ const produitsInventaire = {
 };
 
 // Fonctions utilitaires pour manipuler les produits d'inventaire
-produitsInventaire.getPrixDefaut = function(produit) {
+produitsInventaire.getPrixDefaut = function(produit, pointVente = null) {
     if (this[produit]) {
-        return this[produit].prixDefault;
+        const produitConfig = this[produit];
+        
+        // Si un point de vente est spécifié et qu'il a un prix défini
+        if (pointVente && produitConfig[pointVente] !== undefined) {
+            return produitConfig[pointVente];
+        }
+        
+        // Sinon, retourner le prix par défaut
+        return produitConfig.prixDefault;
     }
     return 0;
 };
@@ -105,8 +119,8 @@ produitsInventaire.produitExiste = function(produit) {
 };
 
 // Pour la compatibilité avec le code existant
-produitsInventaire.getSimpleValue = function(produit) {
-    return this.getPrixDefaut(produit);
+produitsInventaire.getSimpleValue = function(produit, pointVente = null) {
+    return this.getPrixDefaut(produit, pointVente);
 };
 
 // En environnement navigateur

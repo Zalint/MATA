@@ -71,6 +71,19 @@ app.use(session({
     }
 }));
 
+app.get('/api/points-vente', (req, res) => {
+    try {
+        // The `pointsVente` object is already required at the top of server.js
+        const activePointsVente = Object.entries(pointsVente)
+            .filter(([_, properties]) => properties.active)
+            .map(([name, _]) => name);
+        res.json(activePointsVente);
+    } catch (error) {
+        console.error("Erreur lors de la lecture des points de vente :", error);
+        res.status(500).json({ success: false, message: "Erreur serveur" });
+    }
+});
+
 // Middleware de vérification d'authentification
 const checkAuth = (req, res, next) => {
     if (!req.session.user) {
@@ -3634,3 +3647,15 @@ app.get('/api/test-prix-moyen', checkAuth, async (req, res) => {
 });
 
 // ... existing code ...
+
+app.get('/api/points-vente', (req, res) => {
+    try {
+        const activePointsVente = Object.entries(pointsVente)
+            .filter(([_, properties]) => properties.active)
+            .map(([name, _]) => name);
+        res.json(activePointsVente);
+    } catch (error) {
+        console.error("Erreur lors de la lecture des points de vente :", error);
+        res.status(500).json({ success: false, message: "Erreur serveur" });
+    }
+});

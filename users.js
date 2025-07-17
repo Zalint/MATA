@@ -67,6 +67,12 @@ const users = [
         password: '$2b$10$XM0wQV5kI0lJqld3aMwlmuNSmTivlFAEKXDwZEg0ePIcG6o9/jVmu',
         role: 'user',
         pointVente: 'tous'
+    },
+    {
+        username: 'SCR',
+        password: '$2b$10$fGNRB1.MSl4JT5EkMwYpT.RKDuCc4RmpXXZvz/OKpn3sm3ozNTLUe',
+        role: 'user',
+        pointVente: 'Sacre Coeur'
     }
 ];
 
