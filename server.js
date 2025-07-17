@@ -13,6 +13,7 @@ const session = require('express-session');
 const users = require('./users');
 const pointsVente = require('./points-vente');
 const produits = require('./produits');
+const produitsInventaire = require('./produitsInventaire');
 const bcrypt = require('bcrypt');
 const fsPromises = require('fs').promises;
 const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf } = require('./db/models');
@@ -3059,16 +3060,50 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
         console.log('Stock Soir Data Structure:', JSON.stringify(stockSoirData).substring(0, 200) + '...');
         console.log('Transferts Data Structure:', JSON.stringify(transfertsData).substring(0, 200) + '...');
         
+        // Fonction de mapping centralisée pour uniformiser les catégories
+        function mapToCanonicalCategory(rawCategory) {
+            if (!rawCategory || typeof rawCategory !== 'string') {
+                return 'Non spécifié';
+            }
+            const normalized = rawCategory.trim().toLowerCase();
+
+            if (normalized.includes('boeuf')) return 'Boeuf';
+            if (normalized.includes('veau')) return 'Veau';
+            if (normalized.includes('poulet')) return 'Poulet';
+            if (normalized.includes('volaille')) return 'Volaille';
+            if (normalized.includes('bovin')) return 'Bovin';
+
+            // Comportement par défaut : nettoie la chaîne (Majuscule au début)
+            return rawCategory.trim().charAt(0).toUpperCase() + rawCategory.trim().slice(1).toLowerCase();
+        }
+
         // Prepare structures for aggregation
         const reconciliationByPDV = {};
         const detailsByPDV = {};
         
+        // Dynamically get all categories and points of sale
+        const allCategories = produitsInventaire.getTousLesProduits();
+        const allPDVs = Object.keys(pointsVente).filter(pdv => pointsVente[pdv].active);
+
+        allPDVs.forEach(pdv => {
+            detailsByPDV[pdv] = {};
+            allCategories.forEach(cat => {
+                detailsByPDV[pdv][cat] = {
+                    stockMatin: 0,
+                    stockSoir: 0,
+                    transferts: 0,
+                    ventesTheoriques: 0,
+                    ventesSaisies: 0
+                };
+            });
+        });
+
         // Processing sales data for each point de vente
         if (ventesData.success && ventesData.ventes) {
             // Group sales by point de vente and category
             ventesData.ventes.forEach(vente => {
                 const pdv = vente.pointVente;
-                const category = vente.categorie;
+                const category = mapToCanonicalCategory(vente.categorie);
                 const montant = parseFloat(vente.montant) || 0;
                 
                 // Initialize point de vente if not exists
@@ -3110,6 +3145,8 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             });
         }
         
+        console.log("After Ventes:", JSON.stringify(detailsByPDV['Sacre Coeur']?.['Boeuf']));
+
         // Processing stock-matin data - handles the format from stock API
         if (stockMatinData && typeof stockMatinData === 'object') {
             // Log a sample of keys to help debug
@@ -3129,6 +3166,9 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                     console.log('Skipping unknown stock entry format:', key);
                     return; // Skip this entry
                 }
+                
+                // Appliquer le mapping de catégorie
+                category = mapToCanonicalCategory(category);
                 
                 // Try different approaches to get stock value and price
                 let stockValue = 0;
@@ -3200,6 +3240,8 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             });
         }
         
+        console.log("After Stock Matin:", JSON.stringify(detailsByPDV['Sacre Coeur']?.['Boeuf']));
+
         // Processing stock-soir data - handles the format from stock API
         if (stockSoirData && typeof stockSoirData === 'object') {
             // Log a sample of keys to help debug
@@ -3219,6 +3261,9 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                     console.log('Skipping unknown stock entry format:', key);
                     return; // Skip this entry
                 }
+                
+                // Appliquer le mapping de catégorie
+                category = mapToCanonicalCategory(category);
                 
                 // Try different approaches to get stock value and price
                 let stockValue = 0;
@@ -3290,13 +3335,30 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             });
         }
         
+        console.log("After Stock Soir:", JSON.stringify(detailsByPDV['Sacre Coeur']?.['Boeuf']));
+
         // Processing transfers data
+        // Ajout d'une fonction utilitaire pour mapper les catégories de transferts
+        function mapTransfertCategory(rawCategory) {
+            if (!rawCategory) return 'Non spécifié';
+            const normalized = rawCategory.trim().toLowerCase();
+            if (normalized === 'boeuf' || normalized.includes('boeuf')) return 'Boeuf';
+            if (normalized === 'poulet' || normalized.includes('poulet')) return 'Poulet';
+            if (normalized === 'volaille' || normalized.includes('volaille')) return 'Volaille';
+            if (normalized === 'bovin' || normalized.includes('bovin')) return 'Bovin';
+            // Par défaut, retourne la première lettre en majuscule, le reste en minuscule
+            return rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1).toLowerCase();
+        }
         if (transfertsData.success && transfertsData.transferts) {
             console.log('Processing transfers:', transfertsData.transferts.length);
             
             transfertsData.transferts.forEach(transfert => {
+                // =============== FINAL DEBUG LOG ===============
+                console.log('Inspecting transfert object:', JSON.stringify(transfert));
+                // ===============================================
+
                 const pdv = transfert.pointVente;
-                const category = transfert.categorie || 'Non spécifié';
+                const category = mapToCanonicalCategory(transfert.produit);
                 
                 // Get the total directly from the transfer object
                 let montant = 0;
@@ -3375,10 +3437,14 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                 console.log(`Adding transfer for ${pdv}: ${impactValue} (final value after impact logic)`);*/
                 
                 reconciliationByPDV[pdv].transferts += montant;
-                detailsByPDV[pdv][category].transferts += montant;
+                if(detailsByPDV[pdv] && detailsByPDV[pdv][category]) {
+                    detailsByPDV[pdv][category].transferts += montant;
+                }
             });
         }
         
+        console.log("After Transferts:", JSON.stringify(detailsByPDV['Sacre Coeur']?.['Boeuf']));
+
         // Processing cash payments data
         if (cashData.success && cashData.data && cashData.data.points) {
             console.log('Processing cash payments:', cashData.data.points.length);
