@@ -2,7 +2,8 @@ const produits = {
     "Bovin": {
         "Boeuf en détail": { 
             default: 3700, 
-            alternatives: [3700, 3600] 
+            alternatives: [3700, 3600],
+            "Sacre Coeur": 3900
         },
         "Boeuf en gros": { 
             default: 3500, 
@@ -18,7 +19,8 @@ const produits = {
         },
         "Yell": { 
             default: 2000, 
-            alternatives: [2000, 2500] 
+            alternatives: [2000, 2500],
+            "Sacre Coeur": 2500
         },
         "Jarret": { 
             default: 250, 
@@ -38,7 +40,8 @@ const produits = {
         },
         "Sans Os": { 
             default: 4500, 
-            alternatives: [4500, 4000] 
+            alternatives: [4500, 4000],
+            "Sacre Coeur": 5500
         },
         "Viande Hachée": { 
             default: 5000, 
@@ -46,7 +49,8 @@ const produits = {
         },
         "Veau en détail": { 
             default: 3900, 
-            alternatives: [3900, 3800] 
+            alternatives: [3900, 3800],
+            "Sacre Coeur": 4200
         },
         "Veau en gros": { 
             default: 3700, 
@@ -76,7 +80,8 @@ const produits = {
     "Ovin": {
         "Agneau": { 
             default: 4000, 
-            alternatives: [4500] 
+            alternatives: [4500],
+            "Sacre Coeur": 4900
         },
         "Tete Agneau": { 
             default: 1000, 
@@ -90,7 +95,8 @@ const produits = {
     "Volaille": {
         "Poulet en détail": { 
             default: 3500, 
-            alternatives: [3500, 3000, 3700] 
+            alternatives: [3500, 3000, 3700],
+            "Sacre Coeur": 3400
         },
         "Poulet en gros": { 
             default: 3000, 
@@ -98,7 +104,8 @@ const produits = {
         },
         "Oeuf": { 
             default: 2800, 
-            alternatives: [2800, 2800, 2900] 
+            alternatives: [2800, 2800, 2900],
+            "Sacre Coeur": 2500
         },
         "Pack Pigeon": { 
             default: 2500, 
@@ -166,9 +173,17 @@ const produits = {
 };
 
 // Fonctions utilitaires pour manipuler les produits
-produits.getPrixDefaut = function(categorie, produit) {
+produits.getPrixDefaut = function(categorie, produit, pointVente = null) {
     if (this[categorie] && this[categorie][produit]) {
-        return this[categorie][produit].default;
+        const produitConfig = this[categorie][produit];
+        
+        // Si un point de vente est spécifié et qu'il a un prix défini
+        if (pointVente && produitConfig[pointVente] !== undefined) {
+            return produitConfig[pointVente];
+        }
+        
+        // Sinon, retourner le prix par défaut
+        return produitConfig.default;
     }
     return 0;
 };
@@ -190,8 +205,8 @@ produits.getPrixPreferePour = function(categorie, produit) {
 };
 
 // Pour la compatibilité avec le code existant
-produits.getSimpleValue = function(categorie, produit) {
-    return this.getPrixDefaut(categorie, produit);
+produits.getSimpleValue = function(categorie, produit, pointVente = null) {
+    return this.getPrixDefaut(categorie, produit, pointVente);
 };
 
 // En environnement navigateur

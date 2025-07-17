@@ -639,6 +639,9 @@ async function checkAuth() {
         
         // Stocker l'utilisateur dans la variable window pour l'accès global
         window.currentUser = currentUser;
+
+        await populatePointVenteDropdowns();
+        await initPointsVentePhysiques();
         
         // Afficher les informations de l'utilisateur
         document.getElementById('user-info').textContent = `Connecté en tant que ${currentUser.username}`;
@@ -864,9 +867,10 @@ document.querySelectorAll('.produit-select').forEach(select => {
         const categorie = row.querySelector('.categorie-select').value;
         const produit = this.value;
         const prixUnitInput = row.querySelector('.prix-unit');
+        const pointVente = document.getElementById('point-vente').value;
         
         if (categorie && produit && produits[categorie] && produits[categorie][produit]) {
-            const prix = produits.getPrixPreferePour(categorie, produit);
+            const prix = produits.getPrixDefaut(categorie, produit, pointVente);
             prixUnitInput.value = prix;
             calculerTotal(row);
         } else {
@@ -912,6 +916,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // Get the current value
             const pointVenteValue = this.value;
             console.log("[Point Vente Change] Value:", pointVenteValue);
+            
+            // Mettre à jour les prix unitaires pour tous les produits selon le point de vente
+            document.querySelectorAll('.produit-select').forEach(select => {
+                if (select.value) {
+                    select.dispatchEvent(new Event('change'));
+                }
+            });
             
             // Always calculate total, regardless of selection
             setTimeout(function() {
@@ -1138,11 +1149,12 @@ function creerNouvelleEntree() {
     produitSelect.addEventListener('change', function() {
         const selectedProduit = this.value;
         const categorie = categorieSelect.value;
+        const pointVente = document.getElementById('point-vente').value;
         
         // Utiliser le prix depuis produitsDB
         if (categorie && selectedProduit && produits[categorie] && produits[categorie][selectedProduit]) {
-            // Prendre le premier prix disponible pour ce produit
-            prixUnitInput.value = produits.getPrixPreferePour(categorie, selectedProduit) || '';
+            // Prendre le prix spécifique au point de vente ou le prix par défaut
+            prixUnitInput.value = produits.getPrixDefaut(categorie, selectedProduit, pointVente) || '';
         } else {
             console.warn(`Prix non trouvé pour ${categorie} > ${selectedProduit}`);
             prixUnitInput.value = '';
@@ -1392,6 +1404,66 @@ function afficherDernieresVentes(ventes) {
             actionsCell.appendChild(deleteButton);
         }
     });
+}
+
+/**
+ * Fetches active points of sale from the server and populates all relevant dropdowns.
+ */
+async function populatePointVenteDropdowns() {
+    console.log('Fetching active points of sale...');
+    try {
+        const response = await fetch('/api/points-vente');
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        const activePointsVente = await response.json();
+
+        // Mettre à jour POINTS_VENTE_PHYSIQUES avec les points de vente actifs
+        POINTS_VENTE_PHYSIQUES = activePointsVente;
+
+        // Add the IDs of all point-de-vente dropdowns here
+        const dropdownIds = [
+            'point-vente', 
+            'point-vente-select',
+            'estimation-point-vente',
+            'point-vente-filtre', 
+            'point-vente-filtre-mois',
+            'point-vente-filter-cash',
+            'filter-point-vente',
+            'pointVenteFilter', 
+            'pointVenteCopieSource',
+            'pointVenteCopieDestination'
+        ];
+
+        dropdownIds.forEach(id => {
+            const selectElement = document.getElementById(id);
+            if (selectElement) {
+                const currentValue = selectElement.value; // Save current value
+
+                // Clear existing options but keep the first one (the placeholder)
+                while (selectElement.options.length > 1) {
+                    selectElement.remove(1);
+                }
+
+                // Add new options from the server
+                activePointsVente.forEach(pv => {
+                    const option = document.createElement('option');
+                    option.value = pv;
+                    option.textContent = pv;
+                    selectElement.appendChild(option);
+                });
+                
+                // Restore the old value if it's still valid
+                if (activePointsVente.includes(currentValue)) {
+                    selectElement.value = currentValue;
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Erreur lors de la récupération des points de vente:', error);
+        alert('Impossible de charger la liste des points de vente. Veuillez vérifier la console.');
+    }
 }
 
 // Fonction pour charger les dernières ventes
@@ -2492,7 +2564,7 @@ function ajouterLigneTransfert() {
     inputPrixUnitaire.type = 'number';
     inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
     inputPrixUnitaire.min = '0';
-    inputPrixUnitaire.step = '100';
+    inputPrixUnitaire.step = '0.01';
     inputPrixUnitaire.value = '0';
     tdPrixUnitaire.appendChild(inputPrixUnitaire);
     
@@ -3184,7 +3256,18 @@ function ajouterLigneStock() {
     // Gestionnaire pour la mise à jour du prix unitaire par défaut
     selectProduit.addEventListener('change', function() {
         const nouveauProduit = this.value;
-        inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[nouveauProduit] || '0';
+        const pointVente = selectPointVente.value;
+        const prix = produitsInventaire.getPrixDefaut(nouveauProduit, pointVente);
+        inputPrixUnitaire.value = prix || '0';
+        calculateTotal();
+    });
+    
+    // Gestionnaire pour la mise à jour du prix unitaire quand le point de vente change
+    selectPointVente.addEventListener('change', function() {
+        const produit = selectProduit.value;
+        const pointVente = this.value;
+        const prix = produitsInventaire.getPrixDefaut(produit, pointVente);
+        inputPrixUnitaire.value = prix || '0';
         calculateTotal();
     });
     
@@ -3258,12 +3341,12 @@ async function sauvegarderDonneesStock() {
             let fetchedPrix = null;
             if (isNaN(prixUnitaire) || prixUnitaireInput === '') {
                 fetchedPrix = await fetchPrixMoyen(produit, date, pointVente, isTransfert);
-                prixUnitaire = fetchedPrix !== null ? fetchedPrix : (PRIX_DEFAUT_INVENTAIRE[produit] || 0);
+                prixUnitaire = fetchedPrix !== null ? fetchedPrix : (produitsInventaire.getPrixDefaut(produit, pointVente) || 0);
             }
             // If user entered a value, keep it (manual override)
         } else {
             if (isNaN(prixUnitaire) || prixUnitaireInput === '') {
-                prixUnitaire = PRIX_DEFAUT_INVENTAIRE[produit] || 0;
+                prixUnitaire = produitsInventaire.getPrixDefaut(produit, pointVente) || 0;
             }
         }
 
@@ -3408,7 +3491,8 @@ function initTableauStock() {
             const inputPrixUnitaire = document.createElement('input');
             inputPrixUnitaire.type = 'number';
             inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
-            inputPrixUnitaire.step = '100';
+            inputPrixUnitaire.step = '0.01';
+            inputPrixUnitaire.min = '0';
             tdPrixUnitaire.appendChild(inputPrixUnitaire);
             
             // Total (calculé automatiquement)
@@ -3432,18 +3516,19 @@ function initTableauStock() {
                     total: (parseFloat(donnees.Nombre || donnees.quantite) * parseFloat(donnees.PU || donnees.prixUnitaire)).toString()
                 });
                 inputQuantite.value = donnees.Nombre || donnees.quantite || '0';
-                inputPrixUnitaire.value = donnees.PU || donnees.prixUnitaire || PRIX_DEFAUT_INVENTAIRE[produit] || '0';
+                inputPrixUnitaire.value = donnees.PU || donnees.prixUnitaire || produitsInventaire.getPrixDefaut(produit, pointVente) || '0';
                 inputCommentaire.value = donnees.Commentaire || donnees.commentaire || '';
                 tdTotal.textContent = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value)).toLocaleString('fr-FR');
         } else {
+                const prixDefaut = produitsInventaire.getPrixDefaut(produit, pointVente);
                 console.log('%cPas de données sauvegardées pour ' + key + ', utilisation des valeurs par défaut:', 'color: #ff9900;', {
                     quantite: '0',
-                    prixUnitaire: PRIX_DEFAUT_INVENTAIRE[produit],
+                    prixUnitaire: prixDefaut,
                     commentaire: '',
                     total: '0'
                 });
                 inputQuantite.value = '0';
-                inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[produit] || '0';
+                inputPrixUnitaire.value = prixDefaut || '0';
                 inputCommentaire.value = '';
                 tdTotal.textContent = '0';
             }
@@ -3491,9 +3576,23 @@ function initTableauStock() {
 }
 
 // Configuration pour l'inventaire to refac point de vente
-const POINTS_VENTE_PHYSIQUES = [
-    'Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba', 'Keur Massar','Abattage'
-];
+let POINTS_VENTE_PHYSIQUES = [];
+
+// Fonction pour initialiser POINTS_VENTE_PHYSIQUES depuis l'API
+async function initPointsVentePhysiques() {
+    try {
+        const response = await fetch('/api/points-vente');
+        if (response.ok) {
+            const activePointsVente = await response.json();
+            console.log('Données reçues de l\'API /api/points-vente:', activePointsVente);
+            console.log('Type des données:', typeof activePointsVente, Array.isArray(activePointsVente));
+            POINTS_VENTE_PHYSIQUES = activePointsVente;
+            console.log('POINTS_VENTE_PHYSIQUES mis à jour depuis l\'API:', POINTS_VENTE_PHYSIQUES);
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation de POINTS_VENTE_PHYSIQUES:', error);
+    }
+}
 // Configuration pour l'inventaire - lecture depuis produitsInventaire.js (pour Stock inventaire seulement)
 const PRODUITS_INVENTAIRE = [];
 const PRIX_DEFAUT_INVENTAIRE = {};
@@ -3634,7 +3733,7 @@ async function onTypeStockChange() {
                 inputPrixUnitaire.type = 'number';
                 inputPrixUnitaire.className = 'form-control form-control-sm prix-unitaire-input';
                 inputPrixUnitaire.min = '0';
-                inputPrixUnitaire.step = '100';
+                inputPrixUnitaire.step = '0.01';
                 tdPrixUnitaire.appendChild(inputPrixUnitaire);
                 tr.appendChild(tdPrixUnitaire);
 
@@ -3671,15 +3770,16 @@ async function onTypeStockChange() {
                 if (donnees[key]) {
                     console.log(`%cRestauration des données pour ${key}:`, 'color: #00ff00;', donnees[key]);
                     inputQuantite.value = donnees[key].Nombre || donnees[key].quantite || '0';
-                    inputPrixUnitaire.value = donnees[key].PU || donnees[key].prixUnitaire || PRIX_DEFAUT_INVENTAIRE[produit] || '0';
+                    inputPrixUnitaire.value = donnees[key].PU || donnees[key].prixUnitaire || produitsInventaire.getPrixDefaut(produit, pointVente) || '0';
                     inputCommentaire.value = donnees[key].Commentaire || donnees[key].commentaire || '';
                     // Recalculer le total
                     const total = (parseFloat(inputQuantite.value) * parseFloat(inputPrixUnitaire.value));
                     tdTotal.textContent = total.toLocaleString('fr-FR');
                 } else {
+                    const prixDefaut = produitsInventaire.getPrixDefaut(produit, pointVente);
                     console.log(`%cPas de données pour ${key}, utilisation des valeurs par défaut`, 'color: #ff9900;');
                     inputQuantite.value = '0';
-                    inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[produit] || '0';
+                    inputPrixUnitaire.value = prixDefaut || '0';
                     inputCommentaire.value = '';
                     tdTotal.textContent = '0';
                 }
@@ -3698,7 +3798,18 @@ async function onTypeStockChange() {
                 // Gestionnaire pour la mise à jour du prix unitaire par défaut
                 selectProduit.addEventListener('change', function() {
                     const nouveauProduit = this.value;
-                    inputPrixUnitaire.value = PRIX_DEFAUT_INVENTAIRE[nouveauProduit] || '0';
+                    const pointVente = selectPointVente.value;
+                    const prix = produitsInventaire.getPrixDefaut(nouveauProduit, pointVente);
+                    inputPrixUnitaire.value = prix || '0';
+                    calculateTotal();
+                });
+                
+                // Gestionnaire pour la mise à jour du prix unitaire quand le point de vente change
+                selectPointVente.addEventListener('change', function() {
+                    const produit = selectProduit.value;
+                    const pointVente = this.value;
+                    const prix = produitsInventaire.getPrixDefaut(produit, pointVente);
+                    inputPrixUnitaire.value = prix || '0';
                     calculateTotal();
                 });
 
@@ -5328,6 +5439,17 @@ function initFilterStock() {
     const filtrePointVente = document.getElementById('filtre-point-vente');
     const filtreProduit = document.getElementById('filtre-produit');
     const masquerQuantiteZero = document.getElementById('masquer-quantite-zero');
+    
+    // S'assurer que le filtre de point de vente est peuplé
+    if (filtrePointVente && filtrePointVente.options.length <= 1) {
+        // Peupler directement avec les points de vente physiques
+        POINTS_VENTE_PHYSIQUES.forEach(pv => {
+            const option = document.createElement('option');
+            option.value = pv;
+            option.textContent = pv;
+            filtrePointVente.appendChild(option);
+        });
+    }
     
     // Peupler le filtre de produits avec les produits de produitsInventaire.js
     if (filtreProduit && typeof produitsInventaire !== 'undefined') {

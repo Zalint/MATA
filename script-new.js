@@ -92,11 +92,12 @@ function creerNouvelleEntree() {
     produitSelect.addEventListener('change', function() {
         const selectedProduit = this.value;
         const categorie = categorieSelect.value;
+        const pointVente = document.getElementById('point-vente').value;
         
         // Utiliser le prix depuis produitsDB
         if (categorie && selectedProduit && produits[categorie] && produits[categorie][selectedProduit]) {
-            // Prendre le premier prix disponible pour ce produit
-            prixUnitInput.value = produits.getPrixPreferePour(categorie, selectedProduit) || '';
+            // Prendre le prix spécifique au point de vente ou le prix par défaut
+            prixUnitInput.value = produits.getPrixDefaut(categorie, selectedProduit, pointVente) || '';
         } else {
             console.warn(`Prix non trouvé pour ${categorie} > ${selectedProduit}`);
             prixUnitInput.value = '';
