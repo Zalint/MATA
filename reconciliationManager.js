@@ -34,7 +34,8 @@ const ReconciliationManager = (function() {
         'V_LGR': 'Linguere',
         'V_MBA': 'Mbao',
         'V_KM': 'Keur Massar',
-        'V_OSF': 'O.Foire'
+        'V_OSF': 'O.Foire',
+        'V_SAC': 'Sacre Coeur'
     };
     
     // Index des colonnes pour accès rapide
