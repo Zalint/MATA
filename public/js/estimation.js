@@ -857,11 +857,11 @@ function afficherEstimations(estimations) {
             differenceColor = 'green';
         }
         
-        // Calculate difference percentage
+        // Calculate difference percentage (better logic: based on theoretical sales)
         let differencePercentage = 0;
-        const total = stockMatinValue + transfertValue;
-        if (total > 0) {
-            differencePercentage = (difference / total) * 100;
+        const ventesTheoForPercentage = stockMatinValue + transfertValue - estimation.stockSoir;
+        if (ventesTheoForPercentage > 0) {
+            differencePercentage = (difference / ventesTheoForPercentage) * 100;
         }
         
         // Format difference percentage with color
@@ -1643,3 +1643,187 @@ function showNoResultsMessageIfNeeded(visibleRowCount) {
         tbody.appendChild(noResultsRow);
     }
 } 
+
+// Function to export estimation data to Excel
+async function exportEstimationsToExcel() {
+    try {
+        // Check if XLSX library is loaded
+        if (typeof XLSX === 'undefined') {
+            console.error("Erreur: La bibliothèque XLSX n'est pas chargée.");
+            alert("Erreur: La bibliothèque XLSX n'est pas chargée. Veuillez rafraîchir la page.");
+            return;
+        }
+
+        // Show loading indicator
+        const loadingHtml = `
+            <div id="export-loading" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                 background: white; padding: 20px; border: 2px solid #007bff; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Export des estimations en cours...</p>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', loadingHtml);
+
+        // Fetch all estimations from the API
+        const response = await fetch('/api/estimations', {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.message || 'Erreur lors de la récupération des données');
+        }
+
+        const estimations = data.estimations || [];
+
+        if (estimations.length === 0) {
+            // Remove loading indicator
+            const loadingElement = document.getElementById('export-loading');
+            if (loadingElement) {
+                loadingElement.remove();
+            }
+            alert('Aucune estimation à exporter');
+            return;
+        }
+
+        // Get current threshold value for status calculation
+        const thresholdSlider = document.getElementById('performance-threshold');
+        const thresholdValue = thresholdSlider ? parseInt(thresholdSlider.value) : 5;
+
+        // Prepare data for Excel export
+        const exportData = estimations.map(estimation => {
+            // Get values with fallbacks
+            const stockMatin = estimation.stockMatin || 0;
+            const transfert = estimation.transfert || 0;
+            const stockSoir = estimation.stockSoir || 0;
+            const preCommandeDemain = estimation.preCommandeDemain || 0;
+            const previsionVentes = estimation.previsionVentes || 0;
+            
+            // Calculate theoretical sales (same as in table)
+            const ventesTheo = stockMatin + transfert - stockSoir;
+            
+            // Calculate difference (same as in table)
+            const difference = stockMatin + transfert - stockSoir - previsionVentes - preCommandeDemain;
+            
+            // Calculate difference percentage (better logic: based on theoretical sales)
+            const differencePercentage = ventesTheo > 0 ? (difference / ventesTheo) * 100 : 0;
+            
+            // Get status indicator
+            const statusIndicator = getStatusIndicator(differencePercentage, thresholdValue);
+            
+            // Determine status text based on the indicator
+            let statusText = 'Normal';
+            if (statusIndicator.includes('text-danger')) {
+                statusText = 'Erreur';
+            } else if (statusIndicator.includes('text-warning')) {
+                statusText = 'Attention';
+            }
+
+            return {
+                'Date': formatDate(estimation.date),
+                'Point de Vente': estimation.pointVente,
+                'Catégorie': estimation.categorie,
+                'Stock Matin (kg)': parseFloat(estimation.stockMatin || 0),
+                'Transfert (kg)': parseFloat(estimation.transfert || 0),
+                'Stock Soir (kg)': parseFloat(estimation.stockSoir || 0),
+                'Ventes Théoriques (kg)': parseFloat(ventesTheo),
+                'Pré-commande (kg)': parseFloat(estimation.preCommandeDemain || 0),
+                'Prévision (kg)': parseFloat(estimation.previsionVentes || 0),
+                'Différence (kg)': parseFloat(difference),
+                'Différence (%)': parseFloat(differencePercentage),
+                'Status': statusText
+            };
+        });
+
+        // Create workbook and worksheet
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+        // Format numeric columns
+        const range = XLSX.utils.decode_range(worksheet['!ref']);
+        const headers = Object.keys(exportData[0]);
+        
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+            headers.forEach((header, C) => {
+                const cell_address = { c: C, r: R };
+                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                
+                if (worksheet[cell_ref] && typeof worksheet[cell_ref].v === 'number') {
+                    worksheet[cell_ref].t = 'n';
+                    
+                    // Format percentage column
+                    if (header.includes('%')) {
+                        worksheet[cell_ref].z = '0.00%';
+                        // Convert percentage value back to decimal for Excel
+                        worksheet[cell_ref].v = worksheet[cell_ref].v / 100;
+                    } else if (header.includes('kg') || header.includes('Kg')) {
+                        // Format weight columns with 3 decimal places
+                        worksheet[cell_ref].z = '#,##0.000';
+                    }
+                }
+            });
+        }
+
+        // Set column widths
+        const colWidths = headers.map(header => {
+            switch (true) {
+                case header === 'Date': return { wch: 12 };
+                case header === 'Point de Vente': return { wch: 15 };
+                case header === 'Catégorie': return { wch: 12 };
+                case header.includes('kg') || header.includes('Kg'): return { wch: 15 };
+                case header.includes('%'): return { wch: 12 };
+                case header === 'Status': return { wch: 10 };
+                default: return { wch: 12 };
+            }
+        });
+        worksheet['!cols'] = colWidths;
+
+        // Add the worksheet to the workbook
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Estimations');
+
+        // Generate filename with current date
+        const currentDate = new Date();
+        const dateStr = currentDate.toISOString().slice(0, 10).replace(/-/g, '');
+        let filename = `Estimations_${dateStr}`;
+        
+        // Add threshold information to filename
+        filename += `_seuil_${thresholdValue}%`;
+        filename += '.xlsx';
+
+        // Save the file
+        XLSX.writeFile(workbook, filename);
+
+        // Remove loading indicator
+        const loadingElement = document.getElementById('export-loading');
+        if (loadingElement) {
+            loadingElement.remove();
+        }
+
+        // Show success message
+        alert(`Export Excel réussi !\n\nDonnées exportées: ${estimations.length} estimations\nSeuil de performance: ${thresholdValue}%\nFichier: ${filename}`);
+
+    } catch (error) {
+        console.error('Erreur lors de l\'export Excel des estimations:', error);
+        
+        // Remove loading indicator in case of error
+        const loadingElement = document.getElementById('export-loading');
+        if (loadingElement) {
+            loadingElement.remove();
+        }
+        
+        alert('Erreur lors de l\'export Excel : ' + error.message);
+    }
+}
+
+// Make the export function globally available
+window.exportEstimationsToExcel = exportEstimationsToExcel; 
