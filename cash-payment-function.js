@@ -47,6 +47,7 @@ async function addCashPaymentToReconciliation() {
         'V_MBA': 'Mbao',
         'V_KM': 'Keur Massar',
         'V_OSF': 'O.Foire',
+        'V_SAC': 'Sacre Coeur',
         'V_ABATS': 'Abattage'
         // Ajoutez d'autres mappings si nécessaire
     };

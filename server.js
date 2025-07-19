@@ -187,6 +187,7 @@ const PAYMENT_REF_TO_PDV = {
   'V_MBA': 'Mbao',
   'V_KM': 'Keur Massar',
   'V_OSF': 'O.Foire',
+  'V_SAC': 'Sacre Coeur',
   'V_ABATS': 'Abattage'
 };
 
@@ -1596,6 +1597,7 @@ app.post('/api/cash-payments/import', checkAuth, async (req, res) => {
             'V_MBA': 'Mbao',
             'V_KM': 'Keur Massar',
             'V_OSF': 'O.Foire',
+            'V_SAC': 'Sacre Coeur',
             'V_ABATS': 'Abattage'
         };
         
@@ -1935,6 +1937,7 @@ app.post('/api/external/cash-payment/import', validateApiKey, async (req, res) =
             'V_MBA': 'Mbao',
             'V_KM': 'Keur Massar',
             'V_OSF': 'O.Foire',
+            'V_SAC': 'Sacre Coeur',
             'V_ABATS': 'Abattage'
         };
         
@@ -3076,7 +3079,7 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             // Comportement par défaut : nettoie la chaîne (Majuscule au début)
             return rawCategory.trim().charAt(0).toUpperCase() + rawCategory.trim().slice(1).toLowerCase();
         }
-
+        
         // Prepare structures for aggregation
         const reconciliationByPDV = {};
         const detailsByPDV = {};
@@ -3097,7 +3100,7 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                 };
             });
         });
-
+        
         // Processing sales data for each point de vente
         if (ventesData.success && ventesData.ventes) {
             // Group sales by point de vente and category
@@ -3146,7 +3149,7 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
         }
         
         console.log("After Ventes:", JSON.stringify(detailsByPDV['Sacre Coeur']?.['Boeuf']));
-
+        
         // Processing stock-matin data - handles the format from stock API
         if (stockMatinData && typeof stockMatinData === 'object') {
             // Log a sample of keys to help debug
@@ -3241,7 +3244,7 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
         }
         
         console.log("After Stock Matin:", JSON.stringify(detailsByPDV['Sacre Coeur']?.['Boeuf']));
-
+        
         // Processing stock-soir data - handles the format from stock API
         if (stockSoirData && typeof stockSoirData === 'object') {
             // Log a sample of keys to help debug
@@ -3336,7 +3339,7 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
         }
         
         console.log("After Stock Soir:", JSON.stringify(detailsByPDV['Sacre Coeur']?.['Boeuf']));
-
+        
         // Processing transfers data
         // Ajout d'une fonction utilitaire pour mapper les catégories de transferts
         function mapTransfertCategory(rawCategory) {
@@ -3438,13 +3441,13 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                 
                 reconciliationByPDV[pdv].transferts += montant;
                 if(detailsByPDV[pdv] && detailsByPDV[pdv][category]) {
-                    detailsByPDV[pdv][category].transferts += montant;
+                detailsByPDV[pdv][category].transferts += montant;
                 }
             });
         }
         
         console.log("After Transferts:", JSON.stringify(detailsByPDV['Sacre Coeur']?.['Boeuf']));
-
+        
         // Processing cash payments data
         if (cashData.success && cashData.data && cashData.data.points) {
             console.log('Processing cash payments:', cashData.data.points.length);
