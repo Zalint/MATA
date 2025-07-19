@@ -189,7 +189,147 @@ function displayCashPaymentData(data) {
             row.appendChild(tdDate);
 
             const tdPoint = document.createElement('td');
-            tdPoint.textContent = pointData.point;
+            // --- Start Point de Vente Edit Functionality ---
+            const originalPointVente = pointData.point;
+            
+            const pointSpan = document.createElement('span');
+            pointSpan.textContent = originalPointVente;
+            pointSpan.style.marginRight = '5px';
+
+            const editPointIcon = document.createElement('span');
+            editPointIcon.textContent = '✏️';
+            editPointIcon.style.cursor = 'pointer';
+            editPointIcon.title = 'Modifier le point de vente';
+
+            tdPoint.appendChild(pointSpan);
+            tdPoint.appendChild(editPointIcon);
+
+            editPointIcon.addEventListener('click', () => {
+                tdPoint.innerHTML = ''; // Clear cell
+
+                const select = document.createElement('select');
+                select.style.width = '150px';
+                select.classList.add('form-select', 'form-select-sm');
+
+                // Add all available points de vente
+                if (typeof POINTS_VENTE_PHYSIQUES !== 'undefined') {
+                    POINTS_VENTE_PHYSIQUES.forEach(pv => {
+                        const option = document.createElement('option');
+                        option.value = pv;
+                        option.textContent = pv;
+                        if (pv === originalPointVente) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                }
+
+                // Add "Non spécifié" option
+                const nonSpecifieOption = document.createElement('option');
+                nonSpecifieOption.value = 'Non spécifié';
+                nonSpecifieOption.textContent = 'Non spécifié';
+                if (originalPointVente === 'Non spécifié') {
+                    nonSpecifieOption.selected = true;
+                }
+                select.appendChild(nonSpecifieOption);
+
+                // Add current point if not in the list and not "Non spécifié"
+                if (typeof POINTS_VENTE_PHYSIQUES !== 'undefined' && 
+                    !POINTS_VENTE_PHYSIQUES.includes(originalPointVente) && 
+                    originalPointVente !== 'Non spécifié') {
+                    const option = document.createElement('option');
+                    option.value = originalPointVente;
+                    option.textContent = originalPointVente;
+                    option.selected = true;
+                    select.appendChild(option);
+                }
+
+                tdPoint.appendChild(select);
+                select.focus();
+
+                const finishEdit = async () => {
+                    // Disable select/icon during save
+                    select.disabled = true;
+                    editPointIcon.style.pointerEvents = 'none';
+                    editPointIcon.style.opacity = '0.5';
+
+                    const newPointVente = select.value;
+                    const originalFormattedValue = pointSpan.textContent;
+                    pointSpan.textContent = newPointVente;
+
+                    try {
+                        console.log(`Attempting to save point de vente: date=${formattedDate}, old_point=${originalPointVente}, new_point=${newPointVente}`);
+                        
+                        const response = await fetch('/api/cash-payments/update-point-vente', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                date: formattedDate,
+                                old_point_de_vente: originalPointVente,
+                                new_point_de_vente: newPointVente
+                            })
+                        });
+
+                        const result = await response.json();
+
+                        if (!response.ok || !result.success) {
+                            throw new Error(result.message || `Erreur serveur: ${response.status}`);
+                        }
+
+                        console.log(`Point de vente update successful: ${originalPointVente} -> ${newPointVente} on ${formattedDate}.`);
+                        
+                        // Update local data cache
+                        const dateEntryIndex = allCashPaymentData.findIndex(entry => {
+                            const parts = entry.date.split('-');
+                            if (parts.length !== 3) return false;
+                            return `${parts[2]}/${parts[1]}/${parts[0]}` === formattedDate;
+                        });
+
+                        if (dateEntryIndex > -1) {
+                            const pointEntryIndex = allCashPaymentData[dateEntryIndex].points.findIndex(p => p.point === originalPointVente);
+                            if (pointEntryIndex > -1) {
+                                allCashPaymentData[dateEntryIndex].points[pointEntryIndex].point = newPointVente;
+                                console.log('Local data cache updated for point de vente.');
+                            }
+                        }
+
+                        // Re-apply filters
+                        applyCashPaymentFilters();
+
+                    } catch (error) {
+                        console.error('Error saving updated point de vente:', error);
+                        alert(`Erreur lors de la sauvegarde: ${error.message}`);
+                        // Restore original value
+                        pointSpan.textContent = originalFormattedValue;
+                        // Restore view
+                        tdPoint.innerHTML = '';
+                        tdPoint.appendChild(pointSpan);
+                        tdPoint.appendChild(editPointIcon);
+                        // Re-enable icon
+                        editPointIcon.style.pointerEvents = 'auto';
+                        editPointIcon.style.opacity = '1';
+                    }
+                };
+
+                select.addEventListener('blur', finishEdit);
+
+                select.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        select.blur();
+                    }
+                    if (e.key === 'Escape') {
+                        // Cancel: Restore original value and view
+                        pointSpan.textContent = originalPointVente;
+                        tdPoint.innerHTML = '';
+                        tdPoint.appendChild(pointSpan);
+                        tdPoint.appendChild(editPointIcon);
+                    }
+                });
+            });
+            // --- End Point de Vente Edit Functionality ---
             row.appendChild(tdPoint);
 
             const tdTotal = document.createElement('td');

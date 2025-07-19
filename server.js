@@ -1917,6 +1917,80 @@ app.put('/api/cash-payments/update-aggregated', checkAuth, async (req, res) => {
     }
 });
 
+// Route pour mettre à jour le point de vente d'un paiement cash
+app.put('/api/cash-payments/update-point-vente', checkAuth, async (req, res) => {
+    const { date, old_point_de_vente, new_point_de_vente } = req.body;
+    
+    console.log(`Requête reçue pour mettre à jour le point de vente:`, { date, old_point_de_vente, new_point_de_vente });
+
+    if (date === undefined || old_point_de_vente === undefined || new_point_de_vente === undefined) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Les champs date, old_point_de_vente et new_point_de_vente sont requis.' 
+        });
+    }
+
+    // Convertir la date reçue (format DD/MM/YYYY) au format SQL (YYYY-MM-DD)
+    let sqlDate;
+    try {
+        const parts = date.split('/');
+        if (parts.length !== 3) throw new Error('Format de date invalide.');
+        sqlDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        // Valider la date convertie
+        if (isNaN(new Date(sqlDate).getTime())) {
+            throw new Error('Date invalide après conversion.');
+        }
+    } catch (e) {
+        console.error("Erreur de format de date:", e);
+        return res.status(400).json({ 
+            success: false, 
+            message: `Format de date invalide: ${date}. Utilisez DD/MM/YYYY.` 
+        });
+    }
+
+    const transaction = await sequelize.transaction();
+    try {
+        // Trouver tous les paiements existants pour cette date et cet ancien point de vente
+        const existingPayments = await CashPayment.findAll({
+            where: {
+                date: sqlDate,
+                point_de_vente: old_point_de_vente
+            },
+            transaction
+        });
+
+        if (existingPayments.length === 0) {
+            await transaction.rollback();
+            console.warn(`Aucun paiement trouvé pour date=${sqlDate}, pdv=${old_point_de_vente}. Impossible de mettre à jour.`);
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Aucun paiement existant trouvé pour cette date et ce point de vente.' 
+            });
+        }
+
+        // Mettre à jour tous les paiements avec le nouveau point de vente
+        for (const payment of existingPayments) {
+            await payment.update({ point_de_vente: new_point_de_vente }, { transaction });
+            console.log(`Point de vente mis à jour pour le paiement ID ${payment.id}: ${old_point_de_vente} -> ${new_point_de_vente}`);
+        }
+
+        await transaction.commit();
+        console.log(`Point de vente mis à jour avec succès pour date=${sqlDate}, pdv=${old_point_de_vente} -> ${new_point_de_vente}`);
+        res.json({ 
+            success: true, 
+            message: 'Point de vente mis à jour avec succès.' 
+        });
+
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Erreur lors de la mise à jour du point de vente:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: `Erreur lors de la mise à jour du point de vente: ${error.message}` 
+        });
+    }
+});
+
 // Route pour importer des données de paiement en espèces depuis une source externe
 app.post('/api/external/cash-payment/import', validateApiKey, async (req, res) => {
     const transaction = await sequelize.transaction();
