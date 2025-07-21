@@ -45,6 +45,10 @@ let donneesImportees = {
 // Variable pour activer/désactiver le mode débogage
 const isDebugMode = true;
 
+// Cache pour les données de réconciliation mensuelle
+const reconciliationCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes en millisecondes
+
 // Mapping pour standardiser les noms des points de vente
 const MAPPING_POINTS_VENTE = {
     'KEUR MASS': 'Keur Massar',
@@ -5770,12 +5774,14 @@ function initReconciliationMensuelle() {
     // Ajouter les écouteurs d'événements pour les changements de mois/année
     if (moisSelect) {
         moisSelect.addEventListener('change', function() {
+            // Charger les données seulement si l'utilisateur change manuellement
             chargerReconciliationMensuelle();
         });
     }
     
     if (anneeSelect) {
         anneeSelect.addEventListener('change', function() {
+            // Charger les données seulement si l'utilisateur change manuellement
             chargerReconciliationMensuelle();
         });
     }
@@ -5818,16 +5824,125 @@ function initReconciliationMensuelle() {
         });
     }
     
-    // Charger les données
-    chargerReconciliationMensuelle();
+    // NE PAS charger automatiquement les données au démarrage
+    // Les données seront chargées seulement quand l'utilisateur change le mois/année
+    // ou quand il clique sur un bouton spécifique
+    console.log('Initialisation terminée - données non chargées automatiquement');
+    
+    // Vérifier si les boutons existent déjà pour éviter la duplication
+    if (!document.getElementById('recalculer-reconciliation-mois')) {
+        // Ajouter le bouton de recalcul forcé
+        const btnRecalculer = document.createElement('button');
+        btnRecalculer.id = 'recalculer-reconciliation-mois';
+        btnRecalculer.className = 'btn btn-warning btn-sm ms-2';
+        btnRecalculer.innerHTML = '<i class="fas fa-sync-alt"></i> Recalculer';
+        btnRecalculer.title = 'Forcer le recalcul (ignore le cache)';
+        
+        // Insérer le bouton après le bouton d'export
+        const exportBtn = document.getElementById('export-reconciliation-mois');
+        if (exportBtn && exportBtn.parentNode) {
+            exportBtn.parentNode.insertBefore(btnRecalculer, exportBtn.nextSibling);
+        }
+    
+        // Ajouter l'écouteur d'événement pour le recalcul forcé
+        btnRecalculer.addEventListener('click', function() {
+            const mois = document.getElementById('mois-reconciliation').value;
+            const annee = document.getElementById('annee-reconciliation').value;
+            if (mois && annee) {
+                // Forcer le recalcul en supprimant le cache pour cette période
+                const cacheKey = `${mois}-${annee}`;
+                reconciliationCache.delete(cacheKey);
+                console.log(`Cache supprimé pour ${mois}/${annee}, recalcul forcé`);
+                chargerReconciliationMensuelle(true); // true = force recalcul
+            } else {
+                alert('Veuillez sélectionner un mois et une année');
+            }
+        });
+    }
+    
+    // Vérifier si le bouton vider cache existe déjà
+    if (!document.getElementById('vider-cache-reconciliation')) {
+        // Ajouter un bouton pour vider tout le cache
+        const btnViderCache = document.createElement('button');
+        btnViderCache.id = 'vider-cache-reconciliation';
+        btnViderCache.className = 'btn btn-outline-secondary btn-sm ms-2';
+        btnViderCache.innerHTML = '<i class="fas fa-trash"></i> Vider Cache';
+        btnViderCache.title = 'Vider tout le cache de réconciliation';
+        
+        // Insérer le bouton après le bouton de recalcul ou d'export
+        const recalculBtn = document.getElementById('recalculer-reconciliation-mois');
+        const exportBtn = document.getElementById('export-reconciliation-mois');
+        const parentNode = recalculBtn ? recalculBtn.parentNode : (exportBtn ? exportBtn.parentNode : null);
+        
+        if (parentNode) {
+            if (recalculBtn) {
+                parentNode.insertBefore(btnViderCache, recalculBtn.nextSibling);
+            } else {
+                parentNode.insertBefore(btnViderCache, exportBtn.nextSibling);
+            }
+        }
+        
+        // Ajouter l'écouteur d'événement pour vider le cache
+        btnViderCache.addEventListener('click', function() {
+            const cacheSize = reconciliationCache.size;
+            reconciliationCache.clear();
+            console.log(`Cache vidé - ${cacheSize} entrées supprimées`);
+            alert(`Cache vidé avec succès (${cacheSize} entrées supprimées)`);
+        });
+    }
+    
+    // Vérifier si l'indicateur de cache existe déjà
+    if (!document.getElementById('cache-indicator')) {
+        // Ajouter un indicateur d'état du cache
+        const cacheIndicator = document.createElement('span');
+        cacheIndicator.id = 'cache-indicator';
+        cacheIndicator.className = 'badge bg-info ms-2';
+        cacheIndicator.style.fontSize = '0.8em';
+        cacheIndicator.textContent = 'Cache: 0 entrées';
+        
+        // Insérer l'indicateur après les boutons
+        const viderCacheBtn = document.getElementById('vider-cache-reconciliation');
+        const recalculBtn = document.getElementById('recalculer-reconciliation-mois');
+        const exportBtn = document.getElementById('export-reconciliation-mois');
+        const parentNode = viderCacheBtn ? viderCacheBtn.parentNode : 
+                          (recalculBtn ? recalculBtn.parentNode : 
+                          (exportBtn ? exportBtn.parentNode : null));
+        
+        if (parentNode) {
+            if (viderCacheBtn) {
+                parentNode.insertBefore(cacheIndicator, viderCacheBtn.nextSibling);
+            } else if (recalculBtn) {
+                parentNode.insertBefore(cacheIndicator, recalculBtn.nextSibling);
+            } else {
+                parentNode.insertBefore(cacheIndicator, exportBtn.nextSibling);
+            }
+        }
+    }
+    
+    // Fonction pour mettre à jour l'indicateur de cache
+    function updateCacheIndicator() {
+        const cacheSize = reconciliationCache.size;
+        const indicator = document.getElementById('cache-indicator');
+        if (indicator) {
+            indicator.textContent = `Cache: ${cacheSize} entrées`;
+            indicator.className = cacheSize > 0 ? 'badge bg-success ms-2' : 'badge bg-info ms-2';
+        }
+    }
+    
+    // Exposer la fonction globalement pour pouvoir l'appeler depuis chargerReconciliationMensuelle
+    window.updateCacheIndicator = updateCacheIndicator;
+    
+    // Mettre à jour l'indicateur initialement
+    updateCacheIndicator();
 }
 
 let isLoadingReconciliationMensuelle = false; // Moved to global scope here
 
 /**
  * Charge les données de réconciliation pour le mois et l'année sélectionnés
+ * @param {boolean} forceRecalcul - Si true, ignore le cache et force le recalcul
  */
-async function chargerReconciliationMensuelle() {
+async function chargerReconciliationMensuelle(forceRecalcul = false) {
     if (isLoadingReconciliationMensuelle) {
         console.log("Chargement de la réconciliation mensuelle déjà en cours. Annulation de la nouvelle demande.");
         return;
@@ -5868,6 +5983,35 @@ async function chargerReconciliationMensuelle() {
         const annee = anneeSelect.value;
 
         console.log(`Chargement des données de réconciliation pour ${mois}/${annee}`);
+
+        // Vérifier le cache si on ne force pas le recalcul
+        if (!forceRecalcul) {
+            const cacheKey = `${mois}-${annee}`;
+            const cachedData = reconciliationCache.get(cacheKey);
+            
+            if (cachedData && (Date.now() - cachedData.timestamp) < CACHE_DURATION) {
+                console.log(`Données trouvées en cache pour ${mois}/${annee}`);
+                
+                // Afficher les données en cache
+                afficherDonneesReconciliationMensuelle(cachedData.data);
+                
+                // Mettre à jour les totaux
+                if (cachedData.totaux) {
+                    const totalVentesTheoriquesEl = document.getElementById('total-ventes-theoriques-mois');
+                    const totalVentesSaisiesEl = document.getElementById('total-ventes-saisies-mois');
+                    const totalVersementsEl = document.getElementById('total-versements-mois');
+                    const estimationVersementsEl = document.getElementById('estimation-versements-mois');
+                    
+                    if (totalVentesTheoriquesEl) totalVentesTheoriquesEl.textContent = formatMonetaire(cachedData.totaux.ventesTheoriques);
+                    if (totalVentesSaisiesEl) totalVentesSaisiesEl.textContent = formatMonetaire(cachedData.totaux.ventesSaisies);
+                    if (totalVersementsEl) totalVersementsEl.textContent = formatMonetaire(cachedData.totaux.versements);
+                    if (estimationVersementsEl) estimationVersementsEl.textContent = formatMonetaire(cachedData.totaux.estimation);
+                }
+                
+                isLoadingReconciliationMensuelle = false;
+                return;
+            }
+        }
 
         const loadingIndicator = document.getElementById('loading-indicator-reconciliation-mois');
         if (loadingIndicator) loadingIndicator.style.display = 'block';
@@ -6138,6 +6282,45 @@ async function chargerReconciliationMensuelle() {
             // Estimation déjà mise à jour ci-dessus
         }
 
+        // Sauvegarder dans le cache
+        const cacheKey = `${mois}-${annee}`;
+        const reconciliationData = []; // Collecter les données pour le cache
+        
+        // Collecter les données du tableau pour le cache
+        const rows = tableBody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const cells = row.cells;
+            if (cells.length >= 12) {
+                reconciliationData.push({
+                    date: cells[0].textContent,
+                    pointVente: cells[1].textContent,
+                    ventesTheoriques: extractNumericValue(cells[2].textContent),
+                    ventesSaisies: extractNumericValue(cells[3].textContent),
+                    versements: extractNumericValue(cells[4].textContent),
+                    estimation: extractNumericValue(cells[7].textContent),
+                    commentaires: cells[9].textContent
+                });
+            }
+        });
+        
+        const cacheData = {
+            data: reconciliationData,
+            totaux: {
+                ventesTheoriques: totalVentesTheoriquesMois,
+                ventesSaisies: totalVentesSaisiesMois,
+                versements: totalVersementsMois,
+                estimation: estimationVersements
+            },
+            timestamp: Date.now()
+        };
+        reconciliationCache.set(cacheKey, cacheData);
+        console.log(`Données sauvegardées en cache pour ${mois}/${annee}`);
+        
+        // Mettre à jour l'indicateur de cache
+        if (window.updateCacheIndicator) {
+            window.updateCacheIndicator();
+        }
+
         // Filter the table based on the current dropdown selection
         filtrerTableauReconciliationMensuelle();
 
@@ -6177,6 +6360,101 @@ function filtrerTableauReconciliationMensuelle() {
         } else {
             row.style.display = 'none';
         }
+    });
+}
+
+/**
+ * Affiche les données de réconciliation mensuelle (utilisée pour le cache)
+ * @param {Array} reconciliationData - Les données de réconciliation à afficher
+ */
+function afficherDonneesReconciliationMensuelle(reconciliationData) {
+    const tableBody = document.querySelector('#reconciliation-mois-table tbody');
+    if (!tableBody) return;
+    
+    tableBody.innerHTML = '';
+    
+    if (!reconciliationData || reconciliationData.length === 0) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 12;
+        cell.textContent = 'Aucune donnée disponible pour cette période.';
+        cell.className = 'text-center';
+        row.appendChild(cell);
+        tableBody.appendChild(row);
+        return;
+    }
+    
+    reconciliationData.forEach(entry => {
+        const row = document.createElement('tr');
+        
+        // Date
+        const tdDate = document.createElement('td');
+        tdDate.textContent = entry.date;
+        row.appendChild(tdDate);
+        
+        // Point de vente
+        const tdPointVente = document.createElement('td');
+        tdPointVente.textContent = entry.pointVente;
+        row.appendChild(tdPointVente);
+        
+        // Ventes théoriques
+        const tdVentesTheoriques = document.createElement('td');
+        tdVentesTheoriques.textContent = formatMonetaire(entry.ventesTheoriques);
+        row.appendChild(tdVentesTheoriques);
+        
+        // Ventes saisies
+        const tdVentesSaisies = document.createElement('td');
+        tdVentesSaisies.textContent = formatMonetaire(entry.ventesSaisies);
+        row.appendChild(tdVentesSaisies);
+        
+        // Versements
+        const tdVersements = document.createElement('td');
+        tdVersements.textContent = formatMonetaire(entry.versements);
+        row.appendChild(tdVersements);
+        
+        // Écart
+        const tdEcart = document.createElement('td');
+        const ecart = entry.ventesSaisies - entry.ventesTheoriques;
+        tdEcart.textContent = formatMonetaire(ecart);
+        tdEcart.className = ecart >= 0 ? 'text-success' : 'text-danger';
+        row.appendChild(tdEcart);
+        
+        // Pourcentage d'écart
+        const tdPourcentage = document.createElement('td');
+        const pourcentage = entry.ventesTheoriques > 0 ? (ecart / entry.ventesTheoriques) * 100 : 0;
+        tdPourcentage.textContent = `${pourcentage.toFixed(2)}%`;
+        tdPourcentage.className = Math.abs(pourcentage) <= 5 ? 'text-success' : 
+                                 Math.abs(pourcentage) <= 10 ? 'text-warning' : 'text-danger';
+        row.appendChild(tdPourcentage);
+        
+        // Estimation
+        const tdEstimation = document.createElement('td');
+        tdEstimation.textContent = formatMonetaire(entry.estimation);
+        row.appendChild(tdEstimation);
+        
+        // Écart estimation
+        const tdEcartEstimation = document.createElement('td');
+        const ecartEstimation = entry.versements - entry.estimation;
+        tdEcartEstimation.textContent = formatMonetaire(ecartEstimation);
+        tdEcartEstimation.className = Math.abs(ecartEstimation) <= 10000 ? 'text-success' : 
+                                     Math.abs(ecartEstimation) <= 50000 ? 'text-warning' : 'text-danger';
+        row.appendChild(tdEcartEstimation);
+        
+        // Commentaires
+        const tdCommentaires = document.createElement('td');
+        tdCommentaires.textContent = entry.commentaires || '';
+        row.appendChild(tdCommentaires);
+        
+        // Actions
+        const tdActions = document.createElement('td');
+        const btnDetails = document.createElement('button');
+        btnDetails.className = 'btn btn-sm btn-outline-primary';
+        btnDetails.textContent = 'Détails';
+        btnDetails.onclick = () => naviguerVersReconciliation(entry.date);
+        tdActions.appendChild(btnDetails);
+        row.appendChild(tdActions);
+        
+        tableBody.appendChild(row);
     });
 }
 
