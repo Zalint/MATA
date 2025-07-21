@@ -1,0 +1,22 @@
+{
+  "Mbao-Boeuf": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Boeuf",
+    "Nombre": "100",
+    "PU": "3700",
+    "Montant": "370000",
+    "Commentaire": ""
+  },
+  "Mbao-Veau": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Veau",
+    "Nombre": "60",
+    "PU": "3900",
+    "Montant": "234000",
+    "Commentaire": ""
+  }
+}

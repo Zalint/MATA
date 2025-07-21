@@ -778,5 +778,45 @@
     "prixUnitaire": 4500,
     "total": 184500,
     "commentaire": ""
+  },
+  {
+    "date": "27/06/2025",
+    "pointVente": "Mbao",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 3,
+    "prixUnitaire": 3700,
+    "total": 11100,
+    "commentaire": ""
+  },
+  {
+    "date": "29/06/2025",
+    "pointVente": "Keur Massar",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 5,
+    "prixUnitaire": 3521.43,
+    "total": 17607.149999999998,
+    "commentaire": ""
+  },
+  {
+    "date": "17/07/2025",
+    "pointVente": "Mbao",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 2,
+    "prixUnitaire": 3700,
+    "total": 7400,
+    "commentaire": ""
+  },
+  {
+    "date": "17/07/2025",
+    "pointVente": "Sacre Coeur",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 1,
+    "prixUnitaire": 3900,
+    "total": 3900,
+    "commentaire": ""
   }
 ]

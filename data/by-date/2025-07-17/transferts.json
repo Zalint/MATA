@@ -1,0 +1,22 @@
+[
+  {
+    "date": "17/07/2025",
+    "pointVente": "Mbao",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 2,
+    "prixUnitaire": 3700,
+    "total": 7400,
+    "commentaire": ""
+  },
+  {
+    "date": "17/07/2025",
+    "pointVente": "Sacre Coeur",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 1,
+    "prixUnitaire": 3900,
+    "total": 3900,
+    "commentaire": ""
+  }
+]

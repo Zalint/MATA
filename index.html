@@ -1564,20 +1564,20 @@
                             <button class="btn btn-success btn-sm" onclick="exportEstimationsToExcel()" title="Exporter les estimations en Excel">
                                 <i class="bi bi-file-earmark-excel"></i> Export Excel
                             </button>
-                            <div class="performance-slider-wrapper" style="width: 300px;">
-                                <div class="performance-slider-container">
-                                    <label class="performance-threshold-label">Seuil de performance:</label>
-                                    <div class="d-flex align-items-center">
-                                        <div style="flex-grow: 1; position: relative; padding: 0 10px;">
-                                            <div class="performance-slider-track">
-                                                <div class="performance-slider-fill" id="performance-slider-fill"></div>
-                                            </div>
-                                            <input type="range" class="performance-slider" id="performance-threshold" min="0" max="100" value="5">
-                                            <div class="threshold-handle-indicator" style="position: absolute; top: -15px; text-align: center; font-size: 11px; white-space: nowrap; left: 50%; transform: translateX(-50%); color: #666;">
-                                                ← Glisser pour ajuster →
-                                            </div>
+                        <div class="performance-slider-wrapper" style="width: 300px;">
+                            <div class="performance-slider-container">
+                                <label class="performance-threshold-label">Seuil de performance:</label>
+                                <div class="d-flex align-items-center">
+                                    <div style="flex-grow: 1; position: relative; padding: 0 10px;">
+                                        <div class="performance-slider-track">
+                                            <div class="performance-slider-fill" id="performance-slider-fill"></div>
                                         </div>
-                                        <div class="threshold-value-display" id="threshold-value">5%</div>
+                                        <input type="range" class="performance-slider" id="performance-threshold" min="0" max="100" value="5">
+                                        <div class="threshold-handle-indicator" style="position: absolute; top: -15px; text-align: center; font-size: 11px; white-space: nowrap; left: 50%; transform: translateX(-50%); color: #666;">
+                                            ← Glisser pour ajuster →
+                                        </div>
+                                    </div>
+                                    <div class="threshold-value-display" id="threshold-value">5%</div>
                                     </div>
                                 </div>
                             </div>

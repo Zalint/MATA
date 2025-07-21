@@ -6752,8 +6752,8 @@ async function exportReconciliationMoisToExcel() {
                 // Calculate reconciliation for each point of sale
                 const dailyReconciliation = {};
                 
-                // Process each point of sale
-                POINTS_VENTE_PHYSIQUES.forEach(pointVente => {
+                                // Process each point of sale
+                for (const pointVente of POINTS_VENTE_PHYSIQUES) {
                     const stockMatinValue = stockMatin[pointVente] || 0;
                     const stockSoirValue = stockSoir[pointVente] || 0;
                     const transfertsValue = transferts
@@ -6770,11 +6770,42 @@ async function exportReconciliationMoisToExcel() {
                     // Calculate percentage difference
                     const pourcentageEcart = ventesTheoriques > 0 ? (difference / ventesTheoriques) * 100 : 0;
 
-                    // Get cash payment data (you may need to implement this based on your data structure)
-                    const cashPayment = 0; // Placeholder - implement based on your cash payment data
+                    // Get cash payment data
+                    let cashPayment = 0;
+                    try {
+                        const cashResponse = await fetch(`/api/cash-payments/aggregated?date=${dateStr}`, { 
+                            method: 'GET', 
+                            credentials: 'include' 
+                        });
+                        
+                        if (cashResponse.ok) {
+                            const cashData = await cashResponse.json();
+                            
+                            if (cashData.success && cashData.data && Array.isArray(cashData.data)) {
+                                // Chercher la date correspondante dans le tableau
+                                const dateEntry = cashData.data.find(entry => {
+                                    if (!entry.date) return false;
+                                    const parts = entry.date.split('-');
+                                    if (parts.length !== 3) return false;
+                                    const formattedEntryDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                                    return formattedEntryDate === dateStr;
+                                });
+                                
+                                if (dateEntry && dateEntry.points && Array.isArray(dateEntry.points)) {
+                                    const pointData = dateEntry.points.find(p => p.point === pointVente);
+                                    
+                                    if (pointData) {
+                                        cashPayment = parseFloat(pointData.total) || 0;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Erreur lors de la récupération des paiements en espèces pour ${dateStr}:`, error);
+                    }
 
                     // Calculate cash difference
-                    const ecartCash = ventesSaisiesValue - cashPayment;
+                    const ecartCash = cashPayment - ventesSaisiesValue;
 
                     dailyReconciliation[pointVente] = {
                         stockMatin: stockMatinValue,
@@ -6793,7 +6824,7 @@ async function exportReconciliationMoisToExcel() {
                     totalVentesTheoriques += ventesTheoriques;
                     totalVentesSaisies += ventesSaisiesValue;
                     totalVersements += cashPayment;
-                });
+                }
 
                 // Add data to export array
                 Object.keys(dailyReconciliation).forEach(pointVente => {
