@@ -1,0 +1,12 @@
+[
+  {
+    "date": "27/06/2025",
+    "pointVente": "Mbao",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 3,
+    "prixUnitaire": 3700,
+    "total": 11100,
+    "commentaire": ""
+  }
+]
