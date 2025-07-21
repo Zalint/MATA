@@ -6718,6 +6718,43 @@ async function exportReconciliationMoisToExcel() {
         const moisNum = parseInt(mois);
         const totalDaysInMonth = new Date(anneeNum, moisNum, 0).getDate();
         
+        // Récupérer toutes les données de paiement en espèces pour le mois en une seule fois
+        let allCashPayments = {};
+        try {
+            const cashResponse = await fetch(`/api/cash-payments/aggregated`, { 
+                method: 'GET', 
+                credentials: 'include' 
+            });
+            
+            if (cashResponse.ok) {
+                const cashData = await cashResponse.json();
+                
+                if (cashData.success && cashData.data && Array.isArray(cashData.data)) {
+                    // Filtrer les données pour le mois en cours
+                    cashData.data.forEach(entry => {
+                        if (entry.date) {
+                            const parts = entry.date.split('-');
+                            if (parts.length === 3) {
+                                const entryMonth = parseInt(parts[1]);
+                                const entryYear = parseInt(parts[2]);
+                                if (entryMonth === moisNum && entryYear === anneeNum) {
+                                    const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                                    allCashPayments[formattedDate] = {};
+                                    if (entry.points && Array.isArray(entry.points)) {
+                                        entry.points.forEach(point => {
+                                            allCashPayments[formattedDate][point.point] = parseFloat(point.total) || 0;
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(`Erreur lors de la récupération des paiements en espèces pour le mois:`, error);
+        }
+
         const exportData = [];
         let totalVentesTheoriques = 0;
         let totalVentesSaisies = 0;
@@ -6754,8 +6791,27 @@ async function exportReconciliationMoisToExcel() {
                 
                                 // Process each point of sale
                 for (const pointVente of POINTS_VENTE_PHYSIQUES) {
-                    const stockMatinValue = stockMatin[pointVente] || 0;
-                    const stockSoirValue = stockSoir[pointVente] || 0;
+                    // Calculate stock values by summing all products for this point de vente
+                    const stockMatinValue = Object.keys(stockMatin)
+                        .filter(key => key.startsWith(pointVente + '-'))
+                        .reduce((sum, key) => {
+                            const stockData = stockMatin[key];
+                            if (stockData && stockData.total) {
+                                return sum + parseFloat(stockData.total);
+                            }
+                            return sum;
+                        }, 0);
+                    
+                    const stockSoirValue = Object.keys(stockSoir)
+                        .filter(key => key.startsWith(pointVente + '-'))
+                        .reduce((sum, key) => {
+                            const stockData = stockSoir[key];
+                            if (stockData && stockData.total) {
+                                return sum + parseFloat(stockData.total);
+                            }
+                            return sum;
+                        }, 0);
+                    
                     const transfertsValue = transferts
                         .filter(t => t.pointVente === pointVente)
                         .reduce((sum, t) => sum + (parseFloat(t.montant) || 0), 0);
@@ -6770,39 +6826,8 @@ async function exportReconciliationMoisToExcel() {
                     // Calculate percentage difference
                     const pourcentageEcart = ventesTheoriques > 0 ? (difference / ventesTheoriques) * 100 : 0;
 
-                    // Get cash payment data
-                    let cashPayment = 0;
-                    try {
-                        const cashResponse = await fetch(`/api/cash-payments/aggregated?date=${dateStr}`, { 
-                            method: 'GET', 
-                            credentials: 'include' 
-                        });
-                        
-                        if (cashResponse.ok) {
-                            const cashData = await cashResponse.json();
-                            
-                            if (cashData.success && cashData.data && Array.isArray(cashData.data)) {
-                                // Chercher la date correspondante dans le tableau
-                                const dateEntry = cashData.data.find(entry => {
-                                    if (!entry.date) return false;
-                                    const parts = entry.date.split('-');
-                                    if (parts.length !== 3) return false;
-                                    const formattedEntryDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-                                    return formattedEntryDate === dateStr;
-                                });
-                                
-                                if (dateEntry && dateEntry.points && Array.isArray(dateEntry.points)) {
-                                    const pointData = dateEntry.points.find(p => p.point === pointVente);
-                                    
-                                    if (pointData) {
-                                        cashPayment = parseFloat(pointData.total) || 0;
-                                    }
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        console.error(`Erreur lors de la récupération des paiements en espèces pour ${dateStr}:`, error);
-                    }
+                    // Get cash payment data from pre-loaded data
+                    const cashPayment = allCashPayments[dateStr] && allCashPayments[dateStr][pointVente] ? allCashPayments[dateStr][pointVente] : 0;
 
                     // Calculate cash difference
                     const ecartCash = cashPayment - ventesSaisiesValue;
