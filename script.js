@@ -6735,10 +6735,11 @@ async function exportReconciliationMoisToExcel() {
                         if (entry.date) {
                             const parts = entry.date.split('-');
                             if (parts.length === 3) {
+                                const entryYear = parseInt(parts[0]);
                                 const entryMonth = parseInt(parts[1]);
-                                const entryYear = parseInt(parts[2]);
+                                const entryDay = parseInt(parts[2]);
                                 if (entryMonth === moisNum && entryYear === anneeNum) {
-                                    const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                                    const formattedDate = `${entryDay.toString().padStart(2, '0')}/${entryMonth.toString().padStart(2, '0')}/${entryYear}`;
                                     allCashPayments[formattedDate] = {};
                                     if (entry.points && Array.isArray(entry.points)) {
                                         entry.points.forEach(point => {
@@ -6775,6 +6776,13 @@ async function exportReconciliationMoisToExcel() {
 
                 const ventesSaisies = ventesData.success && ventesData.totaux ? ventesData.totaux : {};
 
+                // DEBUG: Log the data received
+                console.log(`=== DEBUG pour ${dateStr} ===`);
+                console.log('Stock Matin reçu:', stockMatin);
+                console.log('Stock Soir reçu:', stockSoir);
+                console.log('Transferts reçus:', transferts);
+                console.log('Ventes saisies reçues:', ventesSaisies);
+
                 // Check if any data exists for this date
                 const dayHasData =
                     Object.keys(stockMatin).length > 0 ||
@@ -6792,30 +6800,42 @@ async function exportReconciliationMoisToExcel() {
                                 // Process each point of sale
                 for (const pointVente of POINTS_VENTE_PHYSIQUES) {
                     // Calculate stock values by summing all products for this point de vente
-                    const stockMatinValue = Object.keys(stockMatin)
-                        .filter(key => key.startsWith(pointVente + '-'))
-                        .reduce((sum, key) => {
-                            const stockData = stockMatin[key];
-                            if (stockData && stockData.total) {
-                                return sum + parseFloat(stockData.total);
-                            }
-                            return sum;
-                        }, 0);
+                    const stockMatinKeys = Object.keys(stockMatin).filter(key => key.startsWith(pointVente + '-'));
+                    const stockMatinValue = stockMatinKeys.reduce((sum, key) => {
+                        const stockData = stockMatin[key];
+                        const montant = parseFloat(stockData.Montant || stockData.total || 0);
+                        return sum + montant;
+                    }, 0);
                     
-                    const stockSoirValue = Object.keys(stockSoir)
-                        .filter(key => key.startsWith(pointVente + '-'))
-                        .reduce((sum, key) => {
-                            const stockData = stockSoir[key];
-                            if (stockData && stockData.total) {
-                                return sum + parseFloat(stockData.total);
-                            }
-                            return sum;
-                        }, 0);
+                    const stockSoirKeys = Object.keys(stockSoir).filter(key => key.startsWith(pointVente + '-'));
+                    const stockSoirValue = stockSoirKeys.reduce((sum, key) => {
+                        const stockData = stockSoir[key];
+                        const montant = parseFloat(stockData.Montant || stockData.total || 0);
+                        return sum + montant;
+                    }, 0);
                     
                     const transfertsValue = transferts
                         .filter(t => t.pointVente === pointVente)
-                        .reduce((sum, t) => sum + (parseFloat(t.montant) || 0), 0);
+                        .reduce((sum, t) => sum + (parseFloat(t.total || t.montant || 0)), 0);
                     const ventesSaisiesValue = ventesSaisies[pointVente] || 0;
+
+                    // DEBUG: Log calculations for this point de vente
+                    console.log(`--- ${pointVente} ---`);
+                    console.log('Clés stock matin trouvées:', stockMatinKeys);
+                    console.log('Clés stock soir trouvées:', stockSoirKeys);
+                    
+                    // DEBUG: Log the actual structure of stock data
+                    if (stockMatinKeys.length > 0) {
+                        console.log('Structure stock matin:', stockMatin[stockMatinKeys[0]]);
+                    }
+                    if (stockSoirKeys.length > 0) {
+                        console.log('Structure stock soir:', stockSoir[stockSoirKeys[0]]);
+                    }
+                    
+                    console.log('Stock Matin calculé:', stockMatinValue);
+                    console.log('Stock Soir calculé:', stockSoirValue);
+                    console.log('Transferts calculés:', transfertsValue);
+                    console.log('Ventes saisies:', ventesSaisiesValue);
 
                     // Calculate theoretical sales
                     const ventesTheoriques = stockMatinValue + transfertsValue - stockSoirValue;
