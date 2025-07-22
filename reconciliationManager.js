@@ -77,11 +77,19 @@ const ReconciliationManager = (function() {
                 console.warn('Bouton "Calculer" NON TROUVÉ dans le DOM');
             }
             
-            // Écouteur pour le bouton de sauvegarde
+            // Écouteur pour le bouton de sauvegarde (uniquement pour les utilisateurs avec droits d'écriture)
             const btnSauvegarder = document.getElementById('sauvegarder-reconciliation');
             if (btnSauvegarder) {
                 console.log('Bouton "Sauvegarder" trouvé dans le DOM:', btnSauvegarder);
-                btnSauvegarder.addEventListener('click', sauvegarderReconciliation);
+                
+                // Vérifier le rôle utilisateur
+                const currentUser = window.currentUser;
+                if (currentUser && currentUser.role === 'lecteur') {
+                    console.log('Utilisateur lecteur détecté, masquage du bouton de sauvegarde');
+                    btnSauvegarder.style.display = 'none';
+                } else {
+                    btnSauvegarder.addEventListener('click', sauvegarderReconciliation);
+                }
             } else {
                 console.warn('Bouton "Sauvegarder" NON TROUVÉ dans le DOM');
             }
@@ -256,10 +264,15 @@ const ReconciliationManager = (function() {
             data: reconciliationData
         };
         
-        // Activer le bouton de sauvegarde
+        // Activer le bouton de sauvegarde (uniquement pour les utilisateurs avec droits d'écriture)
         const btnSauvegarder = document.getElementById('sauvegarder-reconciliation');
         if (btnSauvegarder) {
-            btnSauvegarder.disabled = false;
+            const currentUser = window.currentUser;
+            if (currentUser && currentUser.role === 'lecteur') {
+                btnSauvegarder.style.display = 'none';
+            } else {
+                btnSauvegarder.disabled = false;
+            }
         }
         
         // Si des données de paiement en espèces existent déjà, les appliquer
@@ -474,6 +487,13 @@ const ReconciliationManager = (function() {
                     inputCommentaire.placeholder = 'Ajouter un commentaire...';
                     inputCommentaire.setAttribute('data-point-vente', pointVente);
                     inputCommentaire.value = data.commentaire || '';
+                    
+                    // Désactiver le champ pour les lecteurs
+                    const currentUser = window.currentUser;
+                    if (currentUser && currentUser.role === 'lecteur') {
+                        inputCommentaire.disabled = true;
+                        inputCommentaire.placeholder = 'Lecture seule';
+                    }
                     
                     cell.appendChild(inputCommentaire);
                     break;
@@ -700,8 +720,13 @@ const ReconciliationManager = (function() {
                     // S'assurer qu'elle contient un input
                     if (!commentCell.querySelector('.commentaire-input')) {
                         const commentValue = '';
-                        commentCell.innerHTML = `<input type="text" class="form-control commentaire-input" placeholder="Ajouter un commentaire..." data-point-vente="${pointVente}" value="${commentValue}">`;
-                        console.log(`Créé un nouveau champ de commentaire pour ${pointVente}`);
+                        const currentUser = window.currentUser;
+                        const isLecteur = currentUser && currentUser.role === 'lecteur';
+                        const placeholder = isLecteur ? 'Lecture seule' : 'Ajouter un commentaire...';
+                        const disabledAttr = isLecteur ? 'disabled' : '';
+                        
+                        commentCell.innerHTML = `<input type="text" class="form-control commentaire-input" placeholder="${placeholder}" data-point-vente="${pointVente}" value="${commentValue}" ${disabledAttr}>`;
+                        console.log(`Créé un nouveau champ de commentaire pour ${pointVente} (lecteur: ${isLecteur})`);
                     }
                 }
             }
@@ -1168,7 +1193,7 @@ const ReconciliationManager = (function() {
                 <div id="debug-formule" class="mb-3"></div>
                 <div id="debug-ecart" class="mb-3"></div>
                 
-                <div class="row mb-3">
+                <div class="row mb-3" id="inventaire-buttons-container">
                     <div class="col-md-6">
                         <button id="btn-voir-inventaire-matin" class="btn btn-primary">Voir inventaire matin</button>
                     </div>
@@ -1181,6 +1206,13 @@ const ReconciliationManager = (function() {
                 <div id="debug-stock-section" class="mt-3"></div>
                 <div id="debug-ventes-section" class="mt-3"></div>
             `;
+            
+            // Masquer les boutons d'inventaire pour les lecteurs
+            const currentUser = window.currentUser;
+            const inventaireButtonsContainer = document.getElementById('inventaire-buttons-container');
+            if (currentUser && currentUser.role === 'lecteur' && inventaireButtonsContainer) {
+                inventaireButtonsContainer.style.display = 'none';
+            }
             
             // Ajouter les écouteurs d'événements pour les boutons
             document.getElementById('btn-voir-inventaire-matin').addEventListener('click', function() {

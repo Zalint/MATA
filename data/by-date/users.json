@@ -1,0 +1,107 @@
+[
+  {
+    "username": "ADMIN",
+    "password": "$2b$10$rXRMYSP0MzuiT9T1l1lR5Ou57eqnW.fxkihkgFzp.l8RVpNg0BCmq",
+    "role": "admin",
+    "pointVente": "tous",
+    "active": true
+  },
+  {
+    "username": "MBA",
+    "password": "$2b$10$SGgkVN9qBf.nChuQYfWs5OFfu9yduQ5YAp4YhFPwLySW1naAXywmK",
+    "role": "user",
+    "pointVente": "Mbao",
+    "active": true
+  },
+  {
+    "username": "OSF",
+    "password": "$2b$10$sZr41Lpfz3dFM3UBdl38deaWSWB6lYzZw0uTJEIxtWXD3oEBMLJq6",
+    "role": "user",
+    "pointVente": "O.Foire",
+    "active": true
+  },
+  {
+    "username": "KMS",
+    "password": "$2b$10$fM8r6G5YXoQbMweovFX4dewL4h3YiIKkGAdRgXXthVaKoVzhaf68W",
+    "role": "user",
+    "pointVente": "Keur Massar",
+    "active": true
+  },
+  {
+    "username": "LNG",
+    "password": "$2b$10$5/Ufo00FlSk2vq9.Smuoh.ub4XpiuqiJLya1HrvvuSwl5vcAtYOoK",
+    "role": "user",
+    "pointVente": "Linguere",
+    "active": true
+  },
+  {
+    "username": "DHR",
+    "password": "$2b$10$Pc4VgsIWK7BXyw2mcWa5/OMDydUgBHR3HkCaSWaqNWSCZ1gOp6jgC",
+    "role": "user",
+    "pointVente": "Dahra",
+    "active": true
+  },
+  {
+    "username": "TBM",
+    "password": "$2b$10$3lnpwyz.WNC3Ac3LDIIHfOWnQUuglBDHlk4sHB4nB/VV6ZD9fLLZ.",
+    "role": "user",
+    "pointVente": "Touba",
+    "active": true
+  },
+  {
+    "username": "NADOU",
+    "password": "$2b$10$K7k5RmHjo.z52EWo8UdQBufVmFS65BS1by85QVzNk8x2w8faFoluW",
+    "role": "user",
+    "pointVente": "tous",
+    "active": true
+  },
+  {
+    "username": "OUSMANE",
+    "password": "$2b$10$C7/yS945tfuFFe8VoaL8E.YyzakG5HqmHh9D79spRiVcq8/ASI./6",
+    "role": "user",
+    "pointVente": "tous",
+    "active": true
+  },
+  {
+    "username": "PAPI",
+    "password": "$2b$10$mo1zaS1mo/GAl3jOR3f4ZuxwpVjr28nISR4jviHUpCY2GetfWE2Ve",
+    "role": "user",
+    "pointVente": "tous",
+    "active": true
+  },
+  {
+    "username": "SALIOU",
+    "password": "$2b$10$XM0wQV5kI0lJqld3aMwlmuNSmTivlFAEKXDwZEg0ePIcG6o9/jVmu",
+    "role": "user",
+    "pointVente": "tous",
+    "active": true
+  },
+  {
+    "username": "SCR",
+    "password": "$2b$10$fGNRB1.MSl4JT5EkMwYpT.RKDuCc4RmpXXZvz/OKpn3sm3ozNTLUe",
+    "role": "user",
+    "pointVente": "Sacre Coeur",
+    "active": true
+  },
+  {
+    "username": "MDN",
+    "password": "$2b$10$O9goeVevxJq7MNY6nt9KROU6MBE9jTBgAUSMaRJUZQvyS8xlZ9RKq",
+    "role": "lecteur",
+    "pointVente": "tous",
+    "active": true
+  },
+  {
+    "username": "SEB",
+    "password": "$2b$10$FCV46MpvlII2UXN8V8WzkugWIuOTP780NwBAzEtTIBz3MwfvtYJwG",
+    "role": "user",
+    "pointVente": "tous",
+    "active": true
+  },
+  {
+    "username": "LECTEUR",
+    "password": "$2b$10$etekay5uj9zmr1YfNpCk7e22fdtCZEw4.wTl2OV20xLe/VDUZa.o.",
+    "role": "lecteur",
+    "pointVente": "tous",
+    "active": true
+  }
+]

@@ -658,15 +658,21 @@ async function checkAuth() {
         const importTabContainer = document.getElementById('import-tab-container');
         const stockInventaireItem = document.getElementById('stock-inventaire-item');
         const copierStockItem = document.getElementById('copier-stock-item');
+        const cashPaymentItem = document.getElementById('cash-payment-item');
+        const estimationItem = document.getElementById('estimation-item');
         
-        if (usersWithSpecialAccess.includes(currentUser.username) || currentUser.isSuperAdmin) {
+        // Pour les lecteurs, masquer les onglets d'écriture
+        if (currentUser.role === 'lecteur') {
+            if (copierStockItem) copierStockItem.style.display = 'none';
+            if (cashPaymentItem) cashPaymentItem.style.display = 'none';
+            if (estimationItem) estimationItem.style.display = 'none';
+        } else if (usersWithSpecialAccess.includes(currentUser.username) || currentUser.isSuperAdmin) {
             if (importTabContainer) importTabContainer.style.display = 'block';
             if (stockInventaireItem) stockInventaireItem.style.display = 'block';
             if (copierStockItem) copierStockItem.style.display = 'block';
         } else {
             if (importTabContainer) importTabContainer.style.display = 'none';
             if (stockInventaireItem) stockInventaireItem.style.display = 'none';
-          
         }
         
         // Vérifier l'accès au chat Relevance AI
@@ -2737,11 +2743,18 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (response.ok) {
             const userData = await response.json();
             if (userData.success && userData.user) {
-                // Liste des utilisateurs autorisés à voir l'onglet Copier Stock
-                const usersAutorisesCopiage = ['SALIOU', 'PAPI', 'NADOU', 'OUSMANE'];
-                if (usersAutorisesCopiage.includes(userData.user.username.toUpperCase())) {
+                // Ne pas afficher l'onglet Copier Stock pour les lecteurs
+                if (userData.user.role === 'lecteur') {
                     if (copierStockItem) {
-                        copierStockItem.style.display = 'block';
+                        copierStockItem.style.display = 'none';
+                    }
+                } else {
+                    // Liste des utilisateurs autorisés à voir l'onglet Copier Stock
+                    const usersAutorisesCopiage = ['SALIOU', 'PAPI', 'NADOU', 'OUSMANE'];
+                    if (usersAutorisesCopiage.includes(userData.user.username.toUpperCase())) {
+                        if (copierStockItem) {
+                            copierStockItem.style.display = 'block';
+                        }
                     }
                 }
             }
@@ -3091,6 +3104,8 @@ function afficherOngletsSuivantDroits(userData) {
     // Afficher l'onglet Stock inventaire uniquement pour les utilisateurs avec accès à tous les points de vente
     const stockInventaireItem = document.getElementById('stock-inventaire-item');
     const copierStockItem = document.getElementById('copier-stock-item');
+    const cashPaymentItem = document.getElementById('cash-payment-item');
+    const estimationItem = document.getElementById('estimation-item');
     
     if (userData.pointVente === 'tous') {
         stockInventaireItem.style.display = 'block';
@@ -3098,8 +3113,34 @@ function afficherOngletsSuivantDroits(userData) {
         stockInventaireItem.style.display = 'none';
     }
     
-    // Afficher l'onglet Copier Stock uniquement pour les utilisateurs autorisés
-        copierStockItem.style.display = 'block';
+    // Pour les lecteurs, masquer les onglets d'écriture
+    if (userData.role === 'lecteur') {
+        // Masquer l'onglet Copier Stock
+        if (copierStockItem) {
+            copierStockItem.style.display = 'none';
+        }
+        
+        // Masquer l'onglet Cash Payment
+        if (cashPaymentItem) {
+            cashPaymentItem.style.display = 'none';
+        }
+        
+        // Masquer l'onglet Estimation
+        if (estimationItem) {
+            estimationItem.style.display = 'none';
+        }
+    } else {
+        // Pour les autres utilisateurs, afficher les onglets normalement
+        if (copierStockItem) {
+            copierStockItem.style.display = 'block';
+        }
+        if (cashPaymentItem) {
+            cashPaymentItem.style.display = 'block';
+        }
+        if (estimationItem) {
+            estimationItem.style.display = 'block';
+        }
+    }
    
 }
 

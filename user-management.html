@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Utilisateurs - Administration</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .user-card {
+            transition: transform 0.2s;
+        }
+        .user-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .status-badge {
+            font-size: 0.8em;
+        }
+        .form-floating {
+            margin-bottom: 1rem;
+        }
+        .btn-action {
+            margin: 0 0.25rem;
+        }
+        .table-responsive {
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-users-cog me-2"></i>
+                Gestion des Utilisateurs
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="nav-item nav-link" id="user-info"></span>
+                <a class="nav-link" href="index.html">
+                    <i class="fas fa-home me-1"></i>
+                    Page Principale
+                </a>
+                <a class="nav-link" href="admin.html">
+                    <i class="fas fa-cog me-1"></i>
+                    Administration
+                </a>
+                <a class="nav-link" href="#" id="logout-btn">
+                    <i class="fas fa-sign-out-alt me-1"></i>
+                    Déconnexion
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Formulaire de création d'utilisateur -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-user-plus me-2"></i>
+                            Créer un nouvel utilisateur
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="createUserForm">
+                            <div class="form-floating">
+                                <input type="text" class="form-control" id="newUsername" placeholder="Nom d'utilisateur" required>
+                                <label for="newUsername">Nom d'utilisateur</label>
+                            </div>
+                            
+                            <div class="form-floating">
+                                <input type="password" class="form-control" id="newPassword" placeholder="Mot de passe" required>
+                                <label for="newPassword">Mot de passe</label>
+                            </div>
+                            
+                            <div class="form-floating">
+                                <select class="form-select" id="newRole" required>
+                                    <option value="">Sélectionner un rôle</option>
+                                    <option value="lecteur">Lecteur</option>
+                                    <option value="user">Utilisateur</option>
+                                    <option value="admin">Administrateur</option>
+                                </select>
+                                <label for="newRole">Rôle</label>
+                            </div>
+                            
+                            <div class="form-floating">
+                                <select class="form-select" id="newPointVente" required>
+                                    <option value="">Sélectionner un point de vente</option>
+                                    <option value="tous">Tous les points de vente</option>
+                                    <option value="Mbao">Mbao</option>
+                                    <option value="O.Foire">O.Foire</option>
+                                    <option value="Keur Massar">Keur Massar</option>
+                                    <option value="Linguere">Linguere</option>
+                                    <option value="Dahra">Dahra</option>
+                                    <option value="Touba">Touba</option>
+                                    <option value="Sacre Coeur">Sacre Coeur</option>
+                                </select>
+                                <label for="newPointVente">Point de vente</label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="newUserActive" checked>
+                                <label class="form-check-label" for="newUserActive">
+                                    Utilisateur actif
+                                </label>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-save me-2"></i>
+                                Créer l'utilisateur
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste des utilisateurs -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            Liste des utilisateurs
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Utilisateur</th>
+                                        <th>Rôle</th>
+                                        <th>Point de vente</th>
+                                        <th>Statut</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <!-- Les utilisateurs seront chargés ici -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal d'édition d'utilisateur -->
+    <div class="modal fade" id="editUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Modifier l'utilisateur</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editUserForm">
+                        <input type="hidden" id="editUsername" name="originalUsername">
+                        
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" id="editNewUsername" placeholder="Nom d'utilisateur" required>
+                            <label for="editNewUsername">Nouveau nom d'utilisateur</label>
+                        </div>
+                        
+                        <div class="form-floating mb-3">
+                            <input type="password" class="form-control" id="editNewPassword" placeholder="Nouveau mot de passe">
+                            <label for="editNewPassword">Nouveau mot de passe (laisser vide pour ne pas changer)</label>
+                        </div>
+                        
+                        <div class="form-floating mb-3">
+                            <select class="form-select" id="editNewRole" required>
+                                <option value="">Sélectionner un rôle</option>
+                                <option value="lecteur">Lecteur</option>
+                                <option value="user">Utilisateur</option>
+                                <option value="admin">Administrateur</option>
+                            </select>
+                            <label for="editNewRole">Rôle</label>
+                        </div>
+                        
+                        <div class="form-floating mb-3">
+                            <select class="form-select" id="editNewPointVente" required>
+                                <option value="">Sélectionner un point de vente</option>
+                                <option value="tous">Tous les points de vente</option>
+                                <option value="Mbao">Mbao</option>
+                                <option value="O.Foire">O.Foire</option>
+                                <option value="Keur Massar">Keur Massar</option>
+                                <option value="Linguere">Linguere</option>
+                                <option value="Dahra">Dahra</option>
+                                <option value="Touba">Touba</option>
+                                <option value="Sacre Coeur">Sacre Coeur</option>
+                            </select>
+                            <label for="editNewPointVente">Point de vente</label>
+                        </div>
+                        
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="editNewUserActive">
+                            <label class="form-check-label" for="editNewUserActive">
+                                Utilisateur actif
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="saveEditUser">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmation -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="confirmModalBody">
+                    <!-- Le message sera inséré ici -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="confirmAction">Confirmer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/user-management.js"></script>
+</body>
+</html> 

@@ -106,14 +106,8 @@ app.get('/api/points-vente/transferts', (req, res) => {
     }
 });
 
-// Middleware de vérification d'authentification
-const checkAuth = (req, res, next) => {
-    if (!req.session.user) {
-        return res.status(401).json({ success: false, message: 'Non authentifié' });
-    }
-    req.user = req.session.user;
-    next();
-};
+// Importer les middlewares d'authentification
+const { checkAuth, checkAdmin, checkSuperAdmin, checkReadAccess, checkWriteAccess } = require('./middlewares/auth');
 
 // Middleware d'authentification par API key pour services externes comme Relevance AI
 const validateApiKey = (req, res, next) => {
@@ -139,21 +133,7 @@ const validateApiKey = (req, res, next) => {
     next();
 };
 
-// Middleware de vérification des droits d'admin
-const checkAdmin = (req, res, next) => {
-    if (!req.user.isAdmin) {
-        return res.status(403).json({ success: false, message: 'Accès non autorisé' });
-    }
-    next();
-};
 
-// Middleware de vérification des droits de super admin
-const checkSuperAdmin = (req, res, next) => {
-    if (!req.user.isSuperAdmin) {
-        return res.status(403).json({ success: false, message: 'Accès non autorisé' });
-    }
-    next();
-};
 
 // Chemin du fichier CSV
 const csvFilePath = path.join(__dirname, 'ventes.csv');
@@ -295,7 +275,11 @@ app.post('/api/login', async (req, res) => {
             user: {
                 username: user.username,
                 role: user.role,
-                pointVente: user.pointVente
+                pointVente: user.pointVente,
+                isAdmin: user.role === 'admin',
+                isLecteur: user.role === 'lecteur',
+                canRead: ['lecteur', 'user', 'admin'].includes(user.role),
+                canWrite: ['user', 'admin'].includes(user.role)
             }
         });
     } catch (error) {
@@ -326,7 +310,11 @@ app.get('/api/check-session', (req, res) => {
             user: {
                 username: req.session.user.username,
                 role: req.session.user.role,
-                pointVente: req.session.user.pointVente
+                pointVente: req.session.user.pointVente,
+                isAdmin: req.session.user.role === 'admin',
+                isLecteur: req.session.user.role === 'lecteur',
+                canRead: ['lecteur', 'user', 'admin'].includes(req.session.user.role),
+                canWrite: ['user', 'admin'].includes(req.session.user.role)
             }
         });
     } else {
@@ -436,8 +424,120 @@ app.get('/api/admin/produits', checkAuth, checkAdmin, (req, res) => {
     res.json({ success: true, produits });
 });
 
+// Routes pour la gestion des utilisateurs
+// Obtenir tous les utilisateurs
+app.get('/api/admin/users', checkAuth, checkAdmin, async (req, res) => {
+    try {
+        const usersList = await users.getAllUsers();
+        res.json({ success: true, users: usersList });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des utilisateurs:', error);
+        res.status(500).json({ success: false, message: 'Erreur lors de la récupération des utilisateurs' });
+    }
+});
+
+// Créer un nouvel utilisateur
+app.post('/api/admin/users', checkAuth, checkAdmin, async (req, res) => {
+    try {
+        const { username, password, role, pointVente, active } = req.body;
+        
+        if (!username || !password || !role || !pointVente) {
+            return res.status(400).json({ success: false, message: 'Tous les champs sont obligatoires' });
+        }
+        
+        // Vérifier que le nom d'utilisateur n'existe pas déjà
+        const existingUsers = await users.getAllUsers();
+        if (existingUsers.some(u => u.username === username)) {
+            return res.status(400).json({ success: false, message: 'Ce nom d\'utilisateur existe déjà' });
+        }
+        
+        const newUser = await users.createUser(username, password, role, pointVente, active);
+        res.json({ success: true, user: { username: newUser.username, role: newUser.role, pointVente: newUser.pointVente, active: newUser.active } });
+    } catch (error) {
+        console.error('Erreur lors de la création de l\'utilisateur:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Activer/désactiver un utilisateur
+app.post('/api/admin/users/:username/toggle-status', checkAuth, checkAdmin, async (req, res) => {
+    try {
+        const { username } = req.params;
+        
+        // Empêcher la désactivation de l'utilisateur ADMIN
+        if (username === 'ADMIN') {
+            return res.status(400).json({ success: false, message: 'Impossible de modifier le statut de l\'administrateur principal' });
+        }
+        
+        const updatedUser = await users.toggleUserStatus(username);
+        res.json({ success: true, user: { username: updatedUser.username, role: updatedUser.role, pointVente: updatedUser.pointVente, active: updatedUser.active } });
+    } catch (error) {
+        console.error('Erreur lors de la modification du statut:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Supprimer un utilisateur
+app.delete('/api/admin/users/:username', checkAuth, checkAdmin, async (req, res) => {
+    try {
+        const { username } = req.params;
+        
+        // Empêcher la suppression de l'utilisateur ADMIN
+        if (username === 'ADMIN') {
+            return res.status(400).json({ success: false, message: 'Impossible de supprimer l\'administrateur principal' });
+        }
+        
+        await users.deleteUser(username);
+        res.json({ success: true, message: 'Utilisateur supprimé avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de la suppression:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Modifier un utilisateur
+app.put('/api/admin/users/:username', checkAuth, checkAdmin, async (req, res) => {
+    try {
+        const { username } = req.params;
+        const { username: newUsername, password, role, pointVente, active } = req.body;
+        
+        // Empêcher la modification de l'utilisateur ADMIN
+        if (username === 'ADMIN') {
+            return res.status(400).json({ success: false, message: 'Impossible de modifier l\'administrateur principal' });
+        }
+        
+        if (!newUsername || !role || !pointVente) {
+            return res.status(400).json({ success: false, message: 'Tous les champs sont obligatoires' });
+        }
+        
+        // Vérifier que le nouveau nom d'utilisateur n'existe pas déjà (sauf pour l'utilisateur actuel)
+        const existingUsers = await users.getAllUsers();
+        if (newUsername !== username && existingUsers.some(u => u.username === newUsername)) {
+            return res.status(400).json({ success: false, message: 'Ce nom d\'utilisateur existe déjà' });
+        }
+        
+        const updates = {
+            username: newUsername,
+            role,
+            pointVente,
+            active
+        };
+        
+        // Ajouter le mot de passe seulement s'il est fourni
+        if (password && password.trim() !== '') {
+            updates.password = password;
+        }
+        
+        await users.updateUser(username, updates);
+        res.json({ success: true, message: 'Utilisateur modifié avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de la modification:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // Route pour ajouter des ventes
-app.post('/api/ventes', checkAuth, async (req, res) => {
+app.post('/api/ventes', checkAuth, checkWriteAccess, async (req, res) => {
     const entries = req.body;
     
     console.log('Tentative d\'ajout de ventes:', JSON.stringify(entries));
@@ -542,7 +642,7 @@ app.post('/api/ventes', checkAuth, async (req, res) => {
 });
 
 // Route pour mettre à jour une vente
-app.put('/api/ventes/:id', checkAuth, async (req, res) => {
+app.put('/api/ventes/:id', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const venteId = req.params.id;
         const updatedVente = req.body;
@@ -627,7 +727,7 @@ app.put('/api/ventes/:id', checkAuth, async (req, res) => {
 });
 
 // Route pour obtenir les ventes avec filtres
-app.get('/api/ventes', checkAuth, async (req, res) => {
+app.get('/api/ventes', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const { dateDebut, dateFin, pointVente } = req.query;
         
@@ -757,7 +857,7 @@ app.get('/api/ventes', checkAuth, async (req, res) => {
 });
 
 // Route pour récupérer les dernières ventes
-app.get('/api/dernieres-ventes', checkAuth, async (req, res) => {
+app.get('/api/dernieres-ventes', checkAuth, checkReadAccess, async (req, res) => {
     try {
         // Récupérer toutes les ventes depuis la base de données
         const ventes = await Vente.findAll({
@@ -798,7 +898,10 @@ app.get('/api/dernieres-ventes', checkAuth, async (req, res) => {
 app.get('/redirect', (req, res) => {
     console.log('Redirection demandée, session:', req.session);
     if (req.session.user) {
-        if (req.session.user.isSuperAdmin) {
+        if (req.session.user.username === 'ADMIN') {
+            // L'utilisateur ADMIN va directement à la gestion des utilisateurs
+            res.sendFile(path.join(__dirname, 'user-management.html'));
+        } else if (req.session.user.isSuperAdmin) {
             res.sendFile(path.join(__dirname, 'admin.html'));
         } else {
             res.sendFile(path.join(__dirname, 'index.html'));
@@ -820,7 +923,7 @@ app.get('/login.html', (req, res) => {
 });
 
 // Route pour l'importation des ventes
-app.post('/api/import-ventes', checkAuth, (req, res) => {
+app.post('/api/import-ventes', checkAuth, checkWriteAccess, (req, res) => {
     // Vérifier les droits d'accès
     if (req.user.username !== 'SALIOU' && !req.user.isSuperAdmin) {
         return res.status(403).json({
@@ -963,7 +1066,7 @@ app.post('/api/vider-base', async (req, res) => {
 });
 
 // Route pour charger les données de stock
-app.get('/api/stock/:type', async (req, res) => {
+app.get('/api/stock/:type', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const type = req.params.type;
         const date = req.query.date;
@@ -988,7 +1091,7 @@ app.get('/api/stock/:type', async (req, res) => {
 });
 
 // Route pour sauvegarder les données de stock
-app.post('/api/stock/:type', async (req, res) => {
+app.post('/api/stock/:type', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const type = req.params.type;
         const date = req.body && Object.values(req.body)[0] ? Object.values(req.body)[0].date : null;
@@ -1084,7 +1187,7 @@ app.post('/api/transferts', async (req, res) => {
 });
 
 // Route pour récupérer les transferts
-app.get('/api/transferts', checkAuth, async (req, res) => {
+app.get('/api/transferts', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const { date } = req.query;
         
@@ -1132,7 +1235,7 @@ app.get('/api/transferts', checkAuth, async (req, res) => {
 });
 
 // Route pour supprimer un transfert
-app.delete('/api/transferts', checkAuth, async (req, res) => {
+app.delete('/api/transferts', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const transfertData = req.body;
         console.log('Données de suppression du transfert reçues:', transfertData);
@@ -1225,7 +1328,7 @@ app.delete('/api/transferts', checkAuth, async (req, res) => {
 });
 
 // Route pour supprimer une vente
-app.delete('/api/ventes/:id', checkAuth, async (req, res) => {
+app.delete('/api/ventes/:id', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const venteId = req.params.id;
         const pointVente = req.query.pointVente;
@@ -1467,7 +1570,7 @@ async function loadVentesWithIds() {
 }
 
 // Routes pour la réconciliation
-app.post('/api/reconciliation/save', checkAuth, async (req, res) => {
+app.post('/api/reconciliation/save', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const { date, reconciliation, cashPaymentData, comments } = req.body;
         
@@ -1507,7 +1610,7 @@ app.post('/api/reconciliation/save', checkAuth, async (req, res) => {
     }
 });
 
-app.get('/api/reconciliation/load', checkAuth, async (req, res) => {
+app.get('/api/reconciliation/load', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const { date } = req.query;
         
@@ -1580,7 +1683,7 @@ app.get('/api/reconciliation/load', checkAuth, async (req, res) => {
 });
 
 // Route pour importer des données de paiement en espèces
-app.post('/api/cash-payments/import', checkAuth, async (req, res) => {
+app.post('/api/cash-payments/import', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const { data } = req.body;
         
@@ -1705,7 +1808,7 @@ app.post('/api/cash-payments/import', checkAuth, async (req, res) => {
     }
 });
 
-app.get('/api/cash-payments/aggregated', checkAuth, async (req, res) => {
+app.get('/api/cash-payments/aggregated', checkAuth, checkReadAccess, async (req, res) => {
     try {
         // S'assurer que la table existe
         await sequelize.query(`
@@ -1779,7 +1882,7 @@ app.get('/api/cash-payments/aggregated', checkAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/cash-payments/clear', checkAuth, async (req, res) => {
+app.delete('/api/cash-payments/clear', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         // S'assurer que la table existe
         await sequelize.query(`
@@ -1830,7 +1933,7 @@ app.delete('/api/cash-payments/clear', checkAuth, async (req, res) => {
 });
 
 // Route pour mettre à jour le total agrégé d'un paiement cash
-app.put('/api/cash-payments/update-aggregated', checkAuth, async (req, res) => {
+app.put('/api/cash-payments/update-aggregated', checkAuth, checkWriteAccess, async (req, res) => {
     const { date, point_de_vente, newTotal } = req.body;
     
     console.log(`Requête reçue pour mettre à jour le total agrégé:`, { date, point_de_vente, newTotal });
@@ -1918,7 +2021,7 @@ app.put('/api/cash-payments/update-aggregated', checkAuth, async (req, res) => {
 });
 
 // Route pour mettre à jour le point de vente d'un paiement cash
-app.put('/api/cash-payments/update-point-vente', checkAuth, async (req, res) => {
+app.put('/api/cash-payments/update-point-vente', checkAuth, checkWriteAccess, async (req, res) => {
     const { date, old_point_de_vente, new_point_de_vente } = req.body;
     
     console.log(`Requête reçue pour mettre à jour le point de vente:`, { date, old_point_de_vente, new_point_de_vente });
@@ -2154,7 +2257,7 @@ app.post('/api/external/cash-payment/import', validateApiKey, async (req, res) =
 // ===========================================================================
 
 // GET endpoint to retrieve beef purchase data
-app.get('/api/achats-boeuf', checkAuth, async (req, res) => {
+app.get('/api/achats-boeuf', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const achats = await AchatBoeuf.findAll({
             order: [['date', 'DESC']],
@@ -2167,7 +2270,7 @@ app.get('/api/achats-boeuf', checkAuth, async (req, res) => {
 });
 
 // POST endpoint to save purchase data
-app.post('/api/achats-boeuf', checkAuth, async (req, res) => {
+app.post('/api/achats-boeuf', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         // Use original field names matching the updated model
         const { mois, date, bete, prix, abats, frais_abattage, nbr_kg, prix_achat_kg, commentaire } = req.body;
@@ -2218,7 +2321,7 @@ app.post('/api/achats-boeuf', checkAuth, async (req, res) => {
 });
 
 // DELETE endpoint to remove purchase data
-app.delete('/api/achats-boeuf/:id', checkAuth, async (req, res) => {
+app.delete('/api/achats-boeuf/:id', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const id = req.params.id;
         const numDeleted = await AchatBoeuf.destroy({
@@ -2266,7 +2369,7 @@ app.get('/api/achats-boeuf/stats/monthly', checkAuth, async (req, res) => {
 });
 
 // Route pour récupérer les catégories
-app.get('/api/categories', checkAuth, async (req, res) => {
+app.get('/api/categories', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const categories = await Vente.findAll({
             attributes: [[fn('DISTINCT', fn('col', 'categorie')), 'categorie']],
@@ -2285,7 +2388,7 @@ app.get('/api/categories', checkAuth, async (req, res) => {
 });
 
 // Route pour calculer le stock du soir
-app.get('/api/stock-soir', checkAuth, async (req, res) => {
+app.get('/api/stock-soir', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const { date, pointVente, categorie } = req.query;
         
@@ -2365,7 +2468,7 @@ app.get('/api/ventes-effectuees', checkAuth, async (req, res) => {
 });
 
 // Route pour créer une estimation
-app.post('/api/estimations', async (req, res) => {
+app.post('/api/estimations', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const estimation = req.body;
         
@@ -2395,7 +2498,7 @@ app.post('/api/estimations', async (req, res) => {
 });
 
 // Route pour récupérer les estimations
-app.get('/api/estimations', async (req, res) => {
+app.get('/api/estimations', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const estimations = await Estimation.findAll({
             order: [['date', 'DESC']]
@@ -2412,7 +2515,7 @@ app.get('/api/estimations', async (req, res) => {
 });
 
 // Route pour supprimer une estimation
-app.delete('/api/estimations/:id', async (req, res) => {
+app.delete('/api/estimations/:id', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const id = req.params.id;
         
@@ -2717,7 +2820,7 @@ app.listen(PORT, () => {
 });
 
 // API endpoint for showing estimation section
-app.get('/api/show-estimation', (req, res) => {
+app.get('/api/show-estimation', checkAuth, checkReadAccess, async (req, res) => {
   console.log('Request to show estimation section received');
   res.json({ success: true, message: 'Estimation section should be shown' });
 });

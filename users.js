@@ -1,80 +1,144 @@
 const bcrypt = require('bcrypt');
+const fs = require('fs').promises;
+const path = require('path');
 
-// Liste des utilisateurs avec leurs mots de passe hachés
-const users = [
+// Chemin vers le fichier de sauvegarde des utilisateurs
+const USERS_FILE_PATH = path.join(__dirname, 'data', 'by-date', 'users.json');
+
+// Liste des utilisateurs par défaut (utilisée seulement si le fichier n'existe pas)
+const defaultUsers = [
     {
         username: 'ADMIN',
-        password: '$2b$10$0gnk9xZ774hXJoLR0rQNyOpgT4ujywPi9VBkSnfctnAVy1btuZrBK',
+        password: '$2b$10$rXRMYSP0MzuiT9T1l1lR5Ou57eqnW.fxkihkgFzp.l8RVpNg0BCmq',
         role: 'admin',
-        pointVente: 'tous'
+        pointVente: 'tous',
+        active: true
     },
     {
         username: 'MBA',
         password: '$2b$10$SGgkVN9qBf.nChuQYfWs5OFfu9yduQ5YAp4YhFPwLySW1naAXywmK',
         role: 'user',
-        pointVente: 'Mbao'
+        pointVente: 'Mbao',
+        active: true
     },
     {
         username: 'OSF',
         password: '$2b$10$sZr41Lpfz3dFM3UBdl38deaWSWB6lYzZw0uTJEIxtWXD3oEBMLJq6',
         role: 'user',
-        pointVente: 'O.Foire'
+        pointVente: 'O.Foire',
+        active: true
     },
     {
         username: 'KMS',
         password: '$2b$10$fM8r6G5YXoQbMweovFX4dewL4h3YiIKkGAdRgXXthVaKoVzhaf68W',
         role: 'user',
-        pointVente: 'Keur Massar'
+        pointVente: 'Keur Massar',
+        active: true
     },
     {
         username: 'LNG',
         password: '$2b$10$5/Ufo00FlSk2vq9.Smuoh.ub4XpiuqiJLya1HrvvuSwl5vcAtYOoK',
         role: 'user',
-        pointVente: 'Linguere'
+        pointVente: 'Linguere',
+        active: true
     },
     {
         username: 'DHR',
         password: '$2b$10$Pc4VgsIWK7BXyw2mcWa5/OMDydUgBHR3HkCaSWaqNWSCZ1gOp6jgC',
         role: 'user',
-        pointVente: 'Dahra'
+        pointVente: 'Dahra',
+        active: true
     },
     {
         username: 'TBM',
         password: '$2b$10$3lnpwyz.WNC3Ac3LDIIHfOWnQUuglBDHlk4sHB4nB/VV6ZD9fLLZ.',
         role: 'user',
-        pointVente: 'Touba'
+        pointVente: 'Touba',
+        active: true
     },
     {
         username: 'NADOU',
         password: '$2b$10$K7k5RmHjo.z52EWo8UdQBufVmFS65BS1by85QVzNk8x2w8faFoluW',
         role: 'user',
-        pointVente: 'tous'
+        pointVente: 'tous',
+        active: true
     },
     {
         username: 'OUSMANE',
         password: '$2b$10$C7/yS945tfuFFe8VoaL8E.YyzakG5HqmHh9D79spRiVcq8/ASI./6',
         role: 'user',
-        pointVente: 'tous'
+        pointVente: 'tous',
+        active: true
     },
     {
         username: 'PAPI',
         password: '$2b$10$mo1zaS1mo/GAl3jOR3f4ZuxwpVjr28nISR4jviHUpCY2GetfWE2Ve',
         role: 'user',
-        pointVente: 'tous'
+        pointVente: 'tous',
+        active: true
     },
     {
         username: 'SALIOU',
         password: '$2b$10$XM0wQV5kI0lJqld3aMwlmuNSmTivlFAEKXDwZEg0ePIcG6o9/jVmu',
         role: 'user',
-        pointVente: 'tous'
+        pointVente: 'tous',
+        active: true
     },
     {
         username: 'SCR',
         password: '$2b$10$fGNRB1.MSl4JT5EkMwYpT.RKDuCc4RmpXXZvz/OKpn3sm3ozNTLUe',
         role: 'user',
-        pointVente: 'Sacre Coeur'
+        pointVente: 'Sacre Coeur',
+        active: true
     }
 ];
+
+// Variable globale pour stocker les utilisateurs
+let users = [];
+
+// Fonction pour charger les utilisateurs depuis le fichier
+async function loadUsers() {
+    try {
+        // Vérifier si le fichier existe
+        try {
+            const data = await fs.readFile(USERS_FILE_PATH, 'utf8');
+            users = JSON.parse(data);
+            console.log(`Utilisateurs chargés depuis ${USERS_FILE_PATH}: ${users.length} utilisateurs`);
+        } catch (error) {
+            // Si le fichier n'existe pas, créer le dossier et sauvegarder les utilisateurs par défaut
+            console.log('Fichier utilisateurs non trouvé, création avec les utilisateurs par défaut');
+            
+            // Créer le dossier data s'il n'existe pas
+            const dataDir = path.dirname(USERS_FILE_PATH);
+            try {
+                await fs.mkdir(dataDir, { recursive: true });
+            } catch (mkdirError) {
+                console.log('Dossier data existe déjà');
+            }
+            
+            users = [...defaultUsers];
+            await saveUsers();
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des utilisateurs:', error);
+        // En cas d'erreur, utiliser les utilisateurs par défaut
+        users = [...defaultUsers];
+    }
+}
+
+// Fonction pour sauvegarder les utilisateurs dans le fichier
+async function saveUsers() {
+    try {
+        await fs.writeFile(USERS_FILE_PATH, JSON.stringify(users, null, 2), 'utf8');
+        console.log(`Utilisateurs sauvegardés dans ${USERS_FILE_PATH}`);
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde des utilisateurs:', error);
+        throw error;
+    }
+}
+
+// Charger les utilisateurs au démarrage
+loadUsers();
 
 // Fonction pour vérifier les identifiants
 async function verifyCredentials(username, password) {
@@ -86,6 +150,12 @@ async function verifyCredentials(username, password) {
         return null;
     }
     console.log('Utilisateur trouvé:', user.username);
+
+    // Vérifier si l'utilisateur est actif
+    if (!user.active) {
+        console.log('Utilisateur inactif:', username);
+        return null;
+    }
 
     const isValid = await bcrypt.compare(password, user.password);
     console.log('Mot de passe valide:', isValid);
@@ -99,12 +169,17 @@ async function verifyCredentials(username, password) {
     return {
         username: user.username,
         role: user.role,
-        pointVente: user.pointVente
+        pointVente: user.pointVente,
+        active: user.active,
+        isAdmin: user.role === 'admin',
+        isLecteur: user.role === 'lecteur',
+        canRead: ['lecteur', 'user', 'admin'].includes(user.role),
+        canWrite: ['user', 'admin'].includes(user.role)
     };
 }
 
 // Fonction pour créer un nouvel utilisateur
-async function createUser(username, password, role, pointVente) {
+async function createUser(username, password, role, pointVente, active = true) {
     if (users.some(u => u.username === username)) {
         throw new Error('Username already exists');
     }
@@ -116,10 +191,12 @@ async function createUser(username, password, role, pointVente) {
         username,
         password: hashedPassword,
         role,
-        pointVente
+        pointVente,
+        active
     };
 
     users.push(newUser);
+    await saveUsers(); // Sauvegarder après chaque création
     return newUser;
 }
 
@@ -136,26 +213,45 @@ async function updateUser(username, updates) {
     }
 
     users[userIndex] = { ...users[userIndex], ...updates };
+    await saveUsers(); // Sauvegarder après chaque mise à jour
     return users[userIndex];
 }
 
 // Fonction pour supprimer un utilisateur
-function deleteUser(username) {
+async function deleteUser(username) {
+    const userIndex = users.findIndex(u => u.username === username);
+    if (userIndex === -1) {
+        throw new Error('User not found');
+    }
+    users.splice(userIndex, 1);
+    await saveUsers(); // Sauvegarder après chaque suppression
+}
+
+// Fonction pour activer/désactiver un utilisateur
+async function toggleUserStatus(username) {
     const userIndex = users.findIndex(u => u.username === username);
     if (userIndex === -1) {
         throw new Error('User not found');
     }
 
-    users.splice(userIndex, 1);
+    users[userIndex].active = !users[userIndex].active;
+    await saveUsers(); // Sauvegarder après chaque changement d'état
+    return users[userIndex];
 }
 
 // Fonction pour obtenir tous les utilisateurs (sans les mots de passe)
-function getAllUsers() {
+async function getAllUsers() {
     return users.map(user => ({
         username: user.username,
         role: user.role,
-        pointVente: user.pointVente
+        pointVente: user.pointVente,
+        active: user.active
     }));
+}
+
+// Fonction pour recharger les utilisateurs depuis le fichier
+async function reloadUsers() {
+    await loadUsers();
 }
 
 module.exports = {
@@ -163,5 +259,7 @@ module.exports = {
     createUser,
     updateUser,
     deleteUser,
-    getAllUsers
+    toggleUserStatus,
+    getAllUsers,
+    reloadUsers
 }; 

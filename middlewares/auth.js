@@ -26,6 +26,28 @@ const checkAdmin = (req, res, next) => {
 };
 
 /**
+ * Middleware de vérification des droits de lecture
+ * Vérifie si l'utilisateur peut lire les données (lecteur, user, admin)
+ */
+const checkReadAccess = (req, res, next) => {
+    if (!req.user.role || (req.user.role !== 'lecteur' && req.user.role !== 'user' && req.user.role !== 'admin')) {
+        return res.status(403).json({ success: false, message: 'Accès non autorisé' });
+    }
+    next();
+};
+
+/**
+ * Middleware de vérification des droits d'écriture
+ * Vérifie si l'utilisateur peut modifier les données (user, admin)
+ */
+const checkWriteAccess = (req, res, next) => {
+    if (!req.user.role || (req.user.role !== 'user' && req.user.role !== 'admin')) {
+        return res.status(403).json({ success: false, message: 'Accès non autorisé - Lecture seule' });
+    }
+    next();
+};
+
+/**
  * Middleware de vérification des droits de super admin
  * Vérifie si l'utilisateur est un super admin
  */
@@ -39,5 +61,7 @@ const checkSuperAdmin = (req, res, next) => {
 module.exports = {
     checkAuth,
     checkAdmin,
-    checkSuperAdmin
+    checkSuperAdmin,
+    checkReadAccess,
+    checkWriteAccess
 }; 

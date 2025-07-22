@@ -5,6 +5,9 @@ let veauChartInstance = null;
 let allAchatsData = [];
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Check user permissions and adjust UI accordingly
+    checkUserPermissions();
+    
     // Initialize UI components
     initUI();
     
@@ -36,6 +39,50 @@ document.addEventListener('DOMContentLoaded', function() {
         exportBtn.addEventListener('click', exportToExcel);
     }
 });
+
+// Function to check user permissions and adjust UI
+async function checkUserPermissions() {
+    try {
+        const response = await fetch('/api/check-session');
+        const data = await response.json();
+        
+        if (data.success && data.user) {
+            const user = data.user;
+            
+            // If user is a reader (lecteur), hide write-related elements
+            if (user.role === 'lecteur') {
+                // Hide the save button
+                const saveButton = document.querySelector('button[type="submit"]');
+                if (saveButton) {
+                    saveButton.style.display = 'none';
+                }
+                
+                // Hide the import button
+                const importBtn = document.getElementById('importBtn');
+                if (importBtn) {
+                    importBtn.style.display = 'none';
+                }
+                
+                // Disable form inputs for read-only access
+                const formInputs = document.querySelectorAll('#achatBoeufForm input, #achatBoeufForm select');
+                formInputs.forEach(input => {
+                    input.disabled = true;
+                });
+                
+                // Add a message indicating read-only mode
+                const form = document.getElementById('achatBoeufForm');
+                if (form) {
+                    const readOnlyMessage = document.createElement('div');
+                    readOnlyMessage.className = 'alert alert-info mt-3';
+                    readOnlyMessage.innerHTML = '<strong>Mode lecture seule :</strong> Vous pouvez consulter les données mais ne pouvez pas les modifier.';
+                    form.appendChild(readOnlyMessage);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification des permissions:', error);
+    }
+}
 
 // Initialize UI components like datepickers
 function initUI() {
@@ -309,6 +356,20 @@ function displayAchatsBoeuf(achats) {
 async function handleFormSubmit(e) {
     e.preventDefault();
     
+    // Check if user is a reader and prevent submission
+    try {
+        const response = await fetch('/api/check-session');
+        const data = await response.json();
+        
+        if (data.success && data.user && data.user.role === 'lecteur') {
+            showNotification('Accès refusé : Mode lecture seule', 'error');
+            return;
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification des permissions:', error);
+        return;
+    }
+    
     // Get form data
     const formData = {
         mois: document.getElementById('mois').value,
@@ -559,7 +620,21 @@ function createPriceEvolutionCharts(achats) {
 }
 
 // Function to edit an existing entry
-function editAchatBoeuf(id, achats) {
+async function editAchatBoeuf(id, achats) {
+    // Check if user is a reader and prevent editing
+    try {
+        const response = await fetch('/api/check-session');
+        const data = await response.json();
+        
+        if (data.success && data.user && data.user.role === 'lecteur') {
+            showNotification('Accès refusé : Mode lecture seule', 'error');
+            return;
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification des permissions:', error);
+        return;
+    }
+    
     const achat = achats.find(a => a.id === parseInt(id));
     
     if (!achat) {
@@ -588,6 +663,20 @@ function editAchatBoeuf(id, achats) {
 
 // Function to delete an entry
 async function deleteAchatBoeuf(id) {
+    // Check if user is a reader and prevent deletion
+    try {
+        const response = await fetch('/api/check-session');
+        const data = await response.json();
+        
+        if (data.success && data.user && data.user.role === 'lecteur') {
+            showNotification('Accès refusé : Mode lecture seule', 'error');
+            return;
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification des permissions:', error);
+        return;
+    }
+    
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette entrée ?')) {
         return;
     }
@@ -661,7 +750,21 @@ function showNotification(message, type = 'info') {
 }
 
 // Function to import CSV data
-function importCsv() {
+async function importCsv() {
+    // Check if user is a reader and prevent import
+    try {
+        const response = await fetch('/api/check-session');
+        const data = await response.json();
+        
+        if (data.success && data.user && data.user.role === 'lecteur') {
+            showNotification('Accès refusé : Mode lecture seule', 'error');
+            return;
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification des permissions:', error);
+        return;
+    }
+    
     const fileInput = document.getElementById('csvFile');
     const file = fileInput.files[0];
     

@@ -18,6 +18,15 @@ async function checkAuth() {
         
         // Afficher les informations de l'utilisateur
         document.getElementById('user-info').textContent = `Connecté en tant que ${data.user.username}`;
+        
+        // Afficher l'onglet de gestion des utilisateurs seulement pour l'utilisateur ADMIN
+        if (data.user.username === 'ADMIN') {
+            const userManagementNav = document.getElementById('user-management-nav');
+            if (userManagementNav) {
+                userManagementNav.style.display = 'block';
+            }
+        }
+        
         return true;
     } catch (error) {
         console.error('Erreur lors de la vérification de la session:', error);
