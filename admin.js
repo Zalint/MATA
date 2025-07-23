@@ -760,9 +760,9 @@ function createConsolidatedData() {
     transfertsData.forEach(item => {
         const key = `${item.date}-${item.pointVente}-${item.produit}`;
         if (transfertsMap.has(key)) {
-            // Si plusieurs transferts pour la même clé, additionner les montants
+            // Si plusieurs transferts pour la même clé, additionner les quantités
             const existing = transfertsMap.get(key);
-            existing.total += item.total;
+            existing.quantite += item.quantite;
         } else {
             transfertsMap.set(key, { ...item });
         }
@@ -783,20 +783,20 @@ function createConsolidatedData() {
         const stockSoir = stockSoirMap.get(key);
         const transfert = transfertsMap.get(key);
         
-        const stockMatinMontant = stockMatin ? stockMatin.montant : 0;
-        const stockSoirMontant = stockSoir ? stockSoir.montant : 0;
-        const transfertMontant = transfert ? transfert.total : 0;
+        const stockMatinQuantite = stockMatin ? stockMatin.quantite : 0;
+        const stockSoirQuantite = stockSoir ? stockSoir.quantite : 0;
+        const transfertQuantite = transfert ? transfert.quantite : 0;
         
         // Calculer les ventes théoriques : Stock Soir - (Stock Matin + Transferts)
-        const ventesTheoriques = stockSoirMontant - (stockMatinMontant + transfertMontant);
+        const ventesTheoriques = stockSoirQuantite - (stockMatinQuantite + transfertQuantite);
         
         consolidated.push({
             date: date,
             pointVente: pointVente,
             produit: produit,
-            stockMatin: stockMatinMontant,
-            stockSoir: stockSoirMontant,
-            transferts: transfertMontant,
+            stockMatin: stockMatinQuantite,
+            stockSoir: stockSoirQuantite,
+            transferts: transfertQuantite,
             ventesTheoriques: ventesTheoriques
         });
     });
@@ -831,10 +831,10 @@ function displayConsolidatedData() {
             <td>${item.date}</td>
             <td>${item.pointVente}</td>
             <td>${item.produit}</td>
-            <td class="text-end">${item.stockMatin.toLocaleString('fr-FR')} FCFA</td>
-            <td class="text-end">${item.stockSoir.toLocaleString('fr-FR')} FCFA</td>
-            <td class="text-end">${item.transferts.toLocaleString('fr-FR')} FCFA</td>
-            <td class="text-end ${ventesClass}">${item.ventesTheoriques.toLocaleString('fr-FR')} FCFA</td>
+            <td class="text-end">${item.stockMatin.toLocaleString('fr-FR')}</td>
+            <td class="text-end">${item.stockSoir.toLocaleString('fr-FR')}</td>
+            <td class="text-end">${item.transferts.toLocaleString('fr-FR')}</td>
+            <td class="text-end ${ventesClass}">${item.ventesTheoriques.toLocaleString('fr-FR')}</td>
         `;
         tbody.appendChild(row);
     });
