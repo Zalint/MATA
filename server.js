@@ -185,15 +185,23 @@ function getPathByDate(baseFile, date) {
         const [day, month, year] = date.split('/');
         formattedDate = `${year}-${month}-${day}`;
     } else if (date.includes('-')) {
-        // Format DD-MM-YY
-        const [day, month, year] = date.split('-');
-        // Convertir l'année à 2 chiffres en 4 chiffres
-        const fullYear = year.length === 2 ? `20${year}` : year;
-        formattedDate = `${fullYear}-${month}-${day}`;
+        const parts = date.split('-');
+        if (parts[0].length === 4) {
+            // Format YYYY-MM-DD (déjà correct)
+            formattedDate = date;
+        } else {
+            // Format DD-MM-YY ou DD-MM-YYYY
+            const [day, month, year] = parts;
+            // Convertir l'année à 2 chiffres en 4 chiffres
+            const fullYear = year.length === 2 ? `20${year}` : year;
+            formattedDate = `${fullYear}-${month}-${day}`;
+        }
     } else {
         // Format non reconnu, utiliser la date telle quelle
         formattedDate = date;
     }
+    
+    console.log(`getPathByDate: date=${date}, formattedDate=${formattedDate}`);
     
     // Extraire le répertoire et le nom de fichier de base
     const dir = path.dirname(baseFile);
@@ -202,12 +210,17 @@ function getPathByDate(baseFile, date) {
     // Créer le chemin pour la date spécifique
     const dateDir = path.join(dir, 'by-date', formattedDate);
     
+    console.log(`getPathByDate: dateDir=${dateDir}, exists=${fs.existsSync(dateDir)}`);
+    
     // S'assurer que le répertoire existe
     if (!fs.existsSync(dateDir)) {
         fs.mkdirSync(dateDir, { recursive: true });
     }
     
-    return path.join(dateDir, fileName);
+    const finalPath = path.join(dateDir, fileName);
+    console.log(`getPathByDate: finalPath=${finalPath}, exists=${fs.existsSync(finalPath)}`);
+    
+    return finalPath;
 }
 
 // Fonction pour standardiser une date au format DD-MM-YYYY

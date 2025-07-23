@@ -14,6 +14,20 @@
         .admin-section.active {
             display: block;
         }
+        .table-responsive {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        .export-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -31,6 +45,9 @@
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="#" data-section="prix">Prix</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="stocks">Gestion des Stocks</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="#" data-section="corrections">Corrections</a>
@@ -122,6 +139,92 @@
                 </div>
             </div>
 
+            <!-- Section Gestion des Stocks -->
+            <div id="stocks-section" class="admin-section">
+                <h2>Gestion des Stocks et Transferts</h2>
+                
+                <!-- Filtres -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Filtres de recherche</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="date-debut" class="form-label">Date de début</label>
+                                <input type="text" class="form-control" id="date-debut" placeholder="JJ/MM/AAAA">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="date-fin" class="form-label">Date de fin</label>
+                                <input type="text" class="form-control" id="date-fin" placeholder="JJ/MM/AAAA">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="point-vente-filter" class="form-label">Point de vente</label>
+                                <select class="form-select" id="point-vente-filter">
+                                    <option value="">Tous</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="produit-filter" class="form-label">Produit</label>
+                                <select class="form-select" id="produit-filter">
+                                    <option value="">Tous</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <button class="btn btn-primary w-100" id="rechercher-stocks">
+                                    <i class="fas fa-search"></i> Rechercher
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section Export -->
+                <div class="export-section">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Export Excel</h6>
+                            <p class="text-muted">Exporter les données consolidées au format Excel</p>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <button class="btn btn-success" id="export-excel">
+                                <i class="fas fa-file-excel"></i> Exporter en Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tableau consolidé -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Données consolidées - Stocks et Ventes Théoriques</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="consolidated-table">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Point de Vente</th>
+                                        <th>Produit</th>
+                                        <th>Stock Matin</th>
+                                        <th>Stock Soir</th>
+                                        <th>Transferts</th>
+                                        <th>Ventes Théoriques</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="consolidated-tbody">
+                                    <tr>
+                                        <td colspan="7" class="text-center">Aucune donnée disponible</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Section Corrections -->
             <div id="corrections-section" class="admin-section">
                 <div class="card">
@@ -163,6 +266,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="admin.js"></script>
 </body>
 </html> 
