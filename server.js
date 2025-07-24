@@ -3286,7 +3286,9 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                     stockSoir: 0,
                     transferts: 0,
                     ventesTheoriques: 0,
-                    ventesSaisies: 0
+                    ventesSaisies: 0,
+                    ventesTheoriquesNombre: 0,
+                    ventesNombre: 0
                 };
             });
         });
@@ -3394,12 +3396,18 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                         stockSoir: 0,
                         transferts: 0,
                         ventesTheoriques: 0,
-                        ventesSaisies: 0
+                        ventesSaisies: 0,
+                        ventesTheoriquesNombre: 0,
+                        ventesNombre: 0
                     };
                 }
                 
                 // Add sales amount to details with special mapping
                 detailsByPDV[pdv][reconciliationCategory].ventesSaisies += montant;
+                
+                // Add sales quantity to details
+                const nombre = parseFloat(vente.nombre) || 0;
+                detailsByPDV[pdv][reconciliationCategory].ventesNombre += nombre;
             });
         }
         
@@ -3495,6 +3503,12 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                 // Add stock-matin value
                 reconciliationByPDV[pdv].stockMatin += montant;
                 detailsByPDV[pdv][category].stockMatin += montant;
+                
+                // Store stock quantity for ventesTheoriquesNombre calculation
+                if (!detailsByPDV[pdv][category].stockMatinNombre) {
+                    detailsByPDV[pdv][category].stockMatinNombre = 0;
+                }
+                detailsByPDV[pdv][category].stockMatinNombre += stockValue;
             });
         }
         
@@ -3590,6 +3604,12 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                 // Add stock-soir value
                 reconciliationByPDV[pdv].stockSoir += montant;
                 detailsByPDV[pdv][category].stockSoir += montant;
+                
+                // Store stock quantity for ventesTheoriquesNombre calculation
+                if (!detailsByPDV[pdv][category].stockSoirNombre) {
+                    detailsByPDV[pdv][category].stockSoirNombre = 0;
+                }
+                detailsByPDV[pdv][category].stockSoirNombre += stockValue;
             });
         }
         
@@ -3696,7 +3716,14 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                 
                 reconciliationByPDV[pdv].transferts += montant;
                 if(detailsByPDV[pdv] && detailsByPDV[pdv][category]) {
-                detailsByPDV[pdv][category].transferts += montant;
+                    detailsByPDV[pdv][category].transferts += montant;
+                    
+                    // Store transfer quantity for ventesTheoriquesNombre calculation
+                    if (!detailsByPDV[pdv][category].transfertsNombre) {
+                        detailsByPDV[pdv][category].transfertsNombre = 0;
+                    }
+                    const quantite = parseFloat(transfert.quantite) || 0;
+                    detailsByPDV[pdv][category].transfertsNombre += quantite;
                 }
             });
         }
@@ -3761,6 +3788,17 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             Object.entries(categories).forEach(([category, data]) => {
                 // Calculate theoretical sales for each category
                 data.ventesTheoriques = data.stockMatin - data.stockSoir + data.transferts;
+                
+                // Calculate ventesTheoriquesNombre (stock matin nombre + transferts nombre - stock soir nombre)
+                const stockMatinNombre = data.stockMatinNombre || 0;
+                const stockSoirNombre = data.stockSoirNombre || 0;
+                const transfertsNombre = data.transfertsNombre || 0;
+                data.ventesTheoriquesNombre = stockMatinNombre + transfertsNombre - stockSoirNombre;
+                
+                // Clean up temporary fields
+                delete data.stockMatinNombre;
+                delete data.stockSoirNombre;
+                delete data.transfertsNombre;
             });
         });
         
