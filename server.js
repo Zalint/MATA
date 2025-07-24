@@ -3795,10 +3795,21 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                 const transfertsNombre = data.transfertsNombre || 0;
                 data.ventesTheoriquesNombre = stockMatinNombre + transfertsNombre - stockSoirNombre;
                 
-                // Clean up temporary fields
-                delete data.stockMatinNombre;
-                delete data.stockSoirNombre;
-                delete data.transfertsNombre;
+                // Store quantity and price information for tooltips
+                data.stockMatinNombre = stockMatinNombre;
+                data.stockSoirNombre = stockSoirNombre;
+                data.transfertsNombre = transfertsNombre;
+                
+                // Calculate average prices for tooltips
+                if (stockMatinNombre > 0) {
+                    data.stockMatinPrixUnitaire = data.stockMatin / stockMatinNombre;
+                }
+                if (stockSoirNombre > 0) {
+                    data.stockSoirPrixUnitaire = data.stockSoir / stockSoirNombre;
+                }
+                if (transfertsNombre > 0) {
+                    data.transfertsPrixUnitaire = data.transferts / transfertsNombre;
+                }
             });
         });
         

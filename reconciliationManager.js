@@ -1827,8 +1827,32 @@ const ReconciliationManager = (function() {
             tdVenteTheorique.textContent = formatMonetaire(data.venteTheorique);
             tdVenteTheorique.className = 'text-end';
             
-            // Ajouter un tooltip pour la vente théorique, montrant la formule de calcul
-            tdVenteTheorique.title = `Formule: Stock Matin (${formatMonetaire(data.stockMatin)}) - Stock Soir (${formatMonetaire(data.stockSoir)}) + Transferts (${formatMonetaire(data.transferts)}) = ${formatMonetaire(data.venteTheorique)}`;
+            // Ajouter un tooltip pour la vente théorique, montrant la formule de calcul avec quantités et prix unitaires
+            let tooltipText = `Formule: Stock Matin (${formatMonetaire(data.stockMatin)}) - Stock Soir (${formatMonetaire(data.stockSoir)}) + Transferts (${formatMonetaire(data.transferts)}) = ${formatMonetaire(data.venteTheorique)}`;
+            
+            // Ajouter les détails de quantité et prix unitaire si disponibles
+            const details = [];
+            
+            if (data.stockMatinNombre && data.stockMatinNombre > 0) {
+                const prixUnitaire = data.stockMatinPrixUnitaire || (data.stockMatin / data.stockMatinNombre);
+                details.push(`Stock Matin: ${data.stockMatinNombre} × ${formatMonetaire(prixUnitaire)}`);
+            }
+            
+            if (data.stockSoirNombre && data.stockSoirNombre > 0) {
+                const prixUnitaire = data.stockSoirPrixUnitaire || (data.stockSoir / data.stockSoirNombre);
+                details.push(`Stock Soir: ${data.stockSoirNombre} × ${formatMonetaire(prixUnitaire)}`);
+            }
+            
+            if (data.transfertsNombre && data.transfertsNombre > 0) {
+                const prixUnitaire = data.transfertsPrixUnitaire || (data.transferts / data.transfertsNombre);
+                details.push(`Transferts: ${data.transfertsNombre} × ${formatMonetaire(prixUnitaire)}`);
+            }
+            
+            if (details.length > 0) {
+                tooltipText += '\n\nDétails:\n' + details.join('\n');
+            }
+            
+            tdVenteTheorique.title = tooltipText;
             tdVenteTheorique.style.cursor = 'help';
             
             row.appendChild(tdVenteTheorique);
