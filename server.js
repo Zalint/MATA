@@ -3332,9 +3332,74 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                     };
                 }
                 
-                // Add sales amount
+                // Add sales amount to resume (keep original logic)
                 reconciliationByPDV[pdv].ventesSaisies += montant;
-                detailsByPDV[pdv][category].ventesSaisies += montant;
+            });
+        }
+        
+        // Process sales data specifically for details with special mapping logic
+        if (ventesData.success && ventesData.ventes) {
+            ventesData.ventes.forEach(vente => {
+                const pdv = vente.pointVente;
+                const originalCategory = vente.categorie;
+                const produit = vente.produit;
+                const montant = parseFloat(vente.montant) || 0;
+                
+                // Special mapping logic for reconciliation categories in details
+                let reconciliationCategory = mapToCanonicalCategory(originalCategory);
+                
+                // Special case: For Boeuf, Veau, and Poulet, we need to aggregate specific products
+                if (produit && produit.toLowerCase().includes('boeuf en gros')) {
+                    reconciliationCategory = 'Boeuf';
+                }
+                else if (produit && produit.toLowerCase().includes('boeuf en detail') || produit && produit.toLowerCase().includes('boeuf en détail')) {
+                    reconciliationCategory = 'Boeuf';
+                }
+                else if (produit && produit.toLowerCase().includes('veau en gros')) {
+                    reconciliationCategory = 'Veau';
+                }
+                else if (produit && produit.toLowerCase().includes('veau en detail') || produit && produit.toLowerCase().includes('veau en détail')) {
+                    reconciliationCategory = 'Veau';
+                }
+                else if (produit && produit.toLowerCase().includes('poulet en gros')) {
+                    reconciliationCategory = 'Poulet';
+                }
+                else if (produit && produit.toLowerCase().includes('poulet en detail') || produit && produit.toLowerCase().includes('poulet en détail')) {
+                    reconciliationCategory = 'Poulet';
+                }
+                else if (produit && produit.toLowerCase().includes('poulet')) {
+                    reconciliationCategory = 'Poulet';
+                }
+                else if (produit && produit.toLowerCase().includes('volaille')) {
+                    reconciliationCategory = 'Poulet';
+                }
+                // Special case: "Tablette" in reconciliation maps to "Oeuf" in ventes
+                else if (produit && produit.toLowerCase().includes('oeuf')) {
+                    reconciliationCategory = 'Tablette';
+                }
+                else {
+                    // For all other products, use the original product name as-is
+                    reconciliationCategory = produit;
+                }
+                
+                console.log(`Mapping: ${produit} (${originalCategory}) -> ${reconciliationCategory} for ${pdv}`);
+                
+                // Initialize category in details if not exists
+                if (!detailsByPDV[pdv]) {
+                    detailsByPDV[pdv] = {};
+                }
+                if (!detailsByPDV[pdv][reconciliationCategory]) {
+                    detailsByPDV[pdv][reconciliationCategory] = {
+                        stockMatin: 0,
+                        stockSoir: 0,
+                        transferts: 0,
+                        ventesTheoriques: 0,
+                        ventesSaisies: 0
+                    };
+                }
+                
+                // Add sales amount to details with special mapping
+                detailsByPDV[pdv][reconciliationCategory].ventesSaisies += montant;
             });
         }
         
