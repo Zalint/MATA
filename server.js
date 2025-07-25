@@ -3723,7 +3723,9 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
                         detailsByPDV[pdv][category].transfertsNombre = 0;
                     }
                     const quantite = parseFloat(transfert.quantite) || 0;
-                    detailsByPDV[pdv][category].transfertsNombre += quantite;
+                    // Apply the same sign logic as montant for transfertsNombre
+                    const quantiteAvecSigne = montant >= 0 ? quantite : -quantite;
+                    detailsByPDV[pdv][category].transfertsNombre += quantiteAvecSigne;
                 }
             });
         }
