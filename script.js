@@ -3248,7 +3248,7 @@ function ajouterLigneStock() {
     const inputQuantite = document.createElement('input');
     inputQuantite.type = 'number';
     inputQuantite.className = 'form-control form-control-sm quantite-input';
-    inputQuantite.step = '0.1';
+    inputQuantite.step = '0.001';
     inputQuantite.value = '0';
     // Ajouter l'écouteur d'événement pour appliquer le filtre quand la quantité change
     inputQuantite.addEventListener('change', function() {
@@ -4411,8 +4411,22 @@ async function calculerReconciliationParPointVente(date, stockMatin, stockSoir, 
             reconciliation[pointVente].ventesSaisies;
             
         if (reconciliation[pointVente].ventes !== 0) {
-            reconciliation[pointVente].pourcentageEcart = 
-                (reconciliation[pointVente].difference / reconciliation[pointVente].ventes) * 100;
+            // Calcul spécial pour le point de vente "Abattage"
+            if (pointVente === 'Abattage') {
+                // Pour Abattage : (Ventes Théoriques / Stock Matin) * 100
+                if (reconciliation[pointVente].stockMatin !== 0) {
+                    reconciliation[pointVente].pourcentageEcart = 
+                        (reconciliation[pointVente].ventes / reconciliation[pointVente].stockMatin) * 100;
+                } else {
+                    // Cas où le stock matin est nul - pas de calcul possible
+                    reconciliation[pointVente].pourcentageEcart = null;
+                    reconciliation[pointVente].commentaire = 'Stock matin nul - calcul impossible';
+                }
+            } else {
+                // Pour les autres points de vente : (Écart / Ventes Théoriques) * 100
+                reconciliation[pointVente].pourcentageEcart = 
+                    (reconciliation[pointVente].difference / reconciliation[pointVente].ventes) * 100;
+            }
         } else {
             reconciliation[pointVente].pourcentageEcart = 0;
         }
@@ -4443,6 +4457,14 @@ function afficherReconciliation(reconciliation, debugInfo) {
     let totalVentesTheoriques = 0;
     let totalVentesSaisies = 0;
     let totalDifference = 0;
+    
+    // Vérifier si Abattage est présent pour afficher l'information sur la pération
+    const hasAbattage = (POINTS_VENTE_PHYSIQUES.includes('Abattage') || TOUS_POINTS_VENTE.includes('Abattage')) && reconciliation['Abattage'];
+    const perationInfo = document.getElementById('peration-info');
+    
+    if (perationInfo) {
+        perationInfo.style.display = hasAbattage ? 'block' : 'none';
+    }
     
     POINTS_VENTE_PHYSIQUES.forEach((pointVente, index) => {
         const data = reconciliation[pointVente];
@@ -4527,17 +4549,44 @@ function afficherReconciliation(reconciliation, debugInfo) {
             
             // Pourcentage d'écart
             const tdPourcentage = document.createElement('td');
-            // Formater le pourcentage avec 2 décimales
-            tdPourcentage.textContent = data.pourcentageEcart ? `${data.pourcentageEcart.toFixed(2)}%` : "0.00%";
-            tdPourcentage.classList.add('currency');
-            // Ajouter une classe basée sur la valeur du pourcentage
-            if (Math.abs(data.pourcentageEcart) > 10.5) {
-                tdPourcentage.classList.add('text-danger', 'fw-bold');
-            } else if (Math.abs(data.pourcentageEcart) > 8) {
-                tdPourcentage.classList.add('text-warning', 'fw-bold');
-            } else if (Math.abs(data.pourcentageEcart) > 0) {
-                tdPourcentage.classList.add('text-success', 'fw-bold');
+            
+            // Gestion spéciale pour Abattage
+            if (pointVente === 'Abattage') {
+                if (data.pourcentageEcart === null) {
+                    tdPourcentage.textContent = "N/A";
+                    tdPourcentage.classList.add('text-muted', 'fst-italic');
+                    tdPourcentage.title = "Stock matin nul - calcul impossible";
+                } else {
+                    tdPourcentage.textContent = `${data.pourcentageEcart.toFixed(2)}%`;
+                    tdPourcentage.title = "Pération : Perte de volume entre abattoir et point de vente";
+                    
+                    // Appliquer le style basé sur la valeur (pour Abattage, plus c'est élevé, mieux c'est)
+                    if (data.pourcentageEcart >= 90) {
+                        tdPourcentage.classList.add('text-success', 'fw-bold');
+                    } else if (data.pourcentageEcart >= 80) {
+                        tdPourcentage.classList.add('text-warning', 'fw-bold');
+                    } else if (data.pourcentageEcart > 0) {
+                        tdPourcentage.classList.add('text-danger', 'fw-bold');
+                    }
+                }
+            } else {
+                // Pour les autres points de vente
+                if (data.pourcentageEcart !== null) {
+                    tdPourcentage.textContent = `${data.pourcentageEcart.toFixed(2)}%`;
+                    // Ajouter une classe basée sur la valeur du pourcentage
+                    if (Math.abs(data.pourcentageEcart) > 10.5) {
+                        tdPourcentage.classList.add('text-danger', 'fw-bold');
+                    } else if (Math.abs(data.pourcentageEcart) > 8) {
+                        tdPourcentage.classList.add('text-warning', 'fw-bold');
+                    } else if (Math.abs(data.pourcentageEcart) > 0) {
+                        tdPourcentage.classList.add('text-success', 'fw-bold');
+                    }
+                } else {
+                    tdPourcentage.textContent = "0.00%";
+                }
             }
+            
+            tdPourcentage.classList.add('currency');
             row.appendChild(tdPourcentage);
             
             // Commentaire - Nouveau
@@ -7163,7 +7212,19 @@ async function exportReconciliationMoisToExcel() {
                     const difference = ventesTheoriques - ventesSaisiesValue;
 
                     // Calculate percentage difference
-                    const pourcentageEcart = ventesTheoriques > 0 ? (difference / ventesTheoriques) * 100 : 0;
+                    let pourcentageEcart;
+                    if (pointVente === 'Abattage') {
+                        // Pour Abattage : (Ventes Théoriques / Stock Matin) * 100
+                        if (stockMatinValue > 0) {
+                            pourcentageEcart = (ventesTheoriques / stockMatinValue) * 100;
+                        } else {
+                            // Cas où le stock matin est nul - pas de calcul possible
+                            pourcentageEcart = null;
+                        }
+                    } else {
+                        // Pour les autres points de vente : (Écart / Ventes Théoriques) * 100
+                        pourcentageEcart = ventesTheoriques > 0 ? (difference / ventesTheoriques) * 100 : 0;
+                    }
 
                     // Get cash payment data from pre-loaded data
                     const cashPayment = allCashPayments[dateStr] && allCashPayments[dateStr][pointVente] ? allCashPayments[dateStr][pointVente] : 0;

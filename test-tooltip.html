@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tooltip Abattage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-cell {
+            display: inline-block;
+            padding: 10px 15px;
+            margin: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #f8f9fa;
+        }
+        .test-cell:hover {
+            background-color: #e9ecef;
+        }
+        .abattage-cell {
+            background-color: #007bff;
+            color: white;
+        }
+        .abattage-cell:hover {
+            background-color: #0056b3;
+        }
+        .info-box {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        .danger {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test du Tooltip Abattage</h1>
+        
+        <div class="info-box">
+            <h3>Instructions</h3>
+            <p>Survolez les cellules ci-dessous pour tester les tooltips :</p>
+        </div>
+
+        <h2>Test des Tooltips</h2>
+        
+        <div>
+            <h3>Cellule Abattage avec pourcentage normal (-14.13%)</h3>
+            <div class="test-cell abattage-cell" title="Pération : Perte de volume entre abattoir et point de vente">
+                -14.13%
+            </div>
+        </div>
+
+        <div>
+            <h3>Cellule Abattage avec stock matin nul</h3>
+            <div class="test-cell" title="Stock matin nul - calcul impossible">
+                N/A
+            </div>
+        </div>
+
+        <div>
+            <h3>Cellule normale (autre point de vente)</h3>
+            <div class="test-cell" title="">
+                -66.76%
+            </div>
+        </div>
+
+        <h2>Test de l'Information Pération</h2>
+        
+        <div id="peration-info" class="info-box success">
+            <h6>
+                <i class="bi bi-info-circle"></i> 
+                Information sur la "Pération" (Point de vente Abattage)
+            </h6>
+            <p class="mb-1">
+                <strong>Pération :</strong> Perte de volume entre l'abattoir et le point de vente.
+            </p>
+            <p class="mb-0">
+                <strong>Calcul :</strong> (Ventes Théoriques / Stock Matin) × 100
+            </p>
+            <small class="text-muted">
+                Plus le pourcentage est élevé, plus l'efficacité de vente est bonne.
+            </small>
+        </div>
+
+        <h2>Test des Styles de Couleur</h2>
+        
+        <div>
+            <h3>Différents pourcentages pour Abattage</h3>
+            <div class="test-cell success">95.50% (Excellent)</div>
+            <div class="test-cell warning">85.20% (Bon)</div>
+            <div class="test-cell danger">75.80% (À améliorer)</div>
+            <div class="test-cell">-14.13% (Négatif)</div>
+        </div>
+
+        <h2>Debug JavaScript</h2>
+        
+        <div id="debug-output" class="info-box">
+            <h3>Informations de débogage</h3>
+            <div id="debug-content">
+                <p>Cliquez sur "Tester" pour voir les informations de débogage...</p>
+            </div>
+        </div>
+
+        <button onclick="runDebug()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            🔍 Tester le Debug
+        </button>
+    </div>
+
+    <script>
+        // Simuler les variables globales
+        const POINTS_VENTE_PHYSIQUES = ['Mbao', 'O.Foire', 'Linguere', 'Dahra', 'Touba', 'Keur Massar'];
+        const TOUS_POINTS_VENTE = [...POINTS_VENTE_PHYSIQUES, 'Abattage', 'Depot', 'Gros Client'];
+
+        // Simuler les données de réconciliation
+        const reconciliation = {
+            'Abattage': {
+                stockMatin: 3700000,
+                stockSoir: 0,
+                transferts: -4222800,
+                ventes: -522800,
+                ventesSaisies: 0,
+                difference: -522800,
+                pourcentageEcart: -14.13,
+                cashPayment: 0,
+                ecartCash: 0,
+                commentaire: ''
+            }
+        };
+
+        function runDebug() {
+            const debugContent = document.getElementById('debug-content');
+            let output = '';
+
+            // Test 1: Vérifier les listes de points de vente
+            output += '<h4>1. Vérification des listes de points de vente</h4>';
+            output += `<p><strong>POINTS_VENTE_PHYSIQUES:</strong> [${POINTS_VENTE_PHYSIQUES.join(', ')}]</p>`;
+            output += `<p><strong>TOUS_POINTS_VENTE:</strong> [${TOUS_POINTS_VENTE.join(', ')}]</p>`;
+            output += `<p><strong>Abattage dans POINTS_VENTE_PHYSIQUES:</strong> ${POINTS_VENTE_PHYSIQUES.includes('Abattage')}</p>`;
+            output += `<p><strong>Abattage dans TOUS_POINTS_VENTE:</strong> ${TOUS_POINTS_VENTE.includes('Abattage')}</p>`;
+
+            // Test 2: Vérifier la logique d'affichage
+            output += '<h4>2. Logique d\'affichage de l\'information Pération</h4>';
+            const hasAbattage = (POINTS_VENTE_PHYSIQUES.includes('Abattage') || TOUS_POINTS_VENTE.includes('Abattage')) && reconciliation['Abattage'];
+            output += `<p><strong>hasAbattage:</strong> ${hasAbattage}</p>`;
+            output += `<p><strong>Affichage peration-info:</strong> ${hasAbattage ? 'block' : 'none'}</p>`;
+
+            // Test 3: Vérifier le tooltip
+            output += '<h4>3. Vérification du tooltip</h4>';
+            const pointVente = 'Abattage';
+            const data = reconciliation[pointVente];
+            let tooltip = '';
+            
+            if (pointVente === 'Abattage') {
+                if (data.pourcentageEcart === null) {
+                    tooltip = "Stock matin nul - calcul impossible";
+                } else {
+                    tooltip = "Pération : Perte de volume entre abattoir et point de vente";
+                }
+            }
+            output += `<p><strong>Tooltip pour Abattage:</strong> "${tooltip}"</p>`;
+
+            // Test 4: Vérifier le calcul
+            output += '<h4>4. Vérification du calcul</h4>';
+            const calculAttendu = (data.ventes / data.stockMatin) * 100;
+            output += `<p><strong>Calcul attendu:</strong> (${data.ventes} / ${data.stockMatin}) × 100 = ${calculAttendu.toFixed(2)}%</p>`;
+            output += `<p><strong>Pourcentage actuel:</strong> ${data.pourcentageEcart.toFixed(2)}%</p>`;
+            output += `<p><strong>Correspondance:</strong> ${Math.abs(data.pourcentageEcart - calculAttendu) < 0.01 ? '✅ OK' : '❌ Erreur'}</p>`;
+
+            debugContent.innerHTML = output;
+        }
+
+        // Test automatique au chargement
+        window.onload = function() {
+            console.log('🧪 Page de test chargée');
+            console.log('POINTS_VENTE_PHYSIQUES:', POINTS_VENTE_PHYSIQUES);
+            console.log('TOUS_POINTS_VENTE:', TOUS_POINTS_VENTE);
+            console.log('reconciliation[Abattage]:', reconciliation['Abattage']);
+        };
+    </script>
+</body>
+</html> 

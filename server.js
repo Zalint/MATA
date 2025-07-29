@@ -3775,8 +3775,20 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             pdvData.ecartCash = pdvData.cashPayments - pdvData.ventesSaisies;
             
             // Calculate percentages
-            const stockVariation = Math.abs(pdvData.ventesTheoriques);
-            pdvData.ecartPct = stockVariation > 0 ? (Math.abs(pdvData.ecart) / stockVariation * 100).toFixed(2) : 0;
+            if (pdvData.pointVente === 'Abattage') {
+                // Pour Abattage : (Ventes Théoriques / Stock Matin) * 100
+                const stockMatinAbs = Math.abs(pdvData.stockMatin);
+                if (stockMatinAbs > 0) {
+                    pdvData.ecartPct = (pdvData.ventesTheoriques / stockMatinAbs * 100).toFixed(2);
+                } else {
+                    // Cas où le stock matin est nul - pas de calcul possible
+                    pdvData.ecartPct = null;
+                }
+            } else {
+                // Pour les autres points de vente : (Écart absolu / Ventes Théoriques absolues) * 100
+                const stockVariation = Math.abs(pdvData.ventesTheoriques);
+                pdvData.ecartPct = stockVariation > 0 ? (Math.abs(pdvData.ecart) / stockVariation * 100).toFixed(2) : 0;
+            }
             
             const cashTotal = Math.abs(pdvData.cashPayments);
             pdvData.ecartCashPct = cashTotal > 0 ? (Math.abs(pdvData.ecartCash) / cashTotal * 100).toFixed(2) : 0;

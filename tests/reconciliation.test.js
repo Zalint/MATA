@@ -139,6 +139,22 @@ describe('Tests des calculs de réconciliation', () => {
     const pourcentage = (ecart / ventesTheoriques) * 100;
     expect(pourcentage).toBeCloseTo(5.56, 1);
   });
+
+  test('Calcul spécial du pourcentage d\'écart pour abattage', () => {
+    // Pour abattage : (Ventes Théoriques / Stock Matin) * 100
+    const stockMatin = 500000;
+    const ventesTheoriques = 400000;
+    
+    const pourcentage = (ventesTheoriques / stockMatin) * 100;
+    expect(pourcentage).toBe(80); // 80% du stock matin a été vendu
+    
+    // Test avec des valeurs différentes
+    const stockMatin2 = 1000000;
+    const ventesTheoriques2 = 750000;
+    
+    const pourcentage2 = (ventesTheoriques2 / stockMatin2) * 100;
+    expect(pourcentage2).toBe(75); // 75% du stock matin a été vendu
+  });
 });
 
 /**
