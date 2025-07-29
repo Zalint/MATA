@@ -99,12 +99,12 @@ describe('Intégration du calcul spécial pour abattage', () => {
     // Simuler les données d'entrée
     const date = '01/01/2024';
     const stockMatin = {
-      'abattage-Boeuf': { Montant: 500000, Nombre: 100, PU: 5000 },
-      'abattage-Veau': { Montant: 300000, Nombre: 60, PU: 5000 }
+      'Abattage-Boeuf': { Montant: 500000, Nombre: 100, PU: 5000 },
+      'Abattage-Veau': { Montant: 300000, Nombre: 60, PU: 5000 }
     };
     const stockSoir = {
-      'abattage-Boeuf': { Montant: 100000, Nombre: 20, PU: 5000 },
-      'abattage-Veau': { Montant: 50000, Nombre: 10, PU: 5000 }
+      'Abattage-Boeuf': { Montant: 100000, Nombre: 20, PU: 5000 },
+      'Abattage-Veau': { Montant: 50000, Nombre: 10, PU: 5000 }
     };
     const transferts = [];
     const debugInfo = { detailsParPointVente: {} };
