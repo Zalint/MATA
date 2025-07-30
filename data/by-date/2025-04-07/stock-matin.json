@@ -1,4 +1,34 @@
 {
+  "Mbao-Boeuf": {
+    "date": "07/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Boeuf",
+    "Nombre": "5",
+    "PU": "3700",
+    "Montant": "18500",
+    "Commentaire": ""
+  },
+  "Mbao-Veau": {
+    "date": "07/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Veau",
+    "Nombre": "9",
+    "PU": "3900",
+    "Montant": "35100",
+    "Commentaire": ""
+  },
+  "Mbao-Poulet": {
+    "date": "07/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Poulet",
+    "Nombre": "20",
+    "PU": "3500",
+    "Montant": "70000",
+    "Commentaire": ""
+  },
   "Mbao-Foie": {
     "date": "07/04/2025",
     "typeStock": "matin",
@@ -27,6 +57,36 @@
     "Nombre": "10",
     "PU": "4500",
     "Montant": "45000",
+    "Commentaire": ""
+  },
+  "O.Foire-Boeuf": {
+    "date": "07/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Boeuf",
+    "Nombre": "40",
+    "PU": "3700",
+    "Montant": "148000",
+    "Commentaire": ""
+  },
+  "O.Foire-Veau": {
+    "date": "07/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Veau",
+    "Nombre": "35",
+    "PU": "3900",
+    "Montant": "136500",
+    "Commentaire": ""
+  },
+  "O.Foire-Poulet": {
+    "date": "07/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Poulet",
+    "Nombre": "20",
+    "PU": "3500",
+    "Montant": "70000",
     "Commentaire": ""
   },
   "O.Foire-Tablette": {
@@ -77,6 +137,16 @@
     "Nombre": "48",
     "PU": "2800",
     "Montant": "134400",
+    "Commentaire": ""
+  },
+  "Abattage-Boeuf": {
+    "date": "07/04/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Abattage",
+    "Produit": "Boeuf",
+    "Nombre": "1000",
+    "PU": "3700",
+    "Montant": "3700000",
     "Commentaire": ""
   }
 }

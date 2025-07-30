@@ -135,7 +135,7 @@ function ajouterLigneStock() {
   const inputQuantite = document.createElement('input');
   inputQuantite.type = 'number';
   inputQuantite.min = '0';
-  inputQuantite.step = '0.1';
+  inputQuantite.step = '0.001';
   inputQuantite.className = 'quantite form-control';
   inputQuantite.required = true;
   
@@ -300,7 +300,7 @@ function ajouterLigneTransfert() {
   const inputQuantite = document.createElement('input');
   inputQuantite.type = 'number';
   inputQuantite.min = '0';
-  inputQuantite.step = '0.1';
+  inputQuantite.step = '0.001';
   inputQuantite.className = 'quantite form-control';
   inputQuantite.required = true;
   

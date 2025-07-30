@@ -4462,8 +4462,21 @@ function afficherReconciliation(reconciliation, debugInfo) {
     const hasAbattage = (POINTS_VENTE_PHYSIQUES.includes('Abattage') || TOUS_POINTS_VENTE.includes('Abattage')) && reconciliation['Abattage'];
     const perationInfo = document.getElementById('peration-info');
     
+    // Debug: afficher les informations pour comprendre le problème
+    console.log('🔍 Debug Abattage:');
+    console.log('  POINTS_VENTE_PHYSIQUES:', POINTS_VENTE_PHYSIQUES);
+    console.log('  TOUS_POINTS_VENTE:', TOUS_POINTS_VENTE);
+    console.log('  Abattage dans POINTS_VENTE_PHYSIQUES:', POINTS_VENTE_PHYSIQUES.includes('Abattage'));
+    console.log('  Abattage dans TOUS_POINTS_VENTE:', TOUS_POINTS_VENTE.includes('Abattage'));
+    console.log('  reconciliation[Abattage]:', reconciliation['Abattage']);
+    console.log('  hasAbattage:', hasAbattage);
+    console.log('  perationInfo element:', perationInfo);
+    
     if (perationInfo) {
         perationInfo.style.display = hasAbattage ? 'block' : 'none';
+        console.log('  perationInfo.style.display:', perationInfo.style.display);
+    } else {
+        console.log('  ❌ Élément #peration-info non trouvé dans le DOM');
     }
     
     POINTS_VENTE_PHYSIQUES.forEach((pointVente, index) => {
@@ -4552,13 +4565,19 @@ function afficherReconciliation(reconciliation, debugInfo) {
             
             // Gestion spéciale pour Abattage
             if (pointVente === 'Abattage') {
+                console.log('🔍 Debug tooltip Abattage:');
+                console.log('  pointVente:', pointVente);
+                console.log('  data.pourcentageEcart:', data.pourcentageEcart);
+                
                 if (data.pourcentageEcart === null) {
                     tdPourcentage.textContent = "N/A";
                     tdPourcentage.classList.add('text-muted', 'fst-italic');
                     tdPourcentage.title = "Stock matin nul - calcul impossible";
+                    console.log('  Tooltip défini: "Stock matin nul - calcul impossible"');
                 } else {
                     tdPourcentage.textContent = `${data.pourcentageEcart.toFixed(2)}%`;
                     tdPourcentage.title = "Pération : Perte de volume entre abattoir et point de vente";
+                    console.log('  Tooltip défini: "Pération : Perte de volume entre abattoir et point de vente"');
                     
                     // Appliquer le style basé sur la valeur (pour Abattage, plus c'est élevé, mieux c'est)
                     if (data.pourcentageEcart >= 90) {

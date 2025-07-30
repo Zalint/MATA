@@ -469,7 +469,7 @@ const ReconciliationManager = (function() {
                     break;
                     
                 case 'ecartPourcentage':
-                    cell.textContent = data.pourcentageEcart !== undefined ? `${data.pourcentageEcart.toFixed(2)}%` : "0.00%";
+                    cell.textContent = (data.pourcentageEcart !== undefined && data.pourcentageEcart !== null) ? `${data.pourcentageEcart.toFixed(2)}%` : "0.00%";
                     cell.classList.add('currency');
                     applyPercentageStyling(cell, data.pourcentageEcart);
                     break;
@@ -1843,8 +1843,8 @@ const ReconciliationManager = (function() {
                 details.push(`Stock Soir: ${data.stockSoirNombre} × ${formatMonetaire(prixUnitaire)}`);
             }
             
-            if (data.transfertsNombre && data.transfertsNombre > 0) {
-                const prixUnitaire = data.transfertsPrixUnitaire || (data.transferts / data.transfertsNombre);
+            if (data.transfertsNombre && data.transfertsNombre !== 0) {
+                const prixUnitaire = data.transfertsPrixUnitaire || (data.transferts / Math.abs(data.transfertsNombre));
                 details.push(`Transferts: ${data.transfertsNombre} × ${formatMonetaire(prixUnitaire)}`);
             }
             

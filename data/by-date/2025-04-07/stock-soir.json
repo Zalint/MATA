@@ -1,4 +1,14 @@
 {
+  "Mbao-Veau": {
+    "date": "07/04/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Mbao",
+    "Produit": "Veau",
+    "Nombre": "5",
+    "PU": "3900",
+    "Montant": "19500",
+    "Commentaire": ""
+  },
   "Mbao-Foie": {
     "date": "07/04/2025",
     "typeStock": "soir",
@@ -37,6 +47,36 @@
     "Nombre": "5.2",
     "PU": "400",
     "Montant": "2080",
+    "Commentaire": ""
+  },
+  "O.Foire-Boeuf": {
+    "date": "07/04/2025",
+    "typeStock": "soir",
+    "Point de Vente": "O.Foire",
+    "Produit": "Boeuf",
+    "Nombre": "25",
+    "PU": "3700",
+    "Montant": "92500",
+    "Commentaire": ""
+  },
+  "O.Foire-Veau": {
+    "date": "07/04/2025",
+    "typeStock": "soir",
+    "Point de Vente": "O.Foire",
+    "Produit": "Veau",
+    "Nombre": "20",
+    "PU": "3900",
+    "Montant": "78000",
+    "Commentaire": ""
+  },
+  "O.Foire-Poulet": {
+    "date": "07/04/2025",
+    "typeStock": "soir",
+    "Point de Vente": "O.Foire",
+    "Produit": "Poulet",
+    "Nombre": "5",
+    "PU": "3500",
+    "Montant": "17500",
     "Commentaire": ""
   },
   "O.Foire-Tablette": {

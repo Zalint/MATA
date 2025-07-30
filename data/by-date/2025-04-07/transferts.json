@@ -12,26 +12,6 @@
   {
     "date": "07/04/2025",
     "pointVente": "Abattage",
-    "produit": "Boeuf",
-    "impact": -1,
-    "quantite": 98.5,
-    "prixUnitaire": 3600,
-    "total": -354600,
-    "commentaire": ""
-  },
-  {
-    "date": "07/04/2025",
-    "pointVente": "Abattage",
-    "produit": "Boeuf",
-    "impact": -1,
-    "quantite": 100,
-    "prixUnitaire": 3600,
-    "total": -360000,
-    "commentaire": ""
-  },
-  {
-    "date": "07/04/2025",
-    "pointVente": "Abattage",
     "produit": "Veau",
     "impact": -1,
     "quantite": 29,
@@ -47,16 +27,6 @@
     "quantite": 51,
     "prixUnitaire": 4500,
     "total": -229500,
-    "commentaire": ""
-  },
-  {
-    "date": "07/04/2025",
-    "pointVente": "Mbao",
-    "produit": "Boeuf",
-    "impact": 1,
-    "quantite": 100,
-    "prixUnitaire": 3600,
-    "total": 360000,
     "commentaire": ""
   },
   {
@@ -102,16 +72,6 @@
   {
     "date": "07/04/2025",
     "pointVente": "O.Foire",
-    "produit": "Boeuf",
-    "impact": 1,
-    "quantite": 98.5,
-    "prixUnitaire": 3600,
-    "total": 354600,
-    "commentaire": ""
-  },
-  {
-    "date": "07/04/2025",
-    "pointVente": "O.Foire",
     "produit": "Veau",
     "impact": 1,
     "quantite": 92,
@@ -137,6 +97,46 @@
     "quantite": 51,
     "prixUnitaire": 4500,
     "total": 229500,
+    "commentaire": ""
+  },
+  {
+    "date": "07/04/2025",
+    "pointVente": "O.Foire",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 65,
+    "prixUnitaire": 3600,
+    "total": 234000,
+    "commentaire": "Correction selon l'image de référence"
+  },
+  {
+    "date": "07/04/2025",
+    "pointVente": "O.Foire",
+    "produit": "Poulet",
+    "impact": 1,
+    "quantite": 10,
+    "prixUnitaire": 3500,
+    "total": 35000,
+    "commentaire": ""
+  },
+  {
+    "date": "07/04/2025",
+    "pointVente": "O.Foire",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 5,
+    "prixUnitaire": 3600,
+    "total": -18000,
+    "commentaire": ""
+  },
+  {
+    "date": "07/04/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 955,
+    "prixUnitaire": 3700,
+    "total": -3533500,
     "commentaire": ""
   }
 ]
