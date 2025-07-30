@@ -1446,7 +1446,8 @@ async function populatePointVenteDropdowns() {
             'filter-point-vente',
             'pointVenteFilter', 
             'pointVenteCopieSource',
-            'pointVenteCopieDestination'
+            'pointVenteCopieDestination',
+            'filtre-point-vente-transfert'
         ];
 
         dropdownIds.forEach(id => {
