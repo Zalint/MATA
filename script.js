@@ -1078,7 +1078,7 @@ function creerNouvelleEntree() {
             </div>
             <div class="col-md-2">
                 <label class="form-label">Quantité</label>
-                <input type="number" class="form-control quantite" step="0.1" required>
+                <input type="number" class="form-control quantite" step="0.001" required>
             </div>
             
             <div class="col-md-2">
