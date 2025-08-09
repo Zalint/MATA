@@ -1,52 +1,52 @@
 {
   "Mbao-Boeuf": {
-    "date": "09/08/2025",
-    "typeStock": "soir",
+    "date": "10/08/2025",
+    "typeStock": "matin",
     "Point de Vente": "Mbao",
     "Produit": "Boeuf",
     "Nombre": "100",
     "PU": "3700",
     "Montant": "370000",
-    "Commentaire": ""
+    "Commentaire": "Copié automatiquement du stock soir du 09/08/2025"
   },
   "Mbao-Veau": {
-    "date": "09/08/2025",
-    "typeStock": "soir",
+    "date": "10/08/2025",
+    "typeStock": "matin",
     "Point de Vente": "Mbao",
     "Produit": "Veau",
     "Nombre": "10",
     "PU": "3900",
     "Montant": "39000",
-    "Commentaire": ""
+    "Commentaire": "Copié automatiquement du stock soir du 09/08/2025"
   },
   "Mbao-Poulet": {
-    "date": "09/08/2025",
-    "typeStock": "soir",
+    "date": "10/08/2025",
+    "typeStock": "matin",
     "Point de Vente": "Mbao",
     "Produit": "Poulet",
     "Nombre": "50",
     "PU": "3500",
     "Montant": "175000",
-    "Commentaire": ""
+    "Commentaire": "Copié automatiquement du stock soir du 09/08/2025"
   },
   "Mbao-Tablette": {
-    "date": "09/08/2025",
-    "typeStock": "soir",
+    "date": "10/08/2025",
+    "typeStock": "matin",
     "Point de Vente": "Mbao",
     "Produit": "Tablette",
     "Nombre": "70",
     "PU": "2800",
     "Montant": "196000",
-    "Commentaire": ""
+    "Commentaire": "Copié automatiquement du stock soir du 09/08/2025"
   },
   "Mbao-Foie": {
-    "date": "09/08/2025",
-    "typeStock": "soir",
+    "date": "10/08/2025",
+    "typeStock": "matin",
     "Point de Vente": "Mbao",
     "Produit": "Foie",
     "Nombre": "5",
     "PU": "4000",
     "Montant": "20000",
-    "Commentaire": ""
+    "Commentaire": "Copié automatiquement du stock soir du 09/08/2025"
   }
 }

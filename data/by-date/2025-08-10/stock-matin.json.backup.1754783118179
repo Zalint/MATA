@@ -1,0 +1,32 @@
+{
+  "Mbao-Boeuf": {
+    "date": "10/08/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Boeuf",
+    "Nombre": "25.5",
+    "PU": "3700",
+    "Montant": "94350",
+    "Commentaire": "Copié automatiquement du stock soir du 09/08/2025"
+  },
+  "O.Foire-Veau": {
+    "date": "10/08/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Veau",
+    "Nombre": "12.0",
+    "PU": "3900",
+    "Montant": "46800",
+    "Commentaire": "Copié automatiquement du stock soir du 09/08/2025"
+  },
+  "Linguere-Agneau": {
+    "date": "10/08/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Linguere",
+    "Produit": "Agneau",
+    "Nombre": "8.75",
+    "PU": "4500",
+    "Montant": "39375",
+    "Commentaire": "Copié automatiquement du stock soir du 09/08/2025"
+  }
+}

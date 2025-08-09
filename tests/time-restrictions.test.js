@@ -8,7 +8,7 @@
 // const session = require('supertest-session');
 
 // Mock de l'application Express - ajustez selon votre structure
-const app = require('../server');
+// const app = require('../server');
 
 describe.skip('Restrictions temporelles NADOU/PAPI', () => {
     let testSession;
