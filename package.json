@@ -29,7 +29,12 @@
     "test:unit": "jest --testPathPattern='tests/.*\\.test\\.js' --testPathIgnorePatterns=\"auth.test.js|auth.integration.test.js|reconciliation.integration.test.js\"",
     "test:e2e": "npm run cy:run",
     "test:all": "npm run test:unit && npm run test:e2e",
-    "postinstall": "echo 'Installed packages:' && npm list --depth=0"
+    "postinstall": "echo 'Installed packages:' && npm list --depth=0",
+    "stock:copy": "node scripts/copy-stock-cron.js",
+    "stock:copy:dry-run": "node scripts/copy-stock-cron.js --dry-run",
+    "stock:copy:test": "node scripts/test-copy-stock.js",
+    "stock:copy:create-test": "node scripts/test-copy-stock.js --create-test-data",
+    "stock:copy:clean-test": "node scripts/test-copy-stock.js --clean-test-data"
   },
   "keywords": [],
   "author": "",

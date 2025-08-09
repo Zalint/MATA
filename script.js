@@ -2644,6 +2644,21 @@ async function sauvegarderTransfert() {
             alert('Veuillez sélectionner une date');
             return;
         }
+
+        // Vérifier les restrictions temporelles
+        try {
+            const sessionResponse = await fetch('/api/check-session');
+            const sessionData = await sessionResponse.json();
+            if (sessionData.success && sessionData.user) {
+                const restriction = verifierRestrictionsTemporelles(date, sessionData.user.username);
+                if (restriction.restricted) {
+                    alert(restriction.message);
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Erreur lors de la vérification de session:', error);
+        }
         
         // Récupérer les données du tableau
         const rows = document.querySelectorAll('#transfertTable tbody tr');
@@ -2698,7 +2713,8 @@ async function sauvegarderTransfert() {
             // Recharger les transferts pour mettre à jour l'affichage
             await chargerTransferts();
         } else {
-            throw new Error(result.message || 'Erreur lors de la sauvegarde des transferts');
+            // Afficher le message d'erreur spécifique du serveur, notamment pour les restrictions temporelles
+            throw new Error(result.error || result.message || 'Erreur lors de la sauvegarde des transferts');
         }
     } catch (error) {
         console.error('Erreur lors de la sauvegarde des transferts:', error);
@@ -3329,6 +3345,28 @@ function ajouterLigneStock() {
     console.log('Nouvelle ligne de stock ajoutée');
 }
 
+// Fonction pour vérifier les restrictions temporelles pour NADOU et PAPI
+function verifierRestrictionsTemporelles(date, username) {
+    if (username === 'NADOU' || username === 'PAPI') {
+        const [day, month, year] = date.split('/');
+        const dateStock = new Date(year, month - 1, day);
+        const maintenant = new Date();
+        
+        // Calculer la date limite : date du stock + 1 jour + 3 heures
+        const dateLimite = new Date(dateStock);
+        dateLimite.setDate(dateLimite.getDate() + 1);
+        dateLimite.setHours(3, 0, 0, 0);
+        
+        if (maintenant > dateLimite) {
+            return {
+                restricted: true,
+                message: `Modification interdite. Les données du ${date} ne peuvent plus être modifiées après le ${dateLimite.toLocaleDateString('fr-FR')} à 3h00.`
+            };
+        }
+    }
+    return { restricted: false };
+}
+
 // Fonction pour sauvegarder les données de stock
 async function sauvegarderDonneesStock() {
     console.log('%c=== Sauvegarde des données de stock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
@@ -3336,6 +3374,21 @@ async function sauvegarderDonneesStock() {
     const date = document.getElementById('date-inventaire').value;
     console.log('%cType de stock:', 'color: #ff9900; font-weight: bold;', typeStock);
     console.log('%cDate:', 'color: #ff9900;', date);
+
+    // Vérifier les restrictions temporelles
+    try {
+        const sessionResponse = await fetch('/api/check-session');
+        const sessionData = await sessionResponse.json();
+        if (sessionData.success && sessionData.user) {
+            const restriction = verifierRestrictionsTemporelles(date, sessionData.user.username);
+            if (restriction.restricted) {
+                alert(restriction.message);
+                return;
+            }
+        }
+    } catch (error) {
+        console.error('Erreur lors de la vérification de session:', error);
+    }
 
     // Collecter les données du tableau
     const donnees = {};
@@ -3457,6 +3510,7 @@ async function sauvegarderDonneesStock() {
                 stockData.soir = new Map(Object.entries(donnees));
             }
         } else {
+            // Afficher le message d'erreur spécifique du serveur, notamment pour les restrictions temporelles
             throw new Error(result.error || 'Erreur lors de la sauvegarde');
         }
     } catch (error) {

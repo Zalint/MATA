@@ -1,0 +1,43 @@
+services:
+  # Service principal (serveur web)
+  - type: web
+    name: mata-data-server
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+
+  # Service cron pour la copie automatique du stock
+  - type: cron
+    name: mata-stock-copy-cron
+    env: node
+    plan: starter
+    buildCommand: npm install
+    # Exécution tous les jours à 5h00 UTC
+    schedule: "0 5 * * *"
+    startCommand: node scripts/copy-stock-cron.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+
+  # Service cron de test (optionnel, pour validation)
+  - type: cron
+    name: mata-stock-copy-test
+    env: node
+    plan: starter
+    buildCommand: npm install
+    # Exécution une fois par semaine le dimanche à 6h00 UTC pour validation
+    schedule: "0 6 * * 0"
+    startCommand: node scripts/test-copy-stock.js --create-test-data --test-copy --clean-test-data
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: debug

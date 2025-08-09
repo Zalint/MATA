@@ -1103,8 +1103,52 @@ app.get('/api/stock/:type', checkAuth, checkReadAccess, async (req, res) => {
     }
 });
 
+// Middleware pour vérifier les restrictions temporelles pour NADOU et PAPI
+function checkTimeRestrictions(req, res, next) {
+    const user = req.session.user;
+    if (!user) {
+        return res.status(401).json({ success: false, error: 'Non authentifié' });
+    }
+    
+    // Appliquer les restrictions uniquement pour NADOU et PAPI
+    if (user.username === 'NADOU' || user.username === 'PAPI') {
+        let stockDate = null;
+        
+        // Pour les stocks (structure objet avec clé contenant la date)
+        if (req.body && Object.values(req.body)[0] && Object.values(req.body)[0].date) {
+            stockDate = Object.values(req.body)[0].date;
+        }
+        // Pour les transferts (structure tableau avec date dans chaque élément)
+        else if (Array.isArray(req.body) && req.body.length > 0 && req.body[0].date) {
+            stockDate = req.body[0].date;
+        }
+        
+        if (stockDate) {
+            const [day, month, year] = stockDate.split('/');
+            const dateStock = new Date(year, month - 1, day); // Convertir en objet Date
+            const maintenant = new Date();
+            
+            // Calculer la date limite : date du stock + 1 jour + 3 heures
+            const dateLimite = new Date(dateStock);
+            dateLimite.setDate(dateLimite.getDate() + 1); // Jour suivant
+            dateLimite.setHours(3, 0, 0, 0); // 3h00 du matin
+            
+            if (maintenant > dateLimite) {
+                const typeOperation = Array.isArray(req.body) ? 'transferts' : 'stock';
+                return res.status(403).json({
+                    success: false,
+                    error: `Modification interdite. Les ${typeOperation} du ${stockDate} ne peuvent plus être modifiés après le ${dateLimite.toLocaleDateString('fr-FR')} à 3h00.`,
+                    timeRestriction: true
+                });
+            }
+        }
+    }
+    
+    next();
+}
+
 // Route pour sauvegarder les données de stock
-app.post('/api/stock/:type', checkAuth, checkWriteAccess, async (req, res) => {
+app.post('/api/stock/:type', checkAuth, checkWriteAccess, checkTimeRestrictions, async (req, res) => {
     try {
         const type = req.params.type;
         const date = req.body && Object.values(req.body)[0] ? Object.values(req.body)[0].date : null;
@@ -1135,7 +1179,7 @@ app.post('/api/stock/:type', checkAuth, checkWriteAccess, async (req, res) => {
 });
 
 // Route pour sauvegarder les transferts
-app.post('/api/transferts', async (req, res) => {
+app.post('/api/transferts', checkAuth, checkWriteAccess, checkTimeRestrictions, async (req, res) => {
     try {
         const transferts = req.body;
         
