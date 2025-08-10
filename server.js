@@ -21,6 +21,7 @@ const { testConnection, sequelize } = require('./db');
 const { Op, fn, col, literal } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const Estimation = require('./db/models/Estimation');
+const { spawn } = require('child_process');
 
 // Import the schema update scripts
 const { updateSchema } = require('./db/update-schema');
@@ -1380,6 +1381,193 @@ app.delete('/api/transferts', checkAuth, checkWriteAccess, async (req, res) => {
             success: false,
             message: 'Erreur lors de la suppression du transfert',
             error: error.message
+        });
+    }
+});
+
+// Route pour exécuter la copie automatique du stock
+app.post('/api/stock/copy', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const { date, dryRun = false } = req.body;
+        
+        // Validation des paramètres
+        if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Format de date invalide. Utilisez YYYY-MM-DD'
+            });
+        }
+
+        console.log(`Exécution de la copie du stock via API. Date: ${date || 'auto'}, Dry-run: ${dryRun}`);
+
+        // Construire les arguments pour le script
+        const args = ['scripts/copy-stock-cron.js'];
+        if (dryRun) {
+            args.push('--dry-run');
+        }
+        if (date) {
+            args.push(`--date=${date}`);
+        }
+
+        // Exécuter le script
+        const childProcess = spawn('node', args, {
+            cwd: __dirname,
+            stdio: ['inherit', 'pipe', 'pipe']
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        childProcess.stdout.on('data', (data) => {
+            stdout += data.toString();
+        });
+
+        childProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+
+        childProcess.on('close', (code) => {
+            if (code === 0) {
+                res.json({
+                    success: true,
+                    message: dryRun ? 'Simulation terminée avec succès' : 'Copie terminée avec succès',
+                    output: stdout,
+                    dryRun: dryRun
+                });
+            } else {
+                res.status(500).json({
+                    success: false,
+                    error: 'Erreur lors de l\'exécution du script',
+                    output: stdout,
+                    errorOutput: stderr,
+                    exitCode: code
+                });
+            }
+        });
+
+        childProcess.on('error', (error) => {
+            console.error('Erreur lors du lancement du script:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Erreur lors du lancement du script',
+                details: error.message
+            });
+        });
+
+    } catch (error) {
+        console.error('Erreur dans l\'API de copie du stock:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erreur interne du serveur',
+            details: error.message
+        });
+    }
+});
+
+// API endpoint to trigger stock copy automation
+app.post('/api/stock/copy', async (req, res) => {
+    try {
+        // Check API key authentication
+        const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+        
+        if (!apiKey || apiKey !== process.env.EXTERNAL_API_KEY) {
+            return res.status(401).json({
+                success: false,
+                error: 'Unauthorized: Invalid or missing API key'
+            });
+        }
+
+        const { date, dryRun = false, override = true } = req.body;
+        
+        console.log('🚀 API Stock Copy Request:', { date, dryRun, override });
+
+        // Validate date format if provided
+        if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid date format. Use YYYY-MM-DD format.'
+            });
+        }
+
+        // Prepare command arguments
+        const args = ['scripts/copy-stock-cron.js'];
+        
+        if (dryRun) {
+            args.push('--dry-run');
+        }
+        
+        if (date) {
+            args.push(`--date=${date}`);
+        }
+
+        console.log('📋 Executing command: node', args.join(' '));
+
+        // Execute the stock copy script
+        const child = spawn('node', args, {
+            cwd: process.cwd(),
+            env: {
+                ...process.env,
+                NODE_ENV: process.env.NODE_ENV || 'production',
+                LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+                DATA_PATH: process.env.DATA_PATH || './data/by-date'
+            }
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (data) => {
+            stdout += data.toString();
+            console.log('📤 Script output:', data.toString().trim());
+        });
+
+        child.stderr.on('data', (data) => {
+            stderr += data.toString();
+            console.error('❌ Script error:', data.toString().trim());
+        });
+
+        child.on('close', (code) => {
+            console.log(`✅ Script execution completed with exit code: ${code}`);
+            
+            if (code === 0) {
+                res.json({
+                    success: true,
+                    message: 'Stock copy executed successfully',
+                    exitCode: code,
+                    output: stdout,
+                    dryRun,
+                    date: date || 'auto-detected',
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                res.status(500).json({
+                    success: false,
+                    error: 'Stock copy script failed',
+                    exitCode: code,
+                    output: stdout,
+                    errorOutput: stderr,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        child.on('error', (error) => {
+            console.error('💥 Failed to start script:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to execute stock copy script',
+                details: error.message,
+                timestamp: new Date().toISOString()
+            });
+        });
+
+    } catch (error) {
+        console.error('🚨 API Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+            details: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 });

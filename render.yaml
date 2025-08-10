@@ -11,6 +11,8 @@ services:
         value: production
       - key: PORT
         value: 3000
+      - key: EXTERNAL_API_KEY
+        value: mata-stock-copy-2025-secure-key
 
   # Service cron pour la copie automatique du stock
   - type: cron
