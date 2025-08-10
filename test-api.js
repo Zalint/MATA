@@ -36,7 +36,7 @@ const requestData = JSON.stringify({
 });
 
 // Parse URL
-const url = new URL(`${API_BASE_URL}/external/stock/copy`);
+const url = new URL(`${API_BASE_URL}/api/external/stock/copy`);
 const isHttps = url.protocol === 'https:';
 const client = isHttps ? https : http;
 

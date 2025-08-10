@@ -1464,32 +1464,9 @@ app.post('/api/stock/copy', checkAuth, checkWriteAccess, async (req, res) => {
     }
 });
 
-// API endpoint to trigger stock copy automation (external access, no session required)
-app.post('/external/stock/copy', async (req, res) => {
+// External API endpoint to trigger stock copy automation
+app.post('/api/external/stock/copy', validateApiKey, async (req, res) => {
     try {
-        // Check API key authentication
-        const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
-        const expectedApiKey = process.env.EXTERNAL_API_KEY;
-        
-        console.log('🔐 API Key check:', { 
-            providedKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'none',
-            expectedExists: !!expectedApiKey,
-            match: apiKey === expectedApiKey
-        });
-        
-        if (!expectedApiKey) {
-            return res.status(500).json({
-                success: false,
-                error: 'Server configuration error: EXTERNAL_API_KEY not set'
-            });
-        }
-        
-        if (!apiKey || apiKey !== expectedApiKey) {
-            return res.status(401).json({
-                success: false,
-                error: 'Unauthorized: Invalid or missing API key'
-            });
-        }
 
         const { date, dryRun = false, override = true } = req.body;
         
@@ -1586,8 +1563,8 @@ app.post('/external/stock/copy', async (req, res) => {
     }
 });
 
-// Health check endpoint for API configuration (external access)
-app.get('/external/health', (req, res) => {
+// External API health check endpoint
+app.get('/api/external/health', validateApiKey, (req, res) => {
     res.json({
         success: true,
         timestamp: new Date().toISOString(),

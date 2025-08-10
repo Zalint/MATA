@@ -17,7 +17,7 @@ All requests require an API key for security.
 ## Endpoint
 
 ```
-POST /external/stock/copy
+POST /api/external/stock/copy
 ```
 
 ## Request Body
@@ -71,7 +71,7 @@ POST /external/stock/copy
 
 **Dry Run Test:**
 ```bash
-curl -X POST https://mata-lgzy.onrender.com/external/stock/copy \
+curl -X POST https://mata-lgzy.onrender.com/api/external/stock/copy \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -d '{
@@ -82,7 +82,7 @@ curl -X POST https://mata-lgzy.onrender.com/external/stock/copy \
 
 **Production Execution:**
 ```bash
-curl -X POST https://mata-lgzy.onrender.com/external/stock/copy \
+curl -X POST https://mata-lgzy.onrender.com/api/external/stock/copy \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -d '{
@@ -93,7 +93,7 @@ curl -X POST https://mata-lgzy.onrender.com/external/stock/copy \
 
 **Auto-detect Date:**
 ```bash
-curl -X POST https://mata-lgzy.onrender.com/external/stock/copy \
+curl -X POST https://mata-lgzy.onrender.com/api/external/stock/copy \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key" \
   -d '{
@@ -126,7 +126,7 @@ console.log(result);
 import requests
 
 response = requests.post(
-    'https://mata-lgzy.onrender.com/external/stock/copy',
+    'https://mata-lgzy.onrender.com/api/external/stock/copy',
     headers={
         'Content-Type': 'application/json',
         'X-API-Key': 'your-api-key'
