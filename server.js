@@ -1464,8 +1464,8 @@ app.post('/api/stock/copy', checkAuth, checkWriteAccess, async (req, res) => {
     }
 });
 
-// API endpoint to trigger stock copy automation
-app.post('/api/stock/copy', async (req, res) => {
+// API endpoint to trigger stock copy automation (external access, no session required)
+app.post('/external/stock/copy', async (req, res) => {
     try {
         // Check API key authentication
         const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
@@ -1586,8 +1586,8 @@ app.post('/api/stock/copy', async (req, res) => {
     }
 });
 
-// Health check endpoint for API configuration
-app.get('/api/health', (req, res) => {
+// Health check endpoint for API configuration (external access)
+app.get('/external/health', (req, res) => {
     res.json({
         success: true,
         timestamp: new Date().toISOString(),

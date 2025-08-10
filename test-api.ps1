@@ -1,6 +1,6 @@
 # PowerShell script to test the Stock Copy API
 
-$apiUrl = "https://mata-lgzy.onrender.com/api/stock/copy"
+$apiUrl = "https://mata-lgzy.onrender.com/external/stock/copy"
 $apiKey = "mata-stock-copy-2025-secure-key"
 
 $headers = @{
