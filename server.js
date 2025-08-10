@@ -1469,8 +1469,22 @@ app.post('/api/stock/copy', async (req, res) => {
     try {
         // Check API key authentication
         const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+        const expectedApiKey = process.env.EXTERNAL_API_KEY;
         
-        if (!apiKey || apiKey !== process.env.EXTERNAL_API_KEY) {
+        console.log('🔐 API Key check:', { 
+            providedKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'none',
+            expectedExists: !!expectedApiKey,
+            match: apiKey === expectedApiKey
+        });
+        
+        if (!expectedApiKey) {
+            return res.status(500).json({
+                success: false,
+                error: 'Server configuration error: EXTERNAL_API_KEY not set'
+            });
+        }
+        
+        if (!apiKey || apiKey !== expectedApiKey) {
             return res.status(401).json({
                 success: false,
                 error: 'Unauthorized: Invalid or missing API key'
@@ -1570,6 +1584,17 @@ app.post('/api/stock/copy', async (req, res) => {
             timestamp: new Date().toISOString()
         });
     }
+});
+
+// Health check endpoint for API configuration
+app.get('/api/health', (req, res) => {
+    res.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        apiKeyConfigured: !!process.env.EXTERNAL_API_KEY,
+        version: '1.0.0'
+    });
 });
 
 // Route pour supprimer une vente
