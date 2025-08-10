@@ -94,14 +94,19 @@ class FileManager {
     }
 
     findDataPath() {
-        // Chemins possibles pour les données
+        // Si DATA_PATH est défini, l'utiliser en priorité
+        if (process.env.DATA_PATH) {
+            logger.info(`🎯 Utilisation de DATA_PATH: ${process.env.DATA_PATH}`);
+            return process.env.DATA_PATH;
+        }
+
+        // Chemins de fallback pour le développement local
         const possiblePaths = [
             './data/by-date',           // Développement local
             '../data/by-date',          // Si dans scripts/
             '../../data/by-date',       // Autre structure
-            '/app/data/by-date',        // Render typique
             '/opt/render/project/src/data/by-date',  // Render avec src
-            process.env.DATA_PATH || './data/by-date'  // Variable d'environnement
+            '/app/data/by-date'         // Render alternatif
         ];
 
         for (const testPath of possiblePaths) {
@@ -152,6 +157,23 @@ class FileManager {
 
     fileExistsSync(filePath) {
         return fsSync.existsSync(filePath);
+    }
+
+    async checkPermissions(dirPath) {
+        try {
+            // Tester l'accès en lecture
+            await fs.access(dirPath, fs.constants.R_OK);
+            logger.info(`✅ Permissions de lecture OK: ${dirPath}`);
+            
+            // Tester l'accès en écriture
+            await fs.access(dirPath, fs.constants.W_OK);
+            logger.info(`✅ Permissions d'écriture OK: ${dirPath}`);
+            
+            return true;
+        } catch (error) {
+            logger.error(`❌ Erreur de permissions sur ${dirPath}: ${error.message}`);
+            return false;
+        }
     }
 
     async readJsonFile(filePath) {
@@ -253,6 +275,12 @@ class StockCopyProcessor {
         try {
             logger.info('🚀 Début de la copie automatique du stock');
             logger.info(`Configuration: DRY_RUN=${CONFIG.DRY_RUN}, OVERRIDE=${CONFIG.OVERRIDE_EXISTING}`);
+
+            // Vérification des permissions sur le répertoire de données
+            const hasPermissions = await this.fileManager.checkPermissions(this.fileManager.baseDataPath);
+            if (!hasPermissions) {
+                throw new Error(`❌ Permissions insuffisantes sur ${this.fileManager.baseDataPath}`);
+            }
 
             // Déterminer les dates
             this.stats.sourceDate = sourceDate || DateUtils.getYesterday();
