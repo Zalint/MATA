@@ -9,6 +9,7 @@
  */
 
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 
 // Configuration
@@ -83,8 +84,41 @@ class DateUtils {
 
 // Gestionnaire de fichiers
 class FileManager {
-    constructor(baseDataPath = './data/by-date') {
+    constructor(baseDataPath = null) {
+        // Auto-détection du chemin des données
+        if (!baseDataPath) {
+            baseDataPath = this.findDataPath();
+        }
         this.baseDataPath = path.resolve(baseDataPath);
+        logger.info(`📁 Répertoire de données: ${this.baseDataPath}`);
+    }
+
+    findDataPath() {
+        // Chemins possibles pour les données
+        const possiblePaths = [
+            './data/by-date',           // Développement local
+            '../data/by-date',          // Si dans scripts/
+            '../../data/by-date',       // Autre structure
+            '/app/data/by-date',        // Render typique
+            '/opt/render/project/src/data/by-date',  // Render avec src
+            process.env.DATA_PATH || './data/by-date'  // Variable d'environnement
+        ];
+
+        for (const testPath of possiblePaths) {
+            const resolvedPath = path.resolve(testPath);
+            try {
+                if (fsSync.existsSync(resolvedPath)) {
+                    logger.info(`✅ Répertoire de données trouvé: ${resolvedPath}`);
+                    return testPath;
+                }
+            } catch (error) {
+                // Continue vers le chemin suivant
+            }
+        }
+
+        // Par défaut, utiliser le chemin relatif
+        logger.warn('⚠️ Aucun répertoire de données trouvé, utilisation du chemin par défaut');
+        return './data/by-date';
     }
 
     getStockSoirPath(date) {
@@ -114,6 +148,10 @@ class FileManager {
         } catch {
             return false;
         }
+    }
+
+    fileExistsSync(filePath) {
+        return fsSync.existsSync(filePath);
     }
 
     async readJsonFile(filePath) {
