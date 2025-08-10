@@ -8,11 +8,13 @@ $headers = @{
     'X-API-Key' = $apiKey
 }
 
-$body = @{
+$bodyObject = @{
     date = "2025-08-09"
     dryRun = $true
     override = $true
-} | ConvertTo-Json
+}
+
+$body = $bodyObject | ConvertTo-Json -Compress
 
 Write-Host "🧪 Testing Stock Copy API"
 Write-Host "📍 URL: $apiUrl"
