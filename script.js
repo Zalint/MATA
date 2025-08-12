@@ -49,6 +49,21 @@ const isDebugMode = true;
 const reconciliationCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes en millisecondes
 
+// Fonctions pour gérer le spinner de chargement
+function showLoadingSpinner() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+        overlay.classList.add('show');
+    }
+}
+
+function hideLoadingSpinner() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+        overlay.classList.remove('show');
+    }
+}
+
 // Mapping pour standardiser les noms des points de vente
 const MAPPING_POINTS_VENTE = {
     'KEUR MASS': 'Keur Massar',
@@ -1256,6 +1271,9 @@ document.getElementById('vente-form').addEventListener('submit', async function(
         return;
     }
     
+    // Afficher le spinner de chargement
+    showLoadingSpinner();
+    
     try {
         const url = isUpdate ? `/api/ventes/${venteId}` : '/api/ventes';
         const method = isUpdate ? 'PUT' : 'POST';
@@ -1306,10 +1324,16 @@ document.getElementById('vente-form').addEventListener('submit', async function(
             await chargerDernieresVentes();
             
             // Note: nous ne calculons plus le total ici car chargerDernieresVentes le fait déjà
+            
+            // Masquer le spinner de chargement
+            hideLoadingSpinner();
         } else {
+            hideLoadingSpinner();
             throw new Error(data.message || (isUpdate ? 'Erreur lors de la mise à jour de la vente' : 'Erreur lors de l\'enregistrement des ventes'));
         }
     } catch (error) {
+        // Masquer le spinner de chargement en cas d'erreur
+        hideLoadingSpinner();
         console.error('Erreur:', error);
         alert(error.message || (isUpdate ? 'Erreur lors de la mise à jour de la vente' : 'Erreur lors de l\'enregistrement des ventes'));
     }
