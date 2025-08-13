@@ -455,7 +455,7 @@ app.post('/api/admin/users', checkAuth, checkAdmin, async (req, res) => {
     try {
         const { username, password, role, pointVente, active } = req.body;
         
-        if (!username || !password || !role || !pointVente) {
+        if (!username || !password || !role || !pointVente || (Array.isArray(pointVente) && pointVente.length === 0)) {
             return res.status(400).json({ success: false, message: 'Tous les champs sont obligatoires' });
         }
         

@@ -72,7 +72,7 @@ function displayUsers() {
                     ${user.role === 'admin' ? 'Administrateur' : user.role === 'lecteur' ? 'Lecteur' : 'Utilisateur'}
                 </span>
             </td>
-            <td>${user.pointVente}</td>
+            <td>${Array.isArray(user.pointVente) ? user.pointVente.join(', ') : user.pointVente}</td>
             <td>
                 <span class="badge ${user.active ? 'bg-success' : 'bg-secondary'} status-badge">
                     ${user.active ? 'Actif' : 'Inactif'}
@@ -222,8 +222,23 @@ function editUser(username) {
     document.getElementById('editNewUsername').value = user.username;
     document.getElementById('editNewPassword').value = ''; // Mot de passe vide par défaut
     document.getElementById('editNewRole').value = user.role;
-    document.getElementById('editNewPointVente').value = user.pointVente;
     document.getElementById('editNewUserActive').checked = user.active;
+    
+    // Gérer les checkboxes des points de vente
+    const userPointsVente = Array.isArray(user.pointVente) ? user.pointVente : [user.pointVente];
+    
+    // D'abord, décocher toutes les checkboxes
+    document.querySelectorAll('input[name="editPointVente"]').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // Ensuite, cocher celles qui correspondent aux points de vente de l'utilisateur
+    userPointsVente.forEach(pv => {
+        const checkbox = document.querySelector(`input[name="editPointVente"][value="${pv}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+        }
+    });
     
     // Afficher le modal
     const editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
@@ -236,11 +251,13 @@ async function saveEditUser() {
     const newUsername = document.getElementById('editNewUsername').value.trim();
     const newPassword = document.getElementById('editNewPassword').value;
     const newRole = document.getElementById('editNewRole').value;
-    const newPointVente = document.getElementById('editNewPointVente').value;
+    // Récupérer les checkboxes cochées pour les points de vente
+    const selectedEditCheckboxes = document.querySelectorAll('input[name="editPointVente"]:checked');
+    const newPointVente = Array.from(selectedEditCheckboxes).map(checkbox => checkbox.value);
     const newActive = document.getElementById('editNewUserActive').checked;
     
-    if (!newUsername || !newRole || !newPointVente) {
-        alert('Veuillez remplir tous les champs obligatoires');
+    if (!newUsername || !newRole || newPointVente.length === 0) {
+        alert('Veuillez remplir tous les champs obligatoires et sélectionner au moins un point de vente');
         return;
     }
     
@@ -286,6 +303,54 @@ async function saveEditUser() {
     }
 }
 
+// Fonction pour gérer la logique des checkboxes des points de vente
+function setupPointVenteCheckboxes() {
+    const tousCheckbox = document.getElementById('pv-tous');
+    const otherCheckboxes = document.querySelectorAll('input[name="pointVente"]:not(#pv-tous)');
+    
+    // Quand "Tous" est coché, décocher les autres
+    tousCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            otherCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        }
+    });
+    
+    // Quand une autre option est cochée, décocher "Tous"
+    otherCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                tousCheckbox.checked = false;
+            }
+        });
+    });
+}
+
+// Fonction pour gérer la logique des checkboxes du modal d'édition
+function setupEditPointVenteCheckboxes() {
+    const tousCheckbox = document.getElementById('edit-pv-tous');
+    const otherCheckboxes = document.querySelectorAll('input[name="editPointVente"]:not(#edit-pv-tous)');
+    
+    // Quand "Tous" est coché, décocher les autres
+    tousCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            otherCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        }
+    });
+    
+    // Quand une autre option est cochée, décocher "Tous"
+    otherCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                tousCheckbox.checked = false;
+            }
+        });
+    });
+}
+
 // Initialisation
 document.addEventListener('DOMContentLoaded', async function() {
     // Initialiser le modal Bootstrap
@@ -304,11 +369,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             const username = document.getElementById('newUsername').value.trim();
             const password = document.getElementById('newPassword').value;
             const role = document.getElementById('newRole').value;
-            const pointVente = document.getElementById('newPointVente').value;
+            // Récupérer les checkboxes cochées
+            const selectedCheckboxes = document.querySelectorAll('input[name="pointVente"]:checked');
+            const selectedOptions = Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
             const active = document.getElementById('newUserActive').checked;
             
-            if (!username || !password || !role || !pointVente) {
-                alert('Veuillez remplir tous les champs obligatoires');
+            if (!username || !password || !role || selectedOptions.length === 0) {
+                alert('Veuillez remplir tous les champs obligatoires et sélectionner au moins un point de vente');
                 return;
             }
             
@@ -322,7 +389,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 username,
                 password,
                 role,
-                pointVente,
+                pointVente: selectedOptions,
                 active
             });
         });
@@ -332,6 +399,10 @@ document.addEventListener('DOMContentLoaded', async function() {
             e.preventDefault();
             logout();
         });
+        
+        // Gestion des checkboxes des points de vente
+        setupPointVenteCheckboxes();
+        setupEditPointVenteCheckboxes();
         
         // Gestionnaire pour la confirmation d'action
         document.getElementById('confirmAction').addEventListener('click', function() {

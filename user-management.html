@@ -102,19 +102,46 @@
                                 <label for="newRole">Rôle</label>
                             </div>
                             
-                            <div class="form-floating">
-                                <select class="form-select" id="newPointVente" required>
-                                    <option value="">Sélectionner un point de vente</option>
-                                    <option value="tous">Tous les points de vente</option>
-                                    <option value="Mbao">Mbao</option>
-                                    <option value="O.Foire">O.Foire</option>
-                                    <option value="Keur Massar">Keur Massar</option>
-                                    <option value="Linguere">Linguere</option>
-                                    <option value="Dahra">Dahra</option>
-                                    <option value="Touba">Touba</option>
-                                    <option value="Sacre Coeur">Sacre Coeur</option>
-                                </select>
-                                <label for="newPointVente">Point de vente</label>
+                            <div class="mb-3">
+                                <label class="form-label">Points de vente *</label>
+                                <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="tous" id="pv-tous" name="pointVente">
+                                        <label class="form-check-label" for="pv-tous">
+                                            <strong>Tous les points de vente</strong>
+                                        </label>
+                                    </div>
+                                    <hr class="my-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="Mbao" id="pv-mbao" name="pointVente">
+                                        <label class="form-check-label" for="pv-mbao">Mbao</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="O.Foire" id="pv-ofoire" name="pointVente">
+                                        <label class="form-check-label" for="pv-ofoire">O.Foire</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="Keur Massar" id="pv-keurmassar" name="pointVente">
+                                        <label class="form-check-label" for="pv-keurmassar">Keur Massar</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="Linguere" id="pv-linguere" name="pointVente">
+                                        <label class="form-check-label" for="pv-linguere">Linguere</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="Dahra" id="pv-dahra" name="pointVente">
+                                        <label class="form-check-label" for="pv-dahra">Dahra</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="Touba" id="pv-touba" name="pointVente">
+                                        <label class="form-check-label" for="pv-touba">Touba</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="Sacre Coeur" id="pv-sacrecoeur" name="pointVente">
+                                        <label class="form-check-label" for="pv-sacrecoeur">Sacre Coeur</label>
+                                    </div>
+                                </div>
+                                <small class="text-muted">Sélectionnez un ou plusieurs points de vente</small>
                             </div>
                             
                             <div class="form-check form-switch mb-3">
@@ -197,19 +224,45 @@
                             <label for="editNewRole">Rôle</label>
                         </div>
                         
-                        <div class="form-floating mb-3">
-                            <select class="form-select" id="editNewPointVente" required>
-                                <option value="">Sélectionner un point de vente</option>
-                                <option value="tous">Tous les points de vente</option>
-                                <option value="Mbao">Mbao</option>
-                                <option value="O.Foire">O.Foire</option>
-                                <option value="Keur Massar">Keur Massar</option>
-                                <option value="Linguere">Linguere</option>
-                                <option value="Dahra">Dahra</option>
-                                <option value="Touba">Touba</option>
-                                <option value="Sacre Coeur">Sacre Coeur</option>
-                            </select>
-                            <label for="editNewPointVente">Point de vente</label>
+                        <div class="mb-3">
+                            <label class="form-label">Points de vente *</label>
+                            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="tous" id="edit-pv-tous" name="editPointVente">
+                                    <label class="form-check-label" for="edit-pv-tous">
+                                        <strong>Tous les points de vente</strong>
+                                    </label>
+                                </div>
+                                <hr class="my-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="Mbao" id="edit-pv-mbao" name="editPointVente">
+                                    <label class="form-check-label" for="edit-pv-mbao">Mbao</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="O.Foire" id="edit-pv-ofoire" name="editPointVente">
+                                    <label class="form-check-label" for="edit-pv-ofoire">O.Foire</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="Keur Massar" id="edit-pv-keurmassar" name="editPointVente">
+                                    <label class="form-check-label" for="edit-pv-keurmassar">Keur Massar</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="Linguere" id="edit-pv-linguere" name="editPointVente">
+                                    <label class="form-check-label" for="edit-pv-linguere">Linguere</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="Dahra" id="edit-pv-dahra" name="editPointVente">
+                                    <label class="form-check-label" for="edit-pv-dahra">Dahra</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="Touba" id="edit-pv-touba" name="editPointVente">
+                                    <label class="form-check-label" for="edit-pv-touba">Touba</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="Sacre Coeur" id="edit-pv-sacrecoeur" name="editPointVente">
+                                    <label class="form-check-label" for="edit-pv-sacrecoeur">Sacre Coeur</label>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="form-check form-switch mb-3">

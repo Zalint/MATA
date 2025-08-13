@@ -174,7 +174,15 @@ async function verifyCredentials(username, password) {
         isAdmin: user.role === 'admin',
         isLecteur: user.role === 'lecteur',
         canRead: ['lecteur', 'user', 'admin'].includes(user.role),
-        canWrite: ['user', 'admin'].includes(user.role)
+        canWrite: ['user', 'admin'].includes(user.role),
+        // Fonction utilitaire pour vérifier l'accès à un point de vente
+        hasAccessToPointVente: function(pointVente) {
+            if (!this.pointVente) return false;
+            if (Array.isArray(this.pointVente)) {
+                return this.pointVente.includes('tous') || this.pointVente.includes(pointVente);
+            }
+            return this.pointVente === 'tous' || this.pointVente === pointVente;
+        }
     };
 }
 

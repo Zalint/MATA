@@ -717,10 +717,11 @@ async function checkAuth() {
         updateViderBaseButtonVisibility();
         
         // Initialiser le point de vente selon l'utilisateur
-        if (currentUser.pointVente !== "tous") {
+        const userPointsVente = getUserAuthorizedPointsVente();
+        if (!userPointsVente.includes("tous") && userPointsVente.length === 1) {
             const pointVenteSelect = document.getElementById('point-vente');
             if (pointVenteSelect) {
-                pointVenteSelect.value = currentUser.pointVente;
+                pointVenteSelect.value = userPointsVente[0];
                 pointVenteSelect.disabled = true;
             }
         }
@@ -1316,8 +1317,9 @@ document.getElementById('vente-form').addEventListener('submit', async function(
             document.getElementById('date')._flatpickr.setDate(new Date());
             
             // Réappliquer le point de vente selon les droits de l'utilisateur
-            if (currentUser.pointVente !== "tous") {
-                pointVenteSelect.value = currentUser.pointVente;
+            const userPointsVente = getUserAuthorizedPointsVente();
+            if (!userPointsVente.includes("tous") && userPointsVente.length === 1) {
+                pointVenteSelect.value = userPointsVente[0];
                 pointVenteSelect.disabled = true;
             } else if (currentPointVente) {
                 pointVenteSelect.value = currentPointVente;
@@ -1727,6 +1729,21 @@ function afficherDernieresVentes(ventes) {
 /**
  * Fetches active points of sale from the server and populates all relevant dropdowns.
  */
+// Fonction pour obtenir les points de vente autorisés pour l'utilisateur actuel
+function getUserAuthorizedPointsVente() {
+    if (!currentUser || !currentUser.pointVente) {
+        return [];
+    }
+    
+    // Si c'est un tableau, le retourner tel quel
+    if (Array.isArray(currentUser.pointVente)) {
+        return currentUser.pointVente;
+    }
+    
+    // Si c'est une chaîne, la convertir en tableau
+    return [currentUser.pointVente];
+}
+
 async function populatePointVenteDropdowns() {
     console.log('Fetching active points of sale...');
     try {
@@ -1767,13 +1784,23 @@ async function populatePointVenteDropdowns() {
                     selectElement.remove(1);
                 }
 
-                // Add new options from the server
+                // Filtrer les points de vente selon les droits de l'utilisateur
+                const userPointsVente = getUserAuthorizedPointsVente();
+                // Add new options from the server (only authorized ones)
                 activePointsVente.forEach(pv => {
-                    const option = document.createElement('option');
-                    option.value = pv;
-                    option.textContent = pv;
-                    selectElement.appendChild(option);
+                    // Montrer le point de vente si l'utilisateur y a accès
+                    if (userPointsVente.includes('tous') || userPointsVente.includes(pv)) {
+                        const option = document.createElement('option');
+                        option.value = pv;
+                        option.textContent = pv;
+                        selectElement.appendChild(option);
+                    }
                 });
+                
+                // Réactiver le dropdown s'il a des options
+                if (selectElement.options.length > 1 && selectElement.disabled) {
+                    selectElement.disabled = false;
+                }
                 
                 // Restore the old value if it's still valid
                 if (activePointsVente.includes(currentValue)) {
@@ -3431,7 +3458,9 @@ function afficherOngletsSuivantDroits(userData) {
     const cashPaymentItem = document.getElementById('cash-payment-item');
     const estimationItem = document.getElementById('estimation-item');
     
-    if (userData.pointVente === 'tous') {
+    // Vérifier si l'utilisateur a accès à "tous" les points de vente
+    const userPointsVente = Array.isArray(userData.pointVente) ? userData.pointVente : [userData.pointVente];
+    if (userPointsVente.includes('tous')) {
         stockInventaireItem.style.display = 'block';
     } else {
         stockInventaireItem.style.display = 'none';
