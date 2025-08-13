@@ -556,6 +556,18 @@ app.post('/api/ventes', checkAuth, checkWriteAccess, async (req, res) => {
     
     console.log('Tentative d\'ajout de ventes:', JSON.stringify(entries));
     
+    // Vérifier les restrictions temporelles pour chaque vente
+    for (const entry of entries) {
+        const restriction = checkSaleTimeRestrictions(entry.date, req.session.user.username);
+        if (!restriction.allowed) {
+            return res.status(403).json({
+                success: false,
+                message: restriction.message,
+                timeRestriction: true
+            });
+        }
+    }
+    
     // Vérifier si le point de vente est actif
     for (const entry of entries) {
         if (!pointsVente[entry.pointVente]?.active) {
@@ -660,6 +672,16 @@ app.put('/api/ventes/:id', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const venteId = req.params.id;
         const updatedVente = req.body;
+        
+        // Vérifier les restrictions temporelles pour la mise à jour
+        const restriction = checkSaleTimeRestrictions(updatedVente.date, req.session.user.username);
+        if (!restriction.allowed) {
+            return res.status(403).json({
+                success: false,
+                message: restriction.message,
+                timeRestriction: true
+            });
+        }
         
         // Vérifier si le point de vente est actif
         if (!pointsVente[updatedVente.pointVente]?.active) {
@@ -1104,6 +1126,142 @@ app.get('/api/stock/:type', checkAuth, checkReadAccess, async (req, res) => {
     }
 });
 
+// Fonction pour vérifier les restrictions temporelles pour le stock
+function checkStockTimeRestrictions(dateStr, username) {
+    if (!username || !dateStr) return { allowed: false, message: 'Données manquantes' };
+    
+    const userRole = username.toUpperCase();
+    const privilegedUsers = ['SALIOU', 'OUSMANE'];
+    
+    // Les utilisateurs privilégiés peuvent modifier le stock pour n'importe quelle date
+    if (privilegedUsers.includes(userRole)) {
+        return { allowed: true };
+    }
+    
+    // Tous les autres utilisateurs sont soumis aux restrictions temporelles
+    try {
+        // Parser la date (format DD-MM-YYYY ou DD/MM/YYYY)
+        const dateRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/;
+        const match = dateStr.match(dateRegex);
+        if (!match) {
+            return { allowed: false, message: 'Format de date invalide' };
+        }
+        
+        const day = parseInt(match[1]);
+        const month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+        const year = parseInt(match[3]);
+        const targetDate = new Date(year, month, day);
+        
+        const now = new Date();
+        
+        // Calculer la date limite : targetDate + 1 jour + 4h
+        const deadlineDate = new Date(targetDate);
+        deadlineDate.setDate(deadlineDate.getDate() + 1);
+        deadlineDate.setHours(4, 0, 0, 0); // 4h00 du matin
+        
+        // L'action est autorisée si nous sommes avant la date limite
+        if (now <= deadlineDate) {
+            return { allowed: true };
+        } else {
+            return { 
+                allowed: false, 
+                message: `Vous ne pouvez pas modifier le stock pour cette date (${dateStr}). Seuls administrateurs peuvent modifier le stock à tout moment. Les autres utilisateurs peuvent modifier le stock seulement le jour J et jusqu'au lendemain avant 4h00 du matin.` 
+            };
+        }
+    } catch (error) {
+        return { allowed: false, message: 'Erreur lors de la validation de la date' };
+    }
+}
+
+// Middleware pour vérifier les restrictions temporelles pour le stock
+function checkStockTimeRestrictionsMiddleware(req, res, next) {
+    const user = req.session.user;
+    if (!user) {
+        return res.status(401).json({ success: false, error: 'Non authentifié' });
+    }
+    
+    // Extraire la date des données du stock
+    let stockDate = null;
+    
+    // Pour les stocks (structure objet avec clé contenant la date)
+    if (req.body && Object.values(req.body)[0] && Object.values(req.body)[0].date) {
+        stockDate = Object.values(req.body)[0].date;
+    }
+    
+    if (!stockDate) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'Date manquante dans les données du stock',
+            timeRestriction: true 
+        });
+    }
+    
+    // Vérifier les restrictions temporelles
+    const restriction = checkStockTimeRestrictions(stockDate, user.username);
+    if (!restriction.allowed) {
+        return res.status(403).json({
+            success: false,
+            error: restriction.message,
+            timeRestriction: true
+        });
+    }
+    
+    next();
+}
+
+// Fonction pour vérifier les restrictions temporelles pour les ventes
+function checkSaleTimeRestrictions(dateStr, username) {
+    if (!username || !dateStr) return { allowed: false, message: 'Données manquantes' };
+    
+    const userRole = username.toUpperCase();
+    const privilegedUsers = ['SALIOU', 'OUSMANE'];
+    const limitedAccessUsers = ['NADOU', 'PAPI', 'MBA', 'OSF', 'KMS', 'LNG', 'DHR', 'TBM'];
+    
+    // Les utilisateurs privilégiés peuvent ajouter des ventes pour n'importe quelle date
+    if (privilegedUsers.includes(userRole)) {
+        return { allowed: true };
+    }
+    
+    // Les utilisateurs avec accès limité ne peuvent ajouter des ventes que selon les nouvelles restrictions temporelles
+    if (limitedAccessUsers.includes(userRole)) {
+        try {
+            // Parser la date (format DD-MM-YYYY ou DD/MM/YYYY)
+            const dateRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/;
+            const match = dateStr.match(dateRegex);
+            if (!match) {
+                return { allowed: false, message: 'Format de date invalide' };
+            }
+            
+            const day = parseInt(match[1]);
+            const month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+            const year = parseInt(match[3]);
+            const targetDate = new Date(year, month, day);
+            
+            const now = new Date();
+            
+            // Calculer la date limite : targetDate + 1 jour + 4h
+            const deadlineDate = new Date(targetDate);
+            deadlineDate.setDate(deadlineDate.getDate() + 1);
+            deadlineDate.setHours(4, 0, 0, 0); // 4h00 du matin
+            
+            // L'action est autorisée si nous sommes avant la date limite
+            if (now <= deadlineDate) {
+                return { allowed: true };
+            } else {
+                return { 
+                    allowed: false, 
+                    message: `Vous ne pouvez pas ajouter de ventes pour cette date (${dateStr}). Les utilisateurs avec accès limité ne peuvent ajouter des ventes que le jour J et jusqu'au lendemain avant 4h00 du matin. Seuls administrateurs sont exemptés de cette restriction.` 
+                };
+            }
+        } catch (error) {
+            return { allowed: false, message: 'Erreur lors de la validation de la date' };
+        }
+    }
+    
+    // Autres utilisateurs : accès normal (pas de restriction)
+    return { allowed: true };
+}
+
 // Middleware pour vérifier les restrictions temporelles pour NADOU et PAPI
 function checkTimeRestrictions(req, res, next) {
     const user = req.session.user;
@@ -1149,7 +1307,7 @@ function checkTimeRestrictions(req, res, next) {
 }
 
 // Route pour sauvegarder les données de stock
-app.post('/api/stock/:type', checkAuth, checkWriteAccess, checkTimeRestrictions, async (req, res) => {
+app.post('/api/stock/:type', checkAuth, checkWriteAccess, checkStockTimeRestrictionsMiddleware, async (req, res) => {
     try {
         const type = req.params.type;
         const date = req.body && Object.values(req.body)[0] ? Object.values(req.body)[0].date : null;

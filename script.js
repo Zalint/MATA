@@ -724,6 +724,13 @@ async function checkAuth() {
                 pointVenteSelect.disabled = true;
             }
         }
+        
+        // Mettre à jour l'état initial du bouton Enregistrer
+        setTimeout(() => {
+            updateSubmitButtonState();
+            // Mettre à jour l'état initial des boutons de stock si on est sur cette page
+            updateStockButtonsState();
+        }, 100);
     } catch (error) {
         console.error('Erreur lors de la vérification de la session:', error);
         window.location.href = 'login.html';
@@ -754,7 +761,11 @@ checkAuth();
 flatpickr("#date", {
     locale: "fr",
     dateFormat: "d/m/Y",
-    defaultDate: "today"
+    defaultDate: "today",
+    onChange: function(selectedDates, dateStr) {
+        // Mettre à jour l'état du bouton Enregistrer selon la date sélectionnée
+        updateSubmitButtonState();
+    }
 });
 
 // Configuration des dates pour la visualisation
@@ -934,6 +945,8 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(calculerTotalGeneral, 0);
             // Recharger les ventes filtrées par date et point de vente
             chargerDernieresVentes();
+            // Mettre à jour l'état du bouton Enregistrer selon la date sélectionnée
+            updateSubmitButtonState();
         });
     }
     
@@ -1217,6 +1230,12 @@ document.getElementById('vente-form').addEventListener('submit', async function(
         return;
     }
     
+    // Vérifier les restrictions temporelles pour l'ajout de ventes
+    if (!canAddSaleForDate(date, currentUser.username)) {
+        alert('Vous ne pouvez pas ajouter de ventes pour cette date. Les utilisateurs avec accès limité ne peuvent ajouter des ventes que le jour J et jusqu\'au lendemain avant 4h00 du matin. Seuls administrateurs sont exemptés de cette restriction.');
+        return;
+    }
+    
     // Récupérer l'ID de la vente en cours de modification s'il existe
     const venteEnCoursDeModification = document.querySelector('.produit-entry[data-vente-id]');
     const venteId = venteEnCoursDeModification ? venteEnCoursDeModification.dataset.venteId : null;
@@ -1366,6 +1385,246 @@ function isYesterday(dateStr) {
            date.getFullYear() === yesterday.getFullYear();
 }
 
+// Nouvelle fonction pour vérifier si une action est autorisée selon les restrictions temporelles
+// Autorise : le jour J et jusqu'au lendemain avant 4h00 du matin
+function canPerformActionForDate(dateStr) {
+    if (!dateStr) return false;
+    
+    try {
+        // Parser la date (format DD-MM-YYYY ou DD/MM/YYYY)
+        const dateRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/;
+        const match = dateStr.match(dateRegex);
+        if (!match) {
+            return false;
+        }
+        
+        const day = parseInt(match[1]);
+        const month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+        const year = parseInt(match[3]);
+        const targetDate = new Date(year, month, day);
+        
+        const now = new Date();
+        const currentHour = now.getHours();
+        
+        // Calculer la date limite : targetDate + 1 jour + 4h
+        const deadlineDate = new Date(targetDate);
+        deadlineDate.setDate(deadlineDate.getDate() + 1);
+        deadlineDate.setHours(4, 0, 0, 0); // 4h00 du matin
+        
+        // L'action est autorisée si nous sommes avant la date limite
+        return now <= deadlineDate;
+        
+    } catch (error) {
+        console.error('Erreur lors de la validation de la date:', error);
+        return false;
+    }
+}
+
+// Fonction pour vérifier si un utilisateur peut ajouter des ventes pour une date donnée
+function canAddSaleForDate(dateStr, username) {
+    if (!username || !dateStr) return false;
+    
+    const userRole = username.toUpperCase();
+    const privilegedUsers = ['SALIOU', 'OUSMANE'];
+    const limitedAccessUsers = ['NADOU', 'PAPI', 'MBA', 'OSF', 'KMS', 'LNG', 'DHR', 'TBM'];
+    
+    // Les utilisateurs privilégiés peuvent ajouter des ventes pour n'importe quelle date
+    if (privilegedUsers.includes(userRole)) {
+        return true;
+    }
+    
+    // Les utilisateurs avec accès limité ne peuvent ajouter des ventes que selon les nouvelles restrictions temporelles
+    if (limitedAccessUsers.includes(userRole)) {
+        return canPerformActionForDate(dateStr);
+    }
+    
+    // Autres utilisateurs : accès normal (pas de restriction)
+    return true;
+}
+
+// Fonction pour vérifier si un utilisateur peut modifier le stock pour une date donnée
+function canModifyStockForDate(dateStr, username) {
+    if (!username || !dateStr) return false;
+    
+    const userRole = username.toUpperCase();
+    const privilegedUsers = ['SALIOU', 'OUSMANE'];
+    
+    // Les utilisateurs privilégiés peuvent modifier le stock pour n'importe quelle date
+    if (privilegedUsers.includes(userRole)) {
+        return true;
+    }
+    
+    // Tous les autres utilisateurs sont soumis aux restrictions temporelles
+    return canPerformActionForDate(dateStr);
+}
+
+// Fonction pour vérifier si un utilisateur peut modifier les champs du stock matin
+function canModifyStockMatinFields(username) {
+    if (!username) return false;
+    
+    const userRole = username.toUpperCase();
+    const privilegedUsers = ['SALIOU', 'OUSMANE'];
+    
+    // Seuls SALIOU et OUSMANE peuvent modifier les champs du stock matin
+    return privilegedUsers.includes(userRole);
+}
+
+// Fonction pour mettre à jour l'état des boutons du stock selon la date sélectionnée
+function updateStockButtonsState() {
+    const addStockButton = document.getElementById('add-stock-row');
+    const saveStockButton = document.getElementById('save-stock');
+    const dateInput = document.getElementById('date-inventaire');
+    const typeStockSelect = document.getElementById('type-stock');
+    
+    if (!dateInput || !currentUser || !typeStockSelect) return;
+    
+    const selectedDate = dateInput.value;
+    const typeStock = typeStockSelect.value;
+    const canModify = canModifyStockForDate(selectedDate, currentUser.username);
+    const isStockMatin = typeStock === 'matin';
+    const canModifyMatinFields = canModifyStockMatinFields(currentUser.username);
+    
+    // Mettre à jour le bouton "Ajouter une ligne"
+    if (addStockButton) {
+        let shouldDisable = !canModify;
+        let buttonText = '<i class="fas fa-plus"></i> Ajouter une ligne';
+        let tooltipText = '';
+        
+        // Restrictions spéciales pour le stock matin
+        if (isStockMatin && !canModifyMatinFields) {
+            shouldDisable = true;
+            buttonText = '<i class="fas fa-plus"></i> Ajouter une ligne (Stock matin automatique)';
+            tooltipText = 'Le stock matin est rempli automatiquement par le système. Seuls les administrateurs peuvent le modifier manuellement.';
+        } else if (!canModify) {
+            buttonText = '<i class="fas fa-plus"></i> Ajouter une ligne (Date non autorisée)';
+            tooltipText = 'Vous ne pouvez pas modifier le stock pour cette date. Modification autorisée seulement le jour J et jusqu\'au lendemain avant 4h00 du matin.';
+        }
+        
+        if (shouldDisable) {
+            addStockButton.disabled = true;
+            addStockButton.classList.remove('btn-primary');
+            addStockButton.classList.add('btn-secondary');
+            addStockButton.innerHTML = buttonText;
+            addStockButton.title = tooltipText;
+        } else {
+            addStockButton.disabled = false;
+            addStockButton.classList.remove('btn-secondary');
+            addStockButton.classList.add('btn-primary');
+            addStockButton.innerHTML = buttonText;
+            addStockButton.title = '';
+        }
+    }
+    
+    // Mettre à jour le bouton "Sauvegarder le stock"
+    if (saveStockButton) {
+        if (canModify) {
+            saveStockButton.disabled = false;
+            saveStockButton.classList.remove('btn-secondary');
+            saveStockButton.classList.add('btn-success');
+            saveStockButton.innerHTML = '<i class="fas fa-save"></i> Sauvegarder le stock';
+            saveStockButton.title = '';
+        } else {
+            saveStockButton.disabled = true;
+            saveStockButton.classList.remove('btn-success');
+            saveStockButton.classList.add('btn-secondary');
+            saveStockButton.innerHTML = '<i class="fas fa-save"></i> Sauvegarder le stock (Date non autorisée)';
+            saveStockButton.title = 'Vous ne pouvez pas sauvegarder le stock pour cette date. Modification autorisée seulement le jour J et jusqu\'au lendemain avant 4h00 du matin.';
+        }
+    }
+    
+    // Mettre à jour l'état visuel des boutons de suppression existants
+    const deleteButtons = document.querySelectorAll('#stock-table .btn-danger, #stock-table .btn-secondary');
+    deleteButtons.forEach(button => {
+        let shouldDisable = !canModify;
+        let tooltipText = '';
+        
+        // Restrictions spéciales pour le stock matin
+        if (isStockMatin && !canModifyMatinFields) {
+            shouldDisable = true;
+            tooltipText = 'Le stock matin est rempli automatiquement par le système. Seuls les administrateurs peuvent le modifier manuellement.';
+        } else if (!canModify) {
+            tooltipText = 'Vous ne pouvez pas supprimer cette ligne pour cette date. Modification autorisée seulement le jour J et jusqu\'au lendemain avant 4h00 du matin.';
+        }
+        
+        if (shouldDisable) {
+            button.disabled = true;
+            button.classList.remove('btn-danger');
+            button.classList.add('btn-secondary');
+            button.title = tooltipText;
+        } else {
+            button.disabled = false;
+            button.classList.remove('btn-secondary');
+            button.classList.add('btn-danger');
+            button.title = '';
+        }
+    });
+    
+    // Mettre à jour l'état des champs d'édition pour le stock matin
+    if (isStockMatin && !canModifyMatinFields) {
+        updateStockMatinFieldsState(false);
+    } else {
+        updateStockMatinFieldsState(true);
+    }
+}
+
+// Fonction pour mettre à jour l'état des champs d'édition du stock matin
+function updateStockMatinFieldsState(enabled) {
+    const stockTableRows = document.querySelectorAll('#stock-table tbody tr');
+    
+    stockTableRows.forEach(row => {
+        // Désactiver/activer les champs de sélection et de saisie
+        const pointVenteSelect = row.querySelector('.point-vente-select');
+        const produitSelect = row.querySelector('.produit-select');
+        const quantiteInput = row.querySelector('.quantite-input');
+        const prixUnitaireInput = row.querySelector('.prix-unitaire-input');
+        const commentaireInput = row.querySelector('.commentaire-input');
+        
+        const fields = [pointVenteSelect, produitSelect, quantiteInput, prixUnitaireInput, commentaireInput];
+        
+        fields.forEach(field => {
+            if (field) {
+                field.disabled = !enabled;
+                if (!enabled) {
+                    field.style.backgroundColor = '#f8f9fa';
+                    field.style.color = '#6c757d';
+                    field.style.cursor = 'not-allowed';
+                    field.title = 'Le stock matin est rempli automatiquement par le système. Seuls les administrateurs peuvent le modifier manuellement.';
+                } else {
+                    field.style.backgroundColor = '';
+                    field.style.color = '';
+                    field.style.cursor = '';
+                    field.title = '';
+                }
+            }
+        });
+    });
+}
+
+// Fonction pour mettre à jour l'état du bouton Enregistrer selon la date sélectionnée
+function updateSubmitButtonState() {
+    const submitButton = document.querySelector('button[type="submit"]');
+    const dateInput = document.getElementById('date');
+    
+    if (!submitButton || !dateInput || !currentUser) return;
+    
+    const selectedDate = dateInput.value;
+    const canAdd = canAddSaleForDate(selectedDate, currentUser.username);
+    
+    if (canAdd) {
+        submitButton.disabled = false;
+        submitButton.classList.remove('btn-secondary');
+        submitButton.classList.add('btn-primary');
+        submitButton.textContent = 'Enregistrer';
+        submitButton.title = '';
+    } else {
+        submitButton.disabled = true;
+        submitButton.classList.remove('btn-primary');
+        submitButton.classList.add('btn-secondary');
+        submitButton.textContent = 'Enregistrer (Date non autorisée)';
+        submitButton.title = 'Vous ne pouvez pas ajouter de ventes pour cette date. Les utilisateurs avec accès limité ne peuvent ajouter des ventes que le jour J et jusqu\'au lendemain avant 4h00 du matin. Seuls administrateurs sont exemptés de cette restriction.';
+    }
+}
+
 // Ensure standardiserDate is defined before afficherDernieresVentes if it's not globally available
 // For example, by moving its definition here or ensuring it's defined earlier in the script.
 // Assuming standardiserDate is defined globally or earlier:
@@ -1420,7 +1679,7 @@ function afficherDernieresVentes(ventes) {
         if (userRole && privilegedUsers.includes(userRole)) {
             showDeleteButton = true;
         } else if (userRole && limitedAccessUsers.includes(userRole)) {
-            if (isToday(vente.Date) || isYesterday(vente.Date)) { // Uses isToday and isYesterday
+            if (canPerformActionForDate(vente.Date)) { // Utilise la nouvelle logique temporelle
                 showDeleteButton = true;
             }
         }
@@ -3203,6 +3462,8 @@ async function initInventaire() {
             chargerTransferts();
             // Recharger les données de stock quand la date change
             chargerStock(dateStr);
+            // Mettre à jour l'état des boutons selon les restrictions temporelles
+            updateStockButtonsState();
         }
     });
     
@@ -3238,10 +3499,15 @@ async function initInventaire() {
         await chargerStock(dateInitiale);
         await chargerTransferts();
         
+        // Mettre à jour l'état initial des boutons
+        updateStockButtonsState();
+        
     } catch (error) {
         console.error('%cErreur lors du chargement initial des données:', 'color: #ff0000;', error);
         // En cas d'erreur, initialiser quand même le tableau
         ajouterLigneStock();
+        // Mettre à jour l'état des boutons même en cas d'erreur
+        updateStockButtonsState();
     }
     
     console.log('%c=== Initialisation terminée ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
@@ -3250,6 +3516,22 @@ async function initInventaire() {
 // Fonction pour ajouter une ligne au tableau de stock
 function ajouterLigneStock() {
     console.log('Ajout d\'une nouvelle ligne de stock');
+    
+    // Vérifier les restrictions temporelles
+    const dateInput = document.getElementById('date-inventaire');
+    const typeStockSelect = document.getElementById('type-stock');
+    
+    if (dateInput && currentUser && !canModifyStockForDate(dateInput.value, currentUser.username)) {
+        alert('Vous ne pouvez pas ajouter de ligne pour cette date. Les utilisateurs peuvent modifier le stock seulement le jour J et jusqu\'au lendemain avant 4h00 du matin. Seuls administrateurs sont exemptés de cette restriction.');
+        return;
+    }
+    
+    // Vérifier les restrictions spécifiques au stock matin
+    if (typeStockSelect && typeStockSelect.value === 'matin' && currentUser && !canModifyStockMatinFields(currentUser.username)) {
+        alert('Le stock matin est rempli automatiquement par le système. Seuls les administrateurs peuvent ajouter des lignes manuellement.');
+        return;
+    }
+    
     const tbody = document.querySelector('#stock-table tbody');
     if (!tbody) {
         console.error('Table de stock non trouvée');
@@ -3327,6 +3609,22 @@ function ajouterLigneStock() {
     btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
     btnSupprimer.addEventListener('click', (e) => {
         e.preventDefault();
+        
+        // Vérifier les restrictions temporelles pour la suppression
+        const dateInput = document.getElementById('date-inventaire');
+        const typeStockSelect = document.getElementById('type-stock');
+        
+        if (dateInput && currentUser && !canModifyStockForDate(dateInput.value, currentUser.username)) {
+            alert('Vous ne pouvez pas supprimer cette ligne pour cette date. Les utilisateurs peuvent modifier le stock seulement le jour J et jusqu\'au lendemain avant 4h00 du matin. Seuls administrateurs sont exemptés de cette restriction.');
+            return;
+        }
+        
+        // Vérifier les restrictions spécifiques au stock matin
+        if (typeStockSelect && typeStockSelect.value === 'matin' && currentUser && !canModifyStockMatinFields(currentUser.username)) {
+            alert('Le stock matin est rempli automatiquement par le système. Seuls les administrateurs peuvent supprimer des lignes manuellement.');
+            return;
+        }
+        
         if (confirm('Êtes-vous sûr de vouloir supprimer cette ligne ?')) {
             row.remove();
         }
@@ -3399,19 +3697,10 @@ async function sauvegarderDonneesStock() {
     console.log('%cType de stock:', 'color: #ff9900; font-weight: bold;', typeStock);
     console.log('%cDate:', 'color: #ff9900;', date);
 
-    // Vérifier les restrictions temporelles
-    try {
-        const sessionResponse = await fetch('/api/check-session');
-        const sessionData = await sessionResponse.json();
-        if (sessionData.success && sessionData.user) {
-            const restriction = verifierRestrictionsTemporelles(date, sessionData.user.username);
-            if (restriction.restricted) {
-                alert(restriction.message);
-                return;
-            }
-        }
-    } catch (error) {
-        console.error('Erreur lors de la vérification de session:', error);
+    // Vérifier les restrictions temporelles avec la nouvelle logique
+    if (!canModifyStockForDate(date, currentUser.username)) {
+        alert('Vous ne pouvez pas sauvegarder le stock pour cette date. Les utilisateurs peuvent modifier le stock seulement le jour J et jusqu\'au lendemain avant 4h00 du matin. Seuls administrateurs sont exemptés de cette restriction.');
+        return;
     }
 
     // Collecter les données du tableau
@@ -3670,6 +3959,22 @@ function initTableauStock() {
             btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
             btnSupprimer.addEventListener('click', (e) => {
                 e.preventDefault();
+                
+                // Vérifier les restrictions temporelles pour la suppression
+                const dateInput = document.getElementById('date-inventaire');
+                const typeStockSelect = document.getElementById('type-stock');
+                
+                if (dateInput && currentUser && !canModifyStockForDate(dateInput.value, currentUser.username)) {
+                    alert('Vous ne pouvez pas supprimer cette ligne pour cette date. Les utilisateurs peuvent modifier le stock seulement le jour J et jusqu\'au lendemain avant 4h00 du matin. Seuls administrateurs sont exemptés de cette restriction.');
+                    return;
+                }
+                
+                // Vérifier les restrictions spécifiques au stock matin
+                if (typeStockSelect && typeStockSelect.value === 'matin' && currentUser && !canModifyStockMatinFields(currentUser.username)) {
+                    alert('Le stock matin est rempli automatiquement par le système. Seuls les administrateurs peuvent supprimer des lignes manuellement.');
+                    return;
+                }
+                
                 if (confirm('Êtes-vous sûr de vouloir supprimer cette ligne ?')) {
                     row.remove();
                 }
@@ -3701,6 +4006,9 @@ function initTableauStock() {
     });
     
     console.log('%c=== Fin initTableauStock ===', 'background: #222; color: #bada55; font-size: 16px; padding: 5px;');
+    
+    // Mettre à jour l'état des boutons et champs selon les restrictions
+    updateStockButtonsState();
 }
 
 // Configuration pour l'inventaire to refac point de vente
@@ -3915,6 +4223,21 @@ async function onTypeStockChange() {
                 btnSupprimer.className = 'btn btn-danger btn-sm';
                 btnSupprimer.innerHTML = '<i class="fas fa-trash"></i>';
                 btnSupprimer.onclick = () => {
+                    // Vérifier les restrictions temporelles pour la suppression
+                    const dateInput = document.getElementById('date-inventaire');
+                    const typeStockSelect = document.getElementById('type-stock');
+                    
+                    if (dateInput && currentUser && !canModifyStockForDate(dateInput.value, currentUser.username)) {
+                        alert('Vous ne pouvez pas supprimer cette ligne pour cette date. Les utilisateurs peuvent modifier le stock seulement le jour J et jusqu\'au lendemain avant 4h00 du matin. Seuls administrateurs sont exemptés de cette restriction.');
+                        return;
+                    }
+                    
+                    // Vérifier les restrictions spécifiques au stock matin
+                    if (typeStockSelect && typeStockSelect.value === 'matin' && currentUser && !canModifyStockMatinFields(currentUser.username)) {
+                        alert('Le stock matin est rempli automatiquement par le système. Seuls les administrateurs peuvent supprimer des lignes manuellement.');
+                        return;
+                    }
+                    
                     if (confirm('Êtes-vous sûr de vouloir supprimer cette ligne ?')) {
                         tr.remove();
                     }
