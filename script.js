@@ -4322,6 +4322,9 @@ async function onTypeStockChange() {
         });
 
         console.log('%cTableau mis à jour avec succès', 'color: #00ff00; font-weight: bold;');
+        
+        // Mettre à jour l'état des boutons et champs selon les restrictions
+        updateStockButtonsState();
     } catch (error) {
         console.error('%cErreur lors du chargement des données:', 'color: #ff0000; font-weight: bold;', error);
         alert('Erreur lors du chargement des données du stock');
@@ -7190,7 +7193,7 @@ window.addEventListener('DOMContentLoaded', function() {
                     console.log('Is Boeuf or Veau?', (produit === 'Boeuf' || produit === 'Veau'));
                     console.log('Is prix défaut?', isPrixDefaut(produit, prixInput.value));
                     
-                    if ((produit === 'Boeuf' || produit === 'Veau') && isPrixDefaut(produit, prixInput.value)) {
+                    if ((produit === 'Boeuf' || produit === 'Veau')) {
                         console.log('*** MAKING API CALL FOR:', produit);
                         try {
                             if (typeStock === 'matin' || typeStock === 'soir') {
@@ -7202,15 +7205,38 @@ window.addEventListener('DOMContentLoaded', function() {
                                 const data = await response.json();
                                 console.log('API Response:', data);
                                 if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+                                    // Activer temporairement le champ s'il est désactivé
+                                    const wasDisabled = prixInput.disabled;
+                                    if (wasDisabled) {
+                                        prixInput.disabled = false;
+                                    }
+                                    
                                     prixInput.value = parseFloat(data.data[0].prix_moyen_pondere);
                                     console.log('Updated price to:', prixInput.value);
                                     // Trigger change event to update totals
                                     prixInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                    
+                                    // Redésactiver le champ s'il était désactivé
+                                    if (wasDisabled) {
+                                        prixInput.disabled = true;
+                                    }
                                 } else {
                                     // Fallback to default if no data
                                     const fallbackPrice = (typeof PRIX_DEFAUT !== 'undefined' && PRIX_DEFAUT[produit]) ? PRIX_DEFAUT[produit] : (PRIX_DEFAUT_RANGES[produit] ? PRIX_DEFAUT_RANGES[produit][3] : 0);
+                                    
+                                    // Activer temporairement le champ s'il est désactivé
+                                    const wasDisabled = prixInput.disabled;
+                                    if (wasDisabled) {
+                                        prixInput.disabled = false;
+                                    }
+                                    
                                     prixInput.value = fallbackPrice;
                                     console.log('Stock - No data, using fallback:', fallbackPrice);
+                                    
+                                    // Redésactiver le champ s'il était désactivé
+                                    if (wasDisabled) {
+                                        prixInput.disabled = true;
+                                    }
                                     prixInput.dispatchEvent(new Event('input', { bubbles: true }));
                                 }
                             }

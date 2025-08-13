@@ -552,12 +552,14 @@ app.put('/api/admin/users/:username', checkAuth, checkAdmin, async (req, res) =>
 
 // Route pour ajouter des ventes
 app.post('/api/ventes', checkAuth, checkWriteAccess, async (req, res) => {
+
     const entries = req.body;
     
     console.log('Tentative d\'ajout de ventes:', JSON.stringify(entries));
     
     // Vérifier les restrictions temporelles pour chaque vente
     for (const entry of entries) {
+
         const restriction = checkSaleTimeRestrictions(entry.date, req.session.user.username);
         if (!restriction.allowed) {
             return res.status(403).json({
@@ -1140,16 +1142,30 @@ function checkStockTimeRestrictions(dateStr, username) {
     
     // Tous les autres utilisateurs sont soumis aux restrictions temporelles
     try {
-        // Parser la date (format DD-MM-YYYY ou DD/MM/YYYY)
-        const dateRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/;
-        const match = dateStr.match(dateRegex);
-        if (!match) {
-            return { allowed: false, message: 'Format de date invalide' };
+        // Parser la date (formats supportés : DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, YYYY/MM/DD)
+        const ddmmyyyyRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/; // DD-MM-YYYY ou DD/MM/YYYY
+        const yyyymmddRegex = /^(\d{4})[-\/](\d{2})[-\/](\d{2})$/; // YYYY-MM-DD ou YYYY/MM/DD
+        
+        let match = dateStr.match(ddmmyyyyRegex);
+        let day, month, year;
+        
+        if (match) {
+            // Format DD-MM-YYYY ou DD/MM/YYYY
+            day = parseInt(match[1]);
+            month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+            year = parseInt(match[3]);
+        } else {
+            match = dateStr.match(yyyymmddRegex);
+            if (match) {
+                // Format YYYY-MM-DD ou YYYY/MM/DD
+                year = parseInt(match[1]);
+                month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+                day = parseInt(match[3]);
+            } else {
+                return { allowed: false, message: 'Format de date invalide' };
+            }
         }
         
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
-        const year = parseInt(match[3]);
         const targetDate = new Date(year, month, day);
         
         const now = new Date();
@@ -1225,16 +1241,30 @@ function checkSaleTimeRestrictions(dateStr, username) {
     // Les utilisateurs avec accès limité ne peuvent ajouter des ventes que selon les nouvelles restrictions temporelles
     if (limitedAccessUsers.includes(userRole)) {
         try {
-            // Parser la date (format DD-MM-YYYY ou DD/MM/YYYY)
-            const dateRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/;
-            const match = dateStr.match(dateRegex);
-            if (!match) {
-                return { allowed: false, message: 'Format de date invalide' };
+            // Parser la date (formats supportés : DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, YYYY/MM/DD)
+            const ddmmyyyyRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/; // DD-MM-YYYY ou DD/MM/YYYY
+            const yyyymmddRegex = /^(\d{4})[-\/](\d{2})[-\/](\d{2})$/; // YYYY-MM-DD ou YYYY/MM/DD
+            
+            let match = dateStr.match(ddmmyyyyRegex);
+            let day, month, year;
+            
+            if (match) {
+                // Format DD-MM-YYYY ou DD/MM/YYYY
+                day = parseInt(match[1]);
+                month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+                year = parseInt(match[3]);
+            } else {
+                match = dateStr.match(yyyymmddRegex);
+                if (match) {
+                    // Format YYYY-MM-DD ou YYYY/MM/DD
+                    year = parseInt(match[1]);
+                    month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+                    day = parseInt(match[3]);
+                } else {
+                    return { allowed: false, message: 'Format de date invalide' };
+                }
             }
             
-            const day = parseInt(match[1]);
-            const month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
-            const year = parseInt(match[3]);
             const targetDate = new Date(year, month, day);
             
             const now = new Date();
