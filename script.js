@@ -1382,20 +1382,33 @@ function canPerformActionForDate(dateStr) {
     if (!dateStr) return false;
     
     try {
-        // Parser la date (format DD-MM-YYYY ou DD/MM/YYYY)
-        const dateRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/;
-        const match = dateStr.match(dateRegex);
-        if (!match) {
-            return false;
+        let day, month, year;
+        
+        // Parser la date (formats supportés : DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, YYYY/MM/DD)
+        const ddmmyyyyRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/; // DD-MM-YYYY ou DD/MM/YYYY
+        const yyyymmddRegex = /^(\d{4})[-\/](\d{2})[-\/](\d{2})$/; // YYYY-MM-DD ou YYYY/MM/DD
+        
+        let match = dateStr.match(ddmmyyyyRegex);
+        if (match) {
+            // Format DD-MM-YYYY ou DD/MM/YYYY
+            day = parseInt(match[1]);
+            month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+            year = parseInt(match[3]);
+        } else {
+            match = dateStr.match(yyyymmddRegex);
+            if (match) {
+                // Format YYYY-MM-DD ou YYYY/MM/DD
+                year = parseInt(match[1]);
+                month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+                day = parseInt(match[3]);
+            } else {
+                console.warn('Format de date non reconnu:', dateStr);
+                return false;
+            }
         }
         
-        const day = parseInt(match[1]);
-        const month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
-        const year = parseInt(match[3]);
         const targetDate = new Date(year, month, day);
-        
         const now = new Date();
-        const currentHour = now.getHours();
         
         // Calculer la date limite : targetDate + 1 jour + 4h
         const deadlineDate = new Date(targetDate);
@@ -1403,7 +1416,12 @@ function canPerformActionForDate(dateStr) {
         deadlineDate.setHours(4, 0, 0, 0); // 4h00 du matin
         
         // L'action est autorisée si nous sommes avant la date limite
-        return now <= deadlineDate;
+        const result = now <= deadlineDate;
+        
+        // Debug log pour diagnostiquer
+        console.log(`Debug restriction: ${dateStr} -> ${result} (now: ${now}, deadline: ${deadlineDate})`);
+        
+        return result;
         
     } catch (error) {
         console.error('Erreur lors de la validation de la date:', error);
