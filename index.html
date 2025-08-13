@@ -249,6 +249,35 @@
                                     </select>
                                 </div>
                             </div>
+                            
+                            <!-- Informations Client -->
+                            <div class="row mb-3">
+                                <div class="col-12 mb-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-info-circle"></i> 
+                                        Les informations client sont optionnelles. Si renseignées, elles seront appliquées à tous les produits de cette commande.
+                                    </small>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="client-nom" class="form-label">Nom Client</label>
+                                    <input type="text" class="form-control" id="client-nom" placeholder="Nom du client">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="client-numero" class="form-label">Numéro Client</label>
+                                    <input type="text" class="form-control" id="client-numero" placeholder="Ex: 773900000">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="client-adresse" class="form-label">Adresse Client</label>
+                                    <input type="text" class="form-control" id="client-adresse" placeholder="Adresse du client">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="client-creance" class="form-label">Créance</label>
+                                    <select class="form-select" id="client-creance">
+                                        <option value="false">Non</option>
+                                        <option value="true">Oui</option>
+                                    </select>
+                                </div>
+                            </div>
 
                             <div id="produits-container">
                                 <div class="produit-entry mb-3">
@@ -278,28 +307,7 @@
                                             <input type="number" class="form-control total" readonly>
                                         </div>
                                     </div>
-                                    <!-- Add the new row for client details here -->
-                                    <div class="row mt-2">
-                                        <div class="col-md-3">
-                                            <label class="form-label">Nom Client</label>
-                                            <input type="text" class="form-control nom-client">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label">Numéro Client</label>
-                                            <input type="tel" class="form-control numero-client" pattern="[0-9]{1,12}" maxlength="12" placeholder="Ex: 773900000" title="Veuillez saisir un numéro de téléphone (jusqu'à 12 chiffres)">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label">Adresse Client</label>
-                                            <input type="text" class="form-control adresse-client">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label">Créance</label>
-                                            <select class="form-select creance-select">
-                                                <option value="false">Non</option>
-                                                <option value="true">Oui</option>
-                                            </select>
-                                        </div>
-                                    </div>
+
                                 </div>
                             </div>
 

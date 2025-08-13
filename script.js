@@ -947,6 +947,8 @@ document.addEventListener('DOMContentLoaded', function() {
             chargerDernieresVentes();
             // Mettre à jour l'état du bouton Enregistrer selon la date sélectionnée
             updateSubmitButtonState();
+            // Réinitialiser les champs client quand la date change
+            resetClientFields();
         });
     }
     
@@ -971,6 +973,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Recharger les ventes filtrées par date et point de vente
             chargerDernieresVentes();
+            // Réinitialiser les champs client quand le point de vente change
+            resetClientFields();
         });
     }
     
@@ -1118,27 +1122,7 @@ function creerNouvelleEntree() {
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
-        </div>
-        <div class="row mt-2">
-            <div class="col-md-3">
-                <label class="form-label">Nom Client</label>
-                <input type="text" class="form-control nom-client">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Numéro Client</label>
-                <input type="text" class="form-control numero-client">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Adresse Client</label>
-                <input type="text" class="form-control adresse-client">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Créance</label>
-                <select class="form-select creance-select">
-                    <option value="false">Non</option>
-                    <option value="true">Oui</option>
-                </select>
-            </div>
+
         </div>
     `;
 
@@ -1249,6 +1233,12 @@ document.getElementById('vente-form').addEventListener('submit', async function(
         [document.querySelector('.produit-entry[data-vente-id]')] : 
         document.querySelectorAll('.produit-entry');
     
+    // Récupérer les informations client de l'en-tête
+    const clientNom = document.getElementById('client-nom').value;
+    const clientNumero = document.getElementById('client-numero').value;
+    const clientAdresse = document.getElementById('client-adresse').value;
+    const clientCreance = document.getElementById('client-creance').value === 'true';
+    
     const entries = [];
     
     entriesToProcess.forEach(entry => {
@@ -1257,10 +1247,11 @@ document.getElementById('vente-form').addEventListener('submit', async function(
         const quantite = entry.querySelector('.quantite').value;
         const prixUnit = entry.querySelector('.prix-unit').value;
         const total = entry.querySelector('.total').value;
-        const nomClient = entry.querySelector('.nom-client').value;
-        const numeroClient = entry.querySelector('.numero-client').value;
-        const adresseClient = entry.querySelector('.adresse-client').value;
-        const creance = entry.querySelector('.creance-select').value === 'true';
+        // Utiliser les informations client de l'en-tête au lieu des champs individuels
+        const nomClient = clientNom;
+        const numeroClient = clientNumero;
+        const adresseClient = clientAdresse;
+        const creance = clientCreance;
         
         if (categorie && produit && quantite && prixUnit) {
             const mois = new Date(date.split('/').reverse().join('-')).toLocaleString('fr-FR', { month: 'long' });
@@ -1598,6 +1589,21 @@ function updateStockMatinFieldsState(enabled) {
             }
         });
     });
+}
+
+// Fonction pour réinitialiser les champs client
+function resetClientFields() {
+    console.log('Réinitialisation des champs client');
+    
+    const clientNomInput = document.getElementById('client-nom');
+    const clientNumeroInput = document.getElementById('client-numero');
+    const clientAdresseInput = document.getElementById('client-adresse');
+    const clientCreanceSelect = document.getElementById('client-creance');
+    
+    if (clientNomInput) clientNomInput.value = '';
+    if (clientNumeroInput) clientNumeroInput.value = '';
+    if (clientAdresseInput) clientAdresseInput.value = '';
+    if (clientCreanceSelect) clientCreanceSelect.value = 'false'; // Reset à "Non" par défaut
 }
 
 // Fonction pour mettre à jour l'état du bouton Enregistrer selon la date sélectionnée
