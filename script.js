@@ -1210,7 +1210,18 @@ document.getElementById('vente-form').addEventListener('submit', async function(
     const pointVente = document.getElementById('point-vente').value;
     
     // Vérifier si l'utilisateur a accès au point de vente
-    if (currentUser.pointVente !== "tous" && currentUser.pointVente !== pointVente) {
+    const userPointVente = currentUser.pointVente;
+    let hasAccess = false;
+    
+    if (userPointVente === "tous") {
+        hasAccess = true;
+    } else if (Array.isArray(userPointVente)) {
+        hasAccess = userPointVente.includes(pointVente);
+    } else {
+        hasAccess = userPointVente === pointVente;
+    }
+    
+    if (!hasAccess) {
         alert('Vous n\'avez pas accès à ce point de vente');
         return;
     }
@@ -1893,9 +1904,16 @@ async function chargerDernieresVentes() {
             
             // 1. Filtrer selon les droits de l'utilisateur
             if (currentUser && currentUser.pointVente !== "tous") {
-                ventesAffichees = ventesAffichees.filter(vente => 
-                    vente['Point de Vente'] === currentUser.pointVente
-                );
+                const userPointVente = currentUser.pointVente;
+                if (Array.isArray(userPointVente)) {
+                    ventesAffichees = ventesAffichees.filter(vente => 
+                        userPointVente.includes(vente['Point de Vente'])
+                    );
+                } else {
+                    ventesAffichees = ventesAffichees.filter(vente => 
+                        vente['Point de Vente'] === userPointVente
+                    );
+                }
             }
             
             // 2. Filtrer selon le point de vente sélectionné (si présent)

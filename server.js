@@ -817,8 +817,41 @@ app.get('/api/ventes', checkAuth, checkReadAccess, async (req, res) => {
             console.log('Dates converties:', { debutFormatted, finFormatted });
             
             // Récupérer toutes les ventes et filtrer manuellement pour les dates
+            const whereConditionsDate = {};
+            
+            // Appliquer les restrictions d'accès utilisateur
+            const userPointVente = req.session.user.pointVente;
+            if (userPointVente !== "tous") {
+                if (Array.isArray(userPointVente)) {
+                    whereConditionsDate.pointVente = {
+                        [Op.in]: userPointVente
+                    };
+                } else {
+                    whereConditionsDate.pointVente = userPointVente;
+                }
+            }
+            
+            // Appliquer le filtre supplémentaire par point de vente si spécifié
+            if (pointVente && pointVente !== 'tous') {
+                // Si l'utilisateur a déjà des restrictions et demande un point spécifique
+                if (whereConditionsDate.pointVente) {
+                    // Vérifier que le point demandé est dans ses permissions
+                    if (Array.isArray(userPointVente)) {
+                        if (userPointVente.includes(pointVente)) {
+                            whereConditionsDate.pointVente = pointVente;
+                        }
+                        // Sinon, garder ses restrictions (il n'aura pas accès au point demandé)
+                    } else if (userPointVente === pointVente) {
+                        whereConditionsDate.pointVente = pointVente;
+                    }
+                    // Sinon, garder ses restrictions
+                } else {
+                    whereConditionsDate.pointVente = pointVente;
+                }
+            }
+            
             const allVentes = await Vente.findAll({
-                where: pointVente && pointVente !== 'tous' ? { pointVente } : {},
+                where: whereConditionsDate,
                 order: [['date', 'DESC']]
             });
             
@@ -851,9 +884,22 @@ app.get('/api/ventes', checkAuth, checkReadAccess, async (req, res) => {
         }
         
         // Si pas de filtrage par date, utiliser la méthode standard avec les conditions Sequelize
-        if (req.session.user.pointVente !== "tous") {
-            whereConditions.pointVente = req.session.user.pointVente;
+        
+        // Gérer les restrictions selon le point de vente de l'utilisateur
+        const userPointVente = req.session.user.pointVente;
+        
+        if (userPointVente !== "tous") {
+            if (Array.isArray(userPointVente)) {
+                // Utilisateur avec accès à plusieurs points de vente spécifiques
+                whereConditions.pointVente = {
+                    [Op.in]: userPointVente
+                };
+            } else {
+                // Utilisateur avec accès à un seul point de vente
+                whereConditions.pointVente = userPointVente;
+            }
         } else if (pointVente && pointVente !== 'tous') {
+            // Filtre spécifique demandé par l'utilisateur
             whereConditions.pointVente = pointVente;
         }
         
@@ -1781,7 +1827,18 @@ app.delete('/api/ventes/:id', checkAuth, checkWriteAccess, async (req, res) => {
         }
         
         // Vérifier si l'utilisateur a accès au point de vente
-        if (req.session.user.pointVente !== "tous" && req.session.user.pointVente !== vente.pointVente) {
+        const userPointVente = req.session.user.pointVente;
+        let hasAccess = false;
+        
+        if (userPointVente === "tous") {
+            hasAccess = true;
+        } else if (Array.isArray(userPointVente)) {
+            hasAccess = userPointVente.includes(vente.pointVente);
+        } else {
+            hasAccess = userPointVente === vente.pointVente;
+        }
+        
+        if (!hasAccess) {
             return res.status(403).json({ 
                 success: false, 
                 message: "Accès non autorisé à ce point de vente" 
