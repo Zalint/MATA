@@ -1711,12 +1711,13 @@ function afficherDernieresVentes(ventes) {
         const currentUser = window.currentUser; 
         const userRole = currentUser ? currentUser.username.toUpperCase() : null;
         const privilegedUsers = ['SALIOU', 'OUSMANE'];
-        const limitedAccessUsers = ['NADOU', 'PAPI', 'MBA', 'OSF', 'KMS', 'LNG', 'DHR', 'TBM'];
 
         if (userRole && privilegedUsers.includes(userRole)) {
+            // Utilisateurs privilégiés : bouton toujours visible
             showDeleteButton = true;
-        } else if (userRole && limitedAccessUsers.includes(userRole)) {
-            if (canPerformActionForDate(vente.Date)) { // Utilise la nouvelle logique temporelle
+        } else if (userRole) {
+            // Tous les autres utilisateurs (y compris TEST) : vérifier les restrictions temporelles de 4h
+            if (canPerformActionForDate(vente.Date)) {
                 showDeleteButton = true;
             }
         }

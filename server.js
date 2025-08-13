@@ -1284,58 +1284,53 @@ function checkSaleTimeRestrictions(dateStr, username) {
         return { allowed: true };
     }
     
-    // Les utilisateurs avec accès limité ne peuvent ajouter des ventes que selon les nouvelles restrictions temporelles
-    if (limitedAccessUsers.includes(userRole)) {
-        try {
-            // Parser la date (formats supportés : DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, YYYY/MM/DD)
-            const ddmmyyyyRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/; // DD-MM-YYYY ou DD/MM/YYYY
-            const yyyymmddRegex = /^(\d{4})[-\/](\d{2})[-\/](\d{2})$/; // YYYY-MM-DD ou YYYY/MM/DD
-            
-            let match = dateStr.match(ddmmyyyyRegex);
-            let day, month, year;
-            
+    // Tous les utilisateurs non privilégiés ont des restrictions temporelles (4h du matin)
+    try {
+        // Parser la date (formats supportés : DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, YYYY/MM/DD)
+        const ddmmyyyyRegex = /^(\d{2})[-\/](\d{2})[-\/](\d{4})$/; // DD-MM-YYYY ou DD/MM/YYYY
+        const yyyymmddRegex = /^(\d{4})[-\/](\d{2})[-\/](\d{2})$/; // YYYY-MM-DD ou YYYY/MM/DD
+        
+        let match = dateStr.match(ddmmyyyyRegex);
+        let day, month, year;
+        
+        if (match) {
+            // Format DD-MM-YYYY ou DD/MM/YYYY
+            day = parseInt(match[1]);
+            month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
+            year = parseInt(match[3]);
+        } else {
+            match = dateStr.match(yyyymmddRegex);
             if (match) {
-                // Format DD-MM-YYYY ou DD/MM/YYYY
-                day = parseInt(match[1]);
+                // Format YYYY-MM-DD ou YYYY/MM/DD
+                year = parseInt(match[1]);
                 month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
-                year = parseInt(match[3]);
+                day = parseInt(match[3]);
             } else {
-                match = dateStr.match(yyyymmddRegex);
-                if (match) {
-                    // Format YYYY-MM-DD ou YYYY/MM/DD
-                    year = parseInt(match[1]);
-                    month = parseInt(match[2]) - 1; // Mois commence à 0 en JavaScript
-                    day = parseInt(match[3]);
-                } else {
-                    return { allowed: false, message: 'Format de date invalide' };
-                }
+                return { allowed: false, message: 'Format de date invalide' };
             }
-            
-            const targetDate = new Date(year, month, day);
-            
-            const now = new Date();
-            
-            // Calculer la date limite : targetDate + 1 jour + 4h
-            const deadlineDate = new Date(targetDate);
-            deadlineDate.setDate(deadlineDate.getDate() + 1);
-            deadlineDate.setHours(4, 0, 0, 0); // 4h00 du matin
-            
-            // L'action est autorisée si nous sommes avant la date limite
-            if (now <= deadlineDate) {
-                return { allowed: true };
-            } else {
-                return { 
-                    allowed: false, 
-                    message: `Vous ne pouvez pas ajouter de ventes pour cette date (${dateStr}). Les utilisateurs avec accès limité ne peuvent ajouter des ventes que le jour J et jusqu'au lendemain avant 4h00 du matin. Seuls administrateurs sont exemptés de cette restriction.` 
-                };
-            }
-        } catch (error) {
-            return { allowed: false, message: 'Erreur lors de la validation de la date' };
         }
+        
+        const targetDate = new Date(year, month, day);
+        
+        const now = new Date();
+        
+        // Calculer la date limite : targetDate + 1 jour + 4h
+        const deadlineDate = new Date(targetDate);
+        deadlineDate.setDate(deadlineDate.getDate() + 1);
+        deadlineDate.setHours(4, 0, 0, 0); // 4h00 du matin
+        
+        // L'action est autorisée si nous sommes avant la date limite
+        if (now <= deadlineDate) {
+            return { allowed: true };
+        } else {
+            return { 
+                allowed: false, 
+                message: `Vous ne pouvez pas ajouter/supprimer de ventes pour cette date (${dateStr}). Les utilisateurs ne peuvent ajouter/supprimer des ventes que le jour J et jusqu'au lendemain avant 4h00 du matin. Seuls SALIOU et OUSMANE sont exemptés de cette restriction.` 
+            };
+        }
+    } catch (error) {
+        return { allowed: false, message: 'Erreur lors de la validation de la date' };
     }
-    
-    // Autres utilisateurs : accès normal (pas de restriction)
-    return { allowed: true };
 }
 
 // Middleware pour vérifier les restrictions temporelles pour NADOU et PAPI
@@ -1842,6 +1837,16 @@ app.delete('/api/ventes/:id', checkAuth, checkWriteAccess, async (req, res) => {
             return res.status(403).json({ 
                 success: false, 
                 message: "Accès non autorisé à ce point de vente" 
+            });
+        }
+
+        // Vérifier les restrictions temporelles pour la suppression
+        const restriction = checkSaleTimeRestrictions(vente.date, req.session.user.username);
+        if (!restriction.allowed) {
+            return res.status(403).json({
+                success: false,
+                message: restriction.message,
+                timeRestriction: true
             });
         }
 
