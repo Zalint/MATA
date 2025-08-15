@@ -24,13 +24,14 @@ const produitsInventaire = {
         "Sacre Coeur": 2500
     },
     "Foie": {
-        "prixDefault": 4000,
-        "alternatives": [4000],
-        "Sacre Coeur": 3000
+        "prixDefault": 3000,
+        "alternatives": [3000]
     },
     "Yell": {
         "prixDefault": 2500,
-        "alternatives": [2500]
+        "alternatives": [2500],
+        "Sacre Coeur": 3000,
+        "Keur Massar": 2000
     },
     "Agneau": {
         "prixDefault": 4500,
