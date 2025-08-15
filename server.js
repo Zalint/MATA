@@ -162,6 +162,7 @@ const TRANSFERTS_PATH = path.join(__dirname, 'data', 'transferts.json');
 // Constantes pour le mappage des références de paiement aux points de vente
 const PAYMENT_REF_TO_PDV = {
   'V_TB': 'Touba',
+  'V_PROD': 'MATA PROD',
   'V_DHR': 'Dahra',
   'V_ALS': 'Aliou Sow',
   'V_LGR': 'Linguere',
@@ -1009,10 +1010,10 @@ app.get('/login.html', (req, res) => {
 // Route pour l'importation des ventes
 app.post('/api/import-ventes', checkAuth, checkWriteAccess, (req, res) => {
     // Vérifier les droits d'accès
-    if (req.user.username !== 'SALIOU' && !req.user.isSuperAdmin) {
+    if (!req.user.canImportSales) {
         return res.status(403).json({
             success: false,
-            message: 'Accès non autorisé à l\'importation'
+            message: 'Accès non autorisé. Seuls SALIOU et OUSMANE peuvent importer des ventes.'
         });
     }
 
@@ -1130,10 +1131,10 @@ app.post('/api/import-ventes', checkAuth, checkWriteAccess, (req, res) => {
 // Route pour vider la base de données des ventes
 app.post('/api/vider-base', async (req, res) => {
     try {
-        // Vérifier si l'utilisateur est SALIOU
-        if (!req.session.user || req.session.user.username !== 'SALIOU') {
-            return res.status(403).json({ success: false, message: 'Accès non autorisé' });
-        }
+            // Vérifier si l'utilisateur peut vider la base
+    if (!req.session.user || !req.session.user.canEmptyDatabase) {
+        return res.status(403).json({ success: false, message: 'Fonctionnalité désactivée pour des raisons de sécurité' });
+    }
 
         // Vider la table des ventes
         await Vente.destroy({ where: {}, truncate: true });
@@ -1175,8 +1176,13 @@ app.get('/api/stock/:type', checkAuth, checkReadAccess, async (req, res) => {
 });
 
 // Fonction pour vérifier les restrictions temporelles pour le stock
-function checkStockTimeRestrictions(dateStr, username) {
+function checkStockTimeRestrictions(dateStr, username, user = null) {
     if (!username || !dateStr) return { allowed: false, message: 'Données manquantes' };
+    
+    // Vérifier si l'utilisateur peut contourner les restrictions temporelles
+    if (user && user.bypassTimeRestrictions) {
+        return { allowed: true };
+    }
     
     const userRole = username.toUpperCase();
     const privilegedUsers = ['SALIOU', 'OUSMANE'];
@@ -1259,7 +1265,7 @@ function checkStockTimeRestrictionsMiddleware(req, res, next) {
     }
     
     // Vérifier les restrictions temporelles
-    const restriction = checkStockTimeRestrictions(stockDate, user.username);
+    const restriction = checkStockTimeRestrictions(stockDate, user.username, user);
     if (!restriction.allowed) {
         return res.status(403).json({
             success: false,
@@ -2191,6 +2197,7 @@ app.post('/api/cash-payments/import', checkAuth, checkWriteAccess, async (req, r
         // Mapping des références de paiement aux points de vente
         const paymentRefToPointDeVente = {
             'V_TB': 'Touba',
+            'V_PROD': 'MATA PROD',
             'V_DHR': 'Dahra',
             'V_ALS': 'Aliou Sow',
             'V_LGR': 'Linguere',
@@ -2605,6 +2612,7 @@ app.post('/api/external/cash-payment/import', validateApiKey, async (req, res) =
         // Mapping des références de paiement aux points de vente (cohérent avec l'endpoint existant)
         const paymentRefToPointDeVente = {
             'V_TB': 'Touba',
+            'V_PROD': 'MATA PROD',
             'V_DHR': 'Dahra',
             'V_ALS': 'Aliou Sow', // Réajouté pour cohérence
             'V_LGR': 'Linguere',

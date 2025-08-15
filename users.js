@@ -171,12 +171,38 @@ async function verifyCredentials(username, password) {
         role: user.role,
         pointVente: user.pointVente,
         active: user.active,
+        // Rôles hiérarchiques
         isAdmin: user.role === 'admin',
+        isSuperUtilisateur: user.role === 'superutilisateur',
+        isSuperviseur: user.role === 'superviseur',
+        isUtilisateur: user.role === 'user',
         isLecteur: user.role === 'lecteur',
-        canRead: ['lecteur', 'user', 'admin'].includes(user.role),
-        canWrite: ['user', 'admin'].includes(user.role),
+        // Permissions basées sur les droits actuels
+        canRead: ['lecteur', 'user', 'superutilisateur', 'superviseur', 'admin'].includes(user.role),
+        canWrite: ['user', 'superutilisateur', 'superviseur', 'admin'].includes(user.role),
+        canSupervise: ['superviseur', 'admin'].includes(user.role),
+        canManageAdvanced: ['superutilisateur', 'superviseur', 'admin'].includes(user.role),
+        canManageUsers: ['admin'].includes(user.role),
+        
+        // Droits spécifiques selon la hiérarchie actuelle
+        canCopyStock: ['superutilisateur', 'superviseur', 'admin'].includes(user.role),
+        canManageEstimation: ['superutilisateur', 'superviseur', 'admin'].includes(user.role),
+        canAccessAllPointsVente: ['superutilisateur', 'superviseur', 'admin', 'lecteur'].includes(user.role),
+        canManageReconciliation: ['superutilisateur', 'superviseur', 'admin'].includes(user.role),
+        
+        // Droits PRIVILÉGIÉS - Superviseurs (= droits actuels SALIOU/OUSMANE)
+        bypassTimeRestrictions: ['superviseur', 'admin'].includes(user.role),
+        canModifyStockAnytime: ['superviseur', 'admin'].includes(user.role),
+        canAddSalesAnytime: ['superviseur', 'admin'].includes(user.role),
+        canImportSales: ['SALIOU', 'OUSMANE'].includes(user.username) || ['admin'].includes(user.role),
+        canEmptyDatabase: false, // Fonctionnalité désactivée pour tous les utilisateurs
+        canAccessChat: ['SALIOU', 'OUSMANE'].includes(user.username) || ['admin'].includes(user.role),
+        canAccessSpecialFeatures: ['superviseur', 'admin'].includes(user.role),
         // Fonction utilitaire pour vérifier l'accès à un point de vente
         hasAccessToPointVente: function(pointVente) {
+            // Les rôles élevés ont accès à tous les points de vente
+            if (this.canAccessAllPointsVente) return true;
+            
             if (!this.pointVente) return false;
             if (Array.isArray(this.pointVente)) {
                 return this.pointVente.includes('tous') || this.pointVente.includes(pointVente);
