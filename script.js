@@ -3315,6 +3315,7 @@ async function copierStock() {
     const sourceDate = document.getElementById('source-date').value;
     const targetTypeStock = document.getElementById('destination-type-stock').value;
     const targetDate = document.getElementById('destination-date').value;
+    const copyComments = document.getElementById('copy-comments').checked;
 
     if (!sourceDate) {
         alert('Veuillez sélectionner une date source.');
@@ -3335,7 +3336,8 @@ async function copierStock() {
         sourceTypeStock,
         sourceDate,
         targetTypeStock,
-        targetDate
+        targetDate,
+        copyComments
     });
 
     try {
@@ -3358,7 +3360,8 @@ async function copierStock() {
         }
 
         // Demander confirmation
-        if (!confirm(`Voulez-vous copier les données du stock ${sourceTypeStock} du ${sourceDate} vers le stock ${targetTypeStock} du ${targetDate}? Cette action remplacera les données existantes.`)) {
+        const commentaireSuffix = copyComments ? ' (commentaires inclus)' : ' (sans les commentaires)';
+        if (!confirm(`Voulez-vous copier les données du stock ${sourceTypeStock} du ${sourceDate} vers le stock ${targetTypeStock} du ${targetDate}${commentaireSuffix}? Cette action remplacera les données existantes.`)) {
             return;
         }
 
@@ -3368,19 +3371,35 @@ async function copierStock() {
         if (Array.isArray(sourceData)) {
             sourceData.forEach(item => {
                 const key = `${item["Point de Vente"] || item.pointVente}-${item.Produit || item.produit}`;
-                dataToSave[key] = {
+                const newItem = {
                     ...item,
                     date: targetDate,
                     typeStock: targetTypeStock
                 };
+                
+                // Gérer les commentaires selon l'option choisie
+                if (!copyComments) {
+                    delete newItem.Commentaire;
+                    delete newItem.commentaire;
+                }
+                
+                dataToSave[key] = newItem;
             });
         } else {
             Object.entries(sourceData).forEach(([key, value]) => {
-                dataToSave[key] = {
+                const newItem = {
                     ...value,
                     date: targetDate,
                     typeStock: targetTypeStock
                 };
+                
+                // Gérer les commentaires selon l'option choisie
+                if (!copyComments) {
+                    delete newItem.Commentaire;
+                    delete newItem.commentaire;
+                }
+                
+                dataToSave[key] = newItem;
             });
         }
 
