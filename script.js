@@ -2037,7 +2037,7 @@ async function chargerDernieresVentes() {
            
             
             // 1. Filtrer selon les droits de l'utilisateur
-            if (currentUser && currentUser.pointVente !== "tous") {
+            if (currentUser && currentUser.pointVente !== "tous" && !(Array.isArray(currentUser.pointVente) && currentUser.pointVente.includes("tous"))) {
                 const userPointVente = currentUser.pointVente;
                 if (Array.isArray(userPointVente)) {
                     ventesAffichees = ventesAffichees.filter(vente => 
@@ -2060,6 +2060,7 @@ async function chargerDernieresVentes() {
             // 3. Filtrer selon la date sélectionnée (si présente)
             if (dateSelectionneeFmt) {
                 console.log(`[Filter Debug] Filtering for date: ${dateSelectionneeFmt}`); // Log the target date
+                console.log(`[Filter Debug] Total entries before filtering: ${ventesAffichees.length}`);
                 const originalCount = ventesAffichees.length;
                 ventesAffichees = ventesAffichees.filter((vente, index) => {
                     const venteDateStr = vente.Date;
@@ -2075,7 +2076,7 @@ async function chargerDernieresVentes() {
 
                     // Log details for the first 5 entries for debugging
                     if (index < 5) {
-                         console.log(`[Filter Debug] Entry ${index + 1} (PV: ${vente['Point de Vente']}): DB Date='${venteDateStr}', Comparable='${venteDateComparable}', Target='${dateSelectionneeFmt}', Match=${match}`);
+                         console.log(`[Filter Debug] Entry ${index + 1} (PV: ${vente['Point de Vente']}): DB Date='${venteDateStr}', Comparable='${venteDateComparable}', Target='${dateSelectionneeFmt}', Slash='${dateSelectionneeFmtSlash}', Dash='${dateSelectionneeFmtDash}', Match=${match}`);
                     }
 
                     return match;
@@ -2334,8 +2335,8 @@ function creerGraphiqueVentesParProduit(donnees) {
 }
 
 // Fonction pour créer le tableau des ventes par point de vente
-async function creerTableauVentesParPointVente(donnees, moisFiltre = null) {
-    console.log('Création du tableau des ventes par point de vente avec les données:', donnees);
+async function creerTableauVentesParPointVente(donnees = null, moisFiltre = null) {
+    console.log('Création du tableau des ventes par point de vente');
     
     try {
         // Initialiser le filtre de mois si pas encore fait
@@ -2344,18 +2345,41 @@ async function creerTableauVentesParPointVente(donnees, moisFiltre = null) {
             moisFiltre = document.getElementById('moisFilterPointVente').value;
         }
         
+        // Récupérer TOUTES les ventes via l'API dernieres-ventes (pas les données filtrées de chargerVentes)
+        const ventesResponse = await fetch('/api/dernieres-ventes');
+        const ventesData = await ventesResponse.json();
+        
+        if (!ventesData.success) {
+            throw new Error('Erreur lors de la récupération des ventes');
+        }
+        
+        // Utiliser toutes les ventes disponibles, pas les données partielles
+        const toutesLesVentes = ventesData.dernieresVentes;
+        console.log('Toutes les ventes récupérées pour le tableau:', toutesLesVentes.length);
+        
         // Récupérer la liste des points de vente actifs via l'API
         const response = await fetch('/api/points-vente');
         const pointsVenteActifs = await response.json();
         console.log('Points de vente actifs récupérés:', pointsVenteActifs);
         
         // Filtrer les données par mois si un filtre est spécifié
-        let donneesFiltered = donnees;
+        let donneesFiltered = toutesLesVentes;
         if (moisFiltre && moisFiltre !== '') {
-            donneesFiltered = donnees.filter(vente => {
+            donneesFiltered = toutesLesVentes.filter(vente => {
                 const dateVente = vente.Date || vente.date || '';
                 if (dateVente) {
-                    const dateObj = new Date(dateVente);
+                    // Parser la date au format DD-MM-YYYY ou DD/MM/YYYY
+                    let dateObj;
+                    if (dateVente.includes('-')) {
+                        const [jour, mois, annee] = dateVente.split('-');
+                        dateObj = new Date(annee, parseInt(mois) - 1, parseInt(jour));
+                    } else if (dateVente.includes('/')) {
+                        const [jour, mois, annee] = dateVente.split('/');
+                        dateObj = new Date(annee, parseInt(mois) - 1, parseInt(jour));
+                    } else {
+                        dateObj = new Date(dateVente);
+                    }
+                    
                     const moisVente = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0');
                     return moisVente === moisFiltre;
                 }
@@ -2377,9 +2401,15 @@ async function creerTableauVentesParPointVente(donnees, moisFiltre = null) {
         // Calculer les totaux par point de vente avec les données filtrées
         donneesFiltered.forEach(vente => {
             const pointVente = vente.pointVente || vente['Point de Vente'] || '';
-            const montant = parseFloat(vente.Montant || 0);
+            const montant = parseFloat(vente.Montant || vente.montant || 0);
             
-            if (pointVente && ventesParPointVente.hasOwnProperty(pointVente)) {
+            if (pointVente) {
+                // Initialiser le point de vente s'il n'existe pas encore (même s'il n'est pas dans les actifs)
+                if (!ventesParPointVente.hasOwnProperty(pointVente)) {
+                    ventesParPointVente[pointVente] = 0;
+                    nombreVentesParPointVente[pointVente] = 0;
+                }
+                
                 ventesParPointVente[pointVente] += montant;
                 nombreVentesParPointVente[pointVente]++;
             }
