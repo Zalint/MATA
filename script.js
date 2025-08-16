@@ -2232,6 +2232,301 @@ function creerGraphiqueVentesParProduit(donnees) {
             }
         }
     });
+    
+    // Créer également le tableau des ventes par point de vente
+    creerTableauVentesParPointVente(donnees);
+}
+
+// Fonction pour créer le tableau des ventes par point de vente
+async function creerTableauVentesParPointVente(donnees) {
+    console.log('Création du tableau des ventes par point de vente avec les données:', donnees);
+    
+    try {
+        // Récupérer la liste des points de vente actifs via l'API
+        const response = await fetch('/api/points-vente');
+        const pointsVenteActifs = await response.json();
+        console.log('Points de vente actifs récupérés:', pointsVenteActifs);
+        
+        // Regrouper les ventes par point de vente
+        const ventesParPointVente = {};
+        const nombreVentesParPointVente = {};
+        
+        // Initialiser tous les points de vente actifs avec 0
+        pointsVenteActifs.forEach(pdv => {
+            ventesParPointVente[pdv] = 0;
+            nombreVentesParPointVente[pdv] = 0;
+        });
+        
+        // Calculer les totaux par point de vente
+        donnees.forEach(vente => {
+            const pointVente = vente.pointVente || vente['Point de Vente'] || '';
+            const montant = parseFloat(vente.Montant || 0);
+            
+            if (pointVente && ventesParPointVente.hasOwnProperty(pointVente)) {
+                ventesParPointVente[pointVente] += montant;
+                nombreVentesParPointVente[pointVente]++;
+            }
+        });
+        
+        // Calculer le total général pour les pourcentages
+        const totalGeneral = Object.values(ventesParPointVente).reduce((sum, montant) => sum + montant, 0);
+        
+        // Trier les points de vente par montant décroissant
+        const sortedPointsVente = Object.entries(ventesParPointVente)
+            .sort(([, a], [, b]) => b - a);
+        
+        // Remplir le tableau
+        const tableBody = document.getElementById('ventesParPointVenteBody');
+        if (!tableBody) {
+            console.error('Element ventesParPointVenteBody non trouvé');
+            return;
+        }
+        
+        tableBody.innerHTML = '';
+        
+        sortedPointsVente.forEach(([pointVente, montant]) => {
+            const pourcentage = totalGeneral > 0 ? (montant / totalGeneral * 100) : 0;
+            const nombreVentes = nombreVentesParPointVente[pointVente];
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="fw-bold">${pointVente}</td>
+                <td class="text-end">${montant.toLocaleString('fr-FR')} FCFA</td>
+                <td class="text-end">
+                    <span class="badge bg-primary">${pourcentage.toFixed(1)}%</span>
+                </td>
+                <td class="text-end">${nombreVentes}</td>
+            `;
+            
+            // Ajouter une couleur de fond basée sur le pourcentage
+            if (pourcentage >= 20) {
+                row.classList.add('table-success');
+            } else if (pourcentage >= 10) {
+                row.classList.add('table-warning');
+            } else if (montant > 0) {
+                row.classList.add('table-info');
+            } else {
+                row.classList.add('table-light');
+            }
+            
+            tableBody.appendChild(row);
+        });
+        
+        // Ajouter une ligne de total
+        const totalRow = document.createElement('tr');
+        totalRow.classList.add('table-dark', 'fw-bold');
+        totalRow.innerHTML = `
+            <td>TOTAL</td>
+            <td class="text-end">${totalGeneral.toLocaleString('fr-FR')} FCFA</td>
+            <td class="text-end">100.0%</td>
+            <td class="text-end">${Object.values(nombreVentesParPointVente).reduce((sum, nb) => sum + nb, 0)}</td>
+        `;
+        tableBody.appendChild(totalRow);
+        
+        console.log('Tableau des ventes par point de vente créé avec succès');
+        
+        // Activer les boutons d'export après la création du tableau
+        activerBoutonsExportPointVente(sortedPointsVente, totalGeneral, Object.values(nombreVentesParPointVente).reduce((sum, nb) => sum + nb, 0));
+        
+    } catch (error) {
+        console.error('Erreur lors de la création du tableau des ventes par point de vente:', error);
+        
+        // Afficher un message d'erreur dans le tableau
+        const tableBody = document.getElementById('ventesParPointVenteBody');
+        if (tableBody) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center text-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Erreur lors du chargement des données des points de vente
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
+// Fonction pour activer les boutons d'export du tableau des ventes par point de vente
+function activerBoutonsExportPointVente(donneesTriees, totalGeneral, totalVentes) {
+    // Bouton d'export Excel
+    const btnExcel = document.getElementById('exportExcelPointVente');
+    if (btnExcel) {
+        // Enlever les anciens event listeners
+        btnExcel.replaceWith(btnExcel.cloneNode(true));
+        const newBtnExcel = document.getElementById('exportExcelPointVente');
+        
+        newBtnExcel.addEventListener('click', () => {
+            exporterTableauExcel(donneesTriees, totalGeneral, totalVentes);
+        });
+    }
+    
+    // Bouton de copie
+    const btnCopy = document.getElementById('copyTablePointVente');
+    if (btnCopy) {
+        // Enlever les anciens event listeners
+        btnCopy.replaceWith(btnCopy.cloneNode(true));
+        const newBtnCopy = document.getElementById('copyTablePointVente');
+        
+        newBtnCopy.addEventListener('click', () => {
+            copierTableauPointVente(donneesTriees, totalGeneral, totalVentes);
+        });
+    }
+}
+
+// Fonction pour exporter le tableau en Excel
+function exporterTableauExcel(donneesTriees, totalGeneral, totalVentes) {
+    try {
+        // Préparer les données pour Excel
+        const donneesExcel = [
+            ['Point de Vente', 'Montant Total (FCFA)', 'Pourcentage (%)', 'Nombre de Ventes']
+        ];
+        
+        // Ajouter les données des points de vente
+        donneesTriees.forEach(([pointVente, montant]) => {
+            const pourcentage = totalGeneral > 0 ? (montant / totalGeneral * 100) : 0;
+            const nombreVentes = donneesTriees.find(([pdv]) => pdv === pointVente)?.[2] || 0;
+            
+            // Chercher le nombre de ventes dans les données originales
+            const tableBody = document.getElementById('ventesParPointVenteBody');
+            const rows = tableBody.querySelectorAll('tr:not(.table-dark)');
+            let nombreVentesActuel = 0;
+            
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 4 && cells[0].textContent.trim() === pointVente) {
+                    nombreVentesActuel = parseInt(cells[3].textContent.trim()) || 0;
+                }
+            });
+            
+            donneesExcel.push([
+                pointVente,
+                montant,
+                parseFloat(pourcentage.toFixed(1)),
+                nombreVentesActuel
+            ]);
+        });
+        
+        // Ajouter la ligne de total
+        donneesExcel.push([
+            'TOTAL',
+            totalGeneral,
+            100.0,
+            totalVentes
+        ]);
+        
+        // Créer le workbook
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(donneesExcel);
+        
+        // Styliser les en-têtes (optionnel, support limité dans SheetJS gratuit)
+        ws['!cols'] = [
+            { wch: 15 }, // Point de Vente
+            { wch: 20 }, // Montant Total
+            { wch: 15 }, // Pourcentage
+            { wch: 18 }  // Nombre de Ventes
+        ];
+        
+        // Ajouter la feuille au workbook
+        XLSX.utils.book_append_sheet(wb, ws, "Ventes par Point de Vente");
+        
+        // Générer le nom de fichier avec la date
+        const maintenant = new Date();
+        const dateStr = maintenant.toISOString().split('T')[0];
+        const nomFichier = `ventes_par_point_de_vente_${dateStr}.xlsx`;
+        
+        // Télécharger le fichier
+        XLSX.writeFile(wb, nomFichier);
+        
+        // Afficher un message de succès
+        afficherNotification('Export Excel réussi !', 'success');
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'export Excel:', error);
+        afficherNotification('Erreur lors de l\'export Excel', 'error');
+    }
+}
+
+// Fonction pour copier le tableau dans le presse-papiers
+async function copierTableauPointVente(donneesTriees, totalGeneral, totalVentes) {
+    try {
+        // Préparer le texte à copier (format tabulé)
+        let texteTablau = 'Point de Vente\tMontant Total (FCFA)\tPourcentage\tNombre de Ventes\n';
+        
+        // Ajouter les données des points de vente
+        const tableBody = document.getElementById('ventesParPointVenteBody');
+        const rows = tableBody.querySelectorAll('tr:not(.table-dark)');
+        
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 4) {
+                const pointVente = cells[0].textContent.trim();
+                const montant = cells[1].textContent.trim();
+                const pourcentage = cells[2].textContent.trim().replace(/[^\d.,]/g, '') + '%';
+                const nombreVentes = cells[3].textContent.trim();
+                
+                texteTablau += `${pointVente}\t${montant}\t${pourcentage}\t${nombreVentes}\n`;
+            }
+        });
+        
+        // Ajouter la ligne de total
+        texteTablau += `TOTAL\t${totalGeneral.toLocaleString('fr-FR')} FCFA\t100.0%\t${totalVentes}`;
+        
+        // Copier dans le presse-papiers
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(texteTablau);
+            afficherNotification('Tableau copié dans le presse-papiers !', 'success');
+        } else {
+            // Fallback pour les navigateurs plus anciens
+            const textArea = document.createElement('textarea');
+            textArea.value = texteTablau;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    afficherNotification('Tableau copié dans le presse-papiers !', 'success');
+                } else {
+                    throw new Error('Commande copy non supportée');
+                }
+            } catch (err) {
+                console.error('Erreur lors de la copie:', err);
+                afficherNotification('Erreur lors de la copie. Veuillez sélectionner manuellement le contenu.', 'error');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors de la copie:', error);
+        afficherNotification('Erreur lors de la copie dans le presse-papiers', 'error');
+    }
+}
+
+// Fonction utilitaire pour afficher des notifications
+function afficherNotification(message, type = 'info') {
+    // Créer l'élément de notification
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Ajouter au DOM
+    document.body.appendChild(notification);
+    
+    // Supprimer automatiquement après 3 secondes
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
 }
 
 // Fonction pour créer le graphique des ventes par catégorie
