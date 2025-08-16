@@ -2005,7 +2005,8 @@ async function chargerDernieresVentes() {
                  return null;
             }
     
-            return `${String(jour).padStart(2, '0')}/${String(mois).padStart(2, '0')}/${annee}`;
+            // Return in DD-MM-YYYY format to match database format
+            return `${String(jour).padStart(2, '0')}-${String(mois).padStart(2, '0')}-${annee}`;
         }
         
         const dateSelectionneeFmt = getComparableDate(dateSelectionnee);
