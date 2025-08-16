@@ -1766,11 +1766,8 @@
         function checkChatAccess() {
             // Vérifie si l'utilisateur actuel existe dans la variable globale
             if (window.currentUser) {
-                // Liste des utilisateurs autorisés à voir le chat
-                const usersWithChatAccess = ['SALIOU', 'OUSMANE'];
-                
-                // Vérifie si l'utilisateur actuel est dans la liste d'accès
-                if (!usersWithChatAccess.includes(window.currentUser.username)) {
+                // Vérifie si l'utilisateur a la permission d'accéder au chat
+                if (!window.currentUser.canAccessChat) {
                     // Si l'utilisateur n'est pas autorisé, on observe le DOM pour détecter quand le chat est ajouté
                     const observer = new MutationObserver(function(mutations) {
                         mutations.forEach(function(mutation) {

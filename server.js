@@ -108,7 +108,18 @@ app.get('/api/points-vente/transferts', (req, res) => {
 });
 
 // Importer les middlewares d'authentification
-const { checkAuth, checkAdmin, checkSuperAdmin, checkReadAccess, checkWriteAccess } = require('./middlewares/auth');
+const { 
+    checkAuth, 
+    checkAdmin, 
+    checkSuperAdmin, 
+    checkReadAccess, 
+    checkWriteAccess,
+    checkSupervisorAccess,
+    checkAdvancedAccess,
+    checkCopyStockAccess,
+    checkEstimationAccess,
+    checkReconciliationAccess
+} = require('./middlewares/auth');
 
 // Middleware d'authentification par API key pour services externes comme Relevance AI
 const validateApiKey = (req, res, next) => {
@@ -321,15 +332,7 @@ app.get('/api/check-session', (req, res) => {
     if (req.session.user) {
         res.json({
             success: true,
-            user: {
-                username: req.session.user.username,
-                role: req.session.user.role,
-                pointVente: req.session.user.pointVente,
-                isAdmin: req.session.user.role === 'admin',
-                isLecteur: req.session.user.role === 'lecteur',
-                canRead: ['lecteur', 'user', 'admin'].includes(req.session.user.role),
-                canWrite: ['user', 'admin'].includes(req.session.user.role)
-            }
+            user: req.session.user
         });
     } else {
         res.json({ success: false });
@@ -1387,6 +1390,14 @@ app.post('/api/stock/:type', checkAuth, checkWriteAccess, checkStockTimeRestrict
             return res.status(400).json({ 
                 success: false,
                 error: 'La date est requise pour sauvegarder les données de stock' 
+            });
+        }
+        
+        // Validation spéciale pour les SuperUtilisateurs : ils ne peuvent sauvegarder que vers Stock Soir
+        if (req.user.isSuperUtilisateur && type === 'matin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Les SuperUtilisateurs ne peuvent copier que vers le Stock Soir'
             });
         }
         
@@ -2995,7 +3006,7 @@ app.post('/api/estimations', checkAuth, checkWriteAccess, async (req, res) => {
 });
 
 // Route pour récupérer les estimations
-app.get('/api/estimations', checkAuth, checkReadAccess, async (req, res) => {
+app.get('/api/estimations', checkAuth, checkEstimationAccess, async (req, res) => {
     try {
         const estimations = await Estimation.findAll({
             order: [['date', 'DESC']]
@@ -3141,7 +3152,7 @@ app.get('/api/stock/:date/:type/:pointVente/:categorie', async (req, res) => {
 });
 
 // Route pour calculer le stock du matin par produit
-app.get('/api/stock/:date/matin/:pointVente/:produit', async (req, res) => {
+app.get('/api/stock/:date/matin/:pointVente/:produit', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const { date, pointVente, produit } = req.params;
         
@@ -3199,7 +3210,7 @@ app.get('/api/stock/:date/matin/:pointVente/:produit', async (req, res) => {
 });
 
 // Route pour calculer le stock du soir par produit
-app.get('/api/stock/:date/soir/:pointVente/:produit', async (req, res) => {
+app.get('/api/stock/:date/soir/:pointVente/:produit', checkAuth, checkReadAccess, async (req, res) => {
     try {
         const { date, pointVente, produit } = req.params;
         

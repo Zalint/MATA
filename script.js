@@ -64,6 +64,28 @@ function hideLoadingSpinner() {
     }
 }
 
+// Fonction pour obtenir le nom d'affichage du rôle utilisateur
+function getUserRoleDisplayName(user) {
+    if (!user || !user.role) {
+        return 'Inconnu';
+    }
+    
+    switch (user.role) {
+        case 'admin':
+            return 'Administrateur';
+        case 'superviseur':
+            return 'Superviseur';
+        case 'superutilisateur':
+            return 'SuperUtilisateur';
+        case 'user':
+            return 'Utilisateur';
+        case 'lecteur':
+            return 'Lecteur';
+        default:
+            return user.role;
+    }
+}
+
 // Mapping pour standardiser les noms des points de vente
 const MAPPING_POINTS_VENTE = {
     'KEUR MASS': 'Keur Massar',
@@ -663,36 +685,64 @@ async function checkAuth() {
         await initPointsVentePhysiques();
         await initTousPointsVente();
         
-        // Afficher les informations de l'utilisateur
-        document.getElementById('user-info').textContent = `Connecté en tant que ${currentUser.username}`;
+        // Afficher les informations de l'utilisateur avec le rôle
+        const roleDisplayName = getUserRoleDisplayName(currentUser);
+        document.getElementById('user-info').textContent = `Connecté en tant que ${currentUser.username} (${roleDisplayName})`;
         
-        // Liste des utilisateurs ayant accès aux fonctionnalités spéciales
-        const usersWithSpecialAccess = ['SALIOU', 'NADOU', 'OUSMANE', 'PAPI'];
-        
-        // Gérer la visibilité des onglets spéciaux
+        // Gérer la visibilité des onglets selon les permissions
         const importTabContainer = document.getElementById('import-tab-container');
         const stockInventaireItem = document.getElementById('stock-inventaire-item');
         const copierStockItem = document.getElementById('copier-stock-item');
         const cashPaymentItem = document.getElementById('cash-payment-item');
         const estimationItem = document.getElementById('estimation-item');
+        const suiviAchatBoeufItem = document.getElementById('suivi-achat-boeuf-item');
         
-        // Pour les lecteurs, masquer les onglets d'écriture
-        if (currentUser.role === 'lecteur') {
-            if (copierStockItem) copierStockItem.style.display = 'none';
-            if (cashPaymentItem) cashPaymentItem.style.display = 'none';
-            if (estimationItem) estimationItem.style.display = 'none';
-        } else if (usersWithSpecialAccess.includes(currentUser.username) || currentUser.isSuperAdmin) {
+        // Masquer les onglets selon les permissions de l'utilisateur
+        
+        // Onglet Import - pour utilisateurs avancés
+        if (currentUser.canManageAdvanced) {
             if (importTabContainer) importTabContainer.style.display = 'block';
-            if (stockInventaireItem) stockInventaireItem.style.display = 'block';
-            if (copierStockItem) copierStockItem.style.display = 'block';
         } else {
             if (importTabContainer) importTabContainer.style.display = 'none';
+        }
+        
+        // Onglet Stock inventaire - pour utilisateurs avec accès à tous les points de vente
+        if (currentUser.canAccessAllPointsVente) {
+            if (stockInventaireItem) stockInventaireItem.style.display = 'block';
+        } else {
             if (stockInventaireItem) stockInventaireItem.style.display = 'none';
         }
         
+        // Onglet Copier Stock - pour utilisateurs qui peuvent copier le stock
+        if (currentUser.canCopyStock) {
+            if (copierStockItem) copierStockItem.style.display = 'block';
+        } else {
+            if (copierStockItem) copierStockItem.style.display = 'none';
+        }
+        
+        // Onglet Cash Paiement - pour utilisateurs avancés
+        if (currentUser.canManageAdvanced) {
+            if (cashPaymentItem) cashPaymentItem.style.display = 'block';
+        } else {
+            if (cashPaymentItem) cashPaymentItem.style.display = 'none';
+        }
+        
+        // Onglet Suivi achat boeuf - pour utilisateurs avancés
+        if (currentUser.canManageAdvanced) {
+            if (suiviAchatBoeufItem) suiviAchatBoeufItem.style.display = 'block';
+        } else {
+            if (suiviAchatBoeufItem) suiviAchatBoeufItem.style.display = 'none';
+        }
+        
+        // Onglet Estimation - pour utilisateurs qui peuvent gérer les estimations
+        if (currentUser.canManageEstimation) {
+            if (estimationItem) estimationItem.style.display = 'block';
+        } else {
+            if (estimationItem) estimationItem.style.display = 'none';
+        }
+        
         // Vérifier l'accès au chat Relevance AI
-        const usersWithChatAccess = ['SALIOU', 'OUSMANE'];
-        if (!usersWithChatAccess.includes(currentUser.username)) {
+        if (!currentUser.canAccessChat) {
             // Désactiver le chat pour les utilisateurs non autorisés
             // Cette logique est complémentaire à celle dans index.html
             const observer = new MutationObserver(function(mutations) {
@@ -3472,6 +3522,16 @@ function initCopierStock() {
         locale: 'fr'
     });
     
+    // Restreindre les options de destination pour les SuperUtilisateurs
+    if (currentUser && currentUser.isSuperUtilisateur) {
+        const destinationSelect = document.getElementById('destination-type-stock');
+        if (destinationSelect) {
+            // Garder seulement l'option "Stock Soir" pour les SuperUtilisateurs
+            destinationSelect.innerHTML = '<option value="soir">Stock Soir</option>';
+            console.log('SuperUtilisateur détecté: destination restreinte au Stock Soir uniquement');
+        }
+    }
+    
     // Initialiser le bouton de copie
     const copyStockBtn = document.getElementById('copy-stock');
     if (copyStockBtn) {
@@ -3486,51 +3546,51 @@ function initCopierStock() {
 
 // Fonction pour afficher les onglets en fonction des droits utilisateur
 function afficherOngletsSuivantDroits(userData) {
-    document.getElementById('user-info').textContent = `Connecté en tant que ${userData.username}`;
+    const roleDisplayName = getUserRoleDisplayName(userData);
+    document.getElementById('user-info').textContent = `Connecté en tant que ${userData.username} (${roleDisplayName})`;
     document.getElementById('login-section').style.display = 'none';
     document.getElementById('main-content').style.display = 'block';
     
-    // Afficher l'onglet Stock inventaire uniquement pour les utilisateurs avec accès à tous les points de vente
+    // Gérer la visibilité des onglets selon les permissions
     const stockInventaireItem = document.getElementById('stock-inventaire-item');
     const copierStockItem = document.getElementById('copier-stock-item');
     const cashPaymentItem = document.getElementById('cash-payment-item');
     const estimationItem = document.getElementById('estimation-item');
+    const suiviAchatBoeufItem = document.getElementById('suivi-achat-boeuf-item');
     
-    // Vérifier si l'utilisateur a accès à "tous" les points de vente
-    const userPointsVente = Array.isArray(userData.pointVente) ? userData.pointVente : [userData.pointVente];
-    if (userPointsVente.includes('tous')) {
-        stockInventaireItem.style.display = 'block';
+    // Onglet Stock inventaire - pour utilisateurs avec accès à tous les points de vente
+    if (userData.canAccessAllPointsVente) {
+        if (stockInventaireItem) stockInventaireItem.style.display = 'block';
     } else {
-        stockInventaireItem.style.display = 'none';
+        if (stockInventaireItem) stockInventaireItem.style.display = 'none';
     }
     
-    // Pour les lecteurs, masquer les onglets d'écriture
-    if (userData.role === 'lecteur') {
-        // Masquer l'onglet Copier Stock
-        if (copierStockItem) {
-            copierStockItem.style.display = 'none';
-        }
-        
-        // Masquer l'onglet Cash Payment
-        if (cashPaymentItem) {
-            cashPaymentItem.style.display = 'none';
-        }
-        
-        // Masquer l'onglet Estimation
-        if (estimationItem) {
-            estimationItem.style.display = 'none';
-        }
+    // Onglet Copier Stock - pour utilisateurs qui peuvent copier le stock
+    if (userData.canCopyStock) {
+        if (copierStockItem) copierStockItem.style.display = 'block';
     } else {
-        // Pour les autres utilisateurs, afficher les onglets normalement
-        if (copierStockItem) {
-            copierStockItem.style.display = 'block';
-        }
-        if (cashPaymentItem) {
-            cashPaymentItem.style.display = 'block';
-        }
-        if (estimationItem) {
-            estimationItem.style.display = 'block';
-        }
+        if (copierStockItem) copierStockItem.style.display = 'none';
+    }
+    
+    // Onglet Cash Paiement - pour utilisateurs avancés
+    if (userData.canManageAdvanced) {
+        if (cashPaymentItem) cashPaymentItem.style.display = 'block';
+    } else {
+        if (cashPaymentItem) cashPaymentItem.style.display = 'none';
+    }
+    
+    // Onglet Suivi achat boeuf - pour utilisateurs avancés
+    if (userData.canManageAdvanced) {
+        if (suiviAchatBoeufItem) suiviAchatBoeufItem.style.display = 'block';
+    } else {
+        if (suiviAchatBoeufItem) suiviAchatBoeufItem.style.display = 'none';
+    }
+    
+    // Onglet Estimation - pour utilisateurs qui peuvent gérer les estimations
+    if (userData.canManageEstimation) {
+        if (estimationItem) estimationItem.style.display = 'block';
+    } else {
+        if (estimationItem) estimationItem.style.display = 'none';
     }
    
 }

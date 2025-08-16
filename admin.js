@@ -1,3 +1,25 @@
+// Fonction pour obtenir le nom d'affichage du rôle utilisateur
+function getUserRoleDisplayName(user) {
+    if (!user || !user.role) {
+        return 'Inconnu';
+    }
+    
+    switch (user.role) {
+        case 'admin':
+            return 'Administrateur';
+        case 'superviseur':
+            return 'Superviseur';
+        case 'superutilisateur':
+            return 'SuperUtilisateur';
+        case 'user':
+            return 'Utilisateur';
+        case 'lecteur':
+            return 'Lecteur';
+        default:
+            return user.role;
+    }
+}
+
 // Vérification de l'authentification et des droits
 async function checkAuth() {
     try {
@@ -17,7 +39,8 @@ async function checkAuth() {
         }
         
         // Afficher les informations de l'utilisateur
-        document.getElementById('user-info').textContent = `Connecté en tant que ${data.user.username}`;
+        const roleDisplayName = getUserRoleDisplayName(data.user);
+        document.getElementById('user-info').textContent = `Connecté en tant que ${data.user.username} (${roleDisplayName})`;
         
         // Afficher l'onglet de gestion des utilisateurs seulement pour l'utilisateur ADMIN
         if (data.user.username === 'ADMIN') {

@@ -11,6 +11,7 @@ config.json
 *.csv
 *.xlsx
 *.xls
+data/by-date/
 
 # Fichiers système
 .DS_Store

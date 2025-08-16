@@ -5,6 +5,28 @@
 // Variable pour stocker l'utilisateur actuel
 let currentUser = null;
 
+// Fonction pour obtenir le nom d'affichage du rôle utilisateur
+function getUserRoleDisplayName(user) {
+    if (!user || !user.role) {
+        return 'Inconnu';
+    }
+    
+    switch (user.role) {
+        case 'admin':
+            return 'Administrateur';
+        case 'superviseur':
+            return 'Superviseur';
+        case 'superutilisateur':
+            return 'SuperUtilisateur';
+        case 'user':
+            return 'Utilisateur';
+        case 'lecteur':
+            return 'Lecteur';
+        default:
+            return user.role;
+    }
+}
+
 /**
  * Vérifie l'authentification de l'utilisateur
  * @returns {Promise<Object|null>} Les informations de l'utilisateur ou null
@@ -16,7 +38,8 @@ async function checkAuth() {
         
         if (data.success) {
             currentUser = data.user;
-            document.getElementById('user-info').textContent = `Connecté: ${currentUser.username}`;
+            const roleDisplayName = getUserRoleDisplayName(currentUser);
+            document.getElementById('user-info').textContent = `Connecté: ${currentUser.username} (${roleDisplayName})`;
             
             // Afficher uniquement les onglets auxquels l'utilisateur a accès
             afficherOngletsSuivantDroits(currentUser);
