@@ -2064,7 +2064,14 @@ async function chargerDernieresVentes() {
                 ventesAffichees = ventesAffichees.filter((vente, index) => {
                     const venteDateStr = vente.Date;
                     const venteDateComparable = getComparableDate(venteDateStr);
-                    const match = venteDateComparable === dateSelectionneeFmt;
+                    
+                    // Compare both formats: DD-MM-YYYY and DD/MM/YYYY
+                    const dateSelectionneeFmtSlash = dateSelectionneeFmt.replace(/-/g, '/');
+                    const dateSelectionneeFmtDash = dateSelectionneeFmt.replace(/\//g, '-');
+                    
+                    const match = venteDateComparable === dateSelectionneeFmt || 
+                                  venteDateComparable === dateSelectionneeFmtSlash || 
+                                  venteDateComparable === dateSelectionneeFmtDash;
 
                     // Log details for the first 5 entries or specifically for Mbao
                     if (index < 5 || vente['Point de Vente'] === pointVenteSelectionne) { // Log relevant PV
