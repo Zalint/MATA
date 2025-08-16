@@ -1073,7 +1073,7 @@ function calculerTotalGeneral() {
             return null; // Format non reconnu
         }
 
-        return `${String(jour).padStart(2, '0')}/${String(mois).padStart(2, '0')}/${annee}`;
+        return `${String(jour).padStart(2, '0')}-${String(mois).padStart(2, '0')}-${annee}`;
     }
     
     // Conversion de la date sélectionnée au format comparable
@@ -1266,7 +1266,7 @@ document.getElementById('vente-form').addEventListener('submit', async function(
     const userPointVente = currentUser.pointVente;
     let hasAccess = false;
     
-    if (userPointVente === "tous") {
+    if (userPointVente === "tous" || (Array.isArray(userPointVente) && userPointVente.includes("tous"))) {
         hasAccess = true;
     } else if (Array.isArray(userPointVente)) {
         hasAccess = userPointVente.includes(pointVente);
@@ -2073,8 +2073,8 @@ async function chargerDernieresVentes() {
                                   venteDateComparable === dateSelectionneeFmtSlash || 
                                   venteDateComparable === dateSelectionneeFmtDash;
 
-                    // Log details for the first 5 entries or specifically for Mbao
-                    if (index < 5 || vente['Point de Vente'] === pointVenteSelectionne) { // Log relevant PV
+                    // Log details for the first 5 entries for debugging
+                    if (index < 5) {
                          console.log(`[Filter Debug] Entry ${index + 1} (PV: ${vente['Point de Vente']}): DB Date='${venteDateStr}', Comparable='${venteDateComparable}', Target='${dateSelectionneeFmt}', Match=${match}`);
                     }
 
