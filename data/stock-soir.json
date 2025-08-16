@@ -1,52 +1,22 @@
 {
   "Mbao-Boeuf": {
-    "date": "09/08/2025",
+    "date": "16/08/2025",
     "typeStock": "soir",
     "Point de Vente": "Mbao",
     "Produit": "Boeuf",
-    "Nombre": "100",
+    "Nombre": "10",
     "PU": "3700",
-    "Montant": "370000",
+    "Montant": "37000",
     "Commentaire": ""
   },
   "Mbao-Veau": {
-    "date": "09/08/2025",
+    "date": "16/08/2025",
     "typeStock": "soir",
     "Point de Vente": "Mbao",
     "Produit": "Veau",
-    "Nombre": "10",
-    "PU": "3900",
-    "Montant": "39000",
-    "Commentaire": ""
-  },
-  "Mbao-Poulet": {
-    "date": "09/08/2025",
-    "typeStock": "soir",
-    "Point de Vente": "Mbao",
-    "Produit": "Poulet",
-    "Nombre": "50",
-    "PU": "3500",
-    "Montant": "175000",
-    "Commentaire": ""
-  },
-  "Mbao-Tablette": {
-    "date": "09/08/2025",
-    "typeStock": "soir",
-    "Point de Vente": "Mbao",
-    "Produit": "Tablette",
-    "Nombre": "70",
-    "PU": "2800",
-    "Montant": "196000",
-    "Commentaire": ""
-  },
-  "Mbao-Foie": {
-    "date": "09/08/2025",
-    "typeStock": "soir",
-    "Point de Vente": "Mbao",
-    "Produit": "Foie",
     "Nombre": "5",
-    "PU": "4000",
-    "Montant": "20000",
+    "PU": "3900",
+    "Montant": "19500",
     "Commentaire": ""
   }
 }

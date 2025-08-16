@@ -4,6 +4,64 @@ let users = [];
 let confirmModal = null;
 let pendingAction = null;
 
+// Fonction pour obtenir le nom d'affichage du rôle utilisateur
+function getUserRoleDisplayName(user) {
+    if (!user || !user.role) {
+        return 'Inconnu';
+    }
+    
+    switch (user.role) {
+        case 'admin':
+            return 'Administrateur';
+        case 'superviseur':
+            return 'Superviseur';
+        case 'superutilisateur':
+            return 'SuperUtilisateur';
+        case 'user':
+            return 'Utilisateur';
+        case 'lecteur':
+            return 'Lecteur';
+        default:
+            return user.role;
+    }
+}
+
+// Fonction pour obtenir le nom d'affichage du rôle
+function getRoleDisplayName(role) {
+    switch (role) {
+        case 'admin':
+            return 'Administrateur';
+        case 'superviseur':
+            return 'Superviseur';
+        case 'superutilisateur':
+            return 'SuperUtilisateur';
+        case 'user':
+            return 'Utilisateur';
+        case 'lecteur':
+            return 'Lecteur';
+        default:
+            return role;
+    }
+}
+
+// Fonction pour obtenir la couleur du badge selon le rôle
+function getRoleBadgeColor(role) {
+    switch (role) {
+        case 'admin':
+            return 'bg-danger';
+        case 'superviseur':
+            return 'bg-warning';
+        case 'superutilisateur':
+            return 'bg-success';
+        case 'user':
+            return 'bg-primary';
+        case 'lecteur':
+            return 'bg-info';
+        default:
+            return 'bg-secondary';
+    }
+}
+
 // Vérification de l'authentification et des droits admin
 async function checkAuth() {
     try {
@@ -25,7 +83,8 @@ async function checkAuth() {
         }
         
         currentUser = data.user;
-        document.getElementById('user-info').textContent = `Connecté en tant que ${currentUser.username}`;
+        const roleDisplayName = getUserRoleDisplayName(currentUser);
+        document.getElementById('user-info').textContent = `Connecté en tant que ${currentUser.username} (${roleDisplayName})`;
         return true;
     } catch (error) {
         console.error('Erreur lors de la vérification de la session:', error);
@@ -68,8 +127,8 @@ function displayUsers() {
                 ${user.username === 'ADMIN' ? '<i class="fas fa-crown text-warning ms-2" title="Super Administrateur"></i>' : ''}
             </td>
             <td>
-                <span class="badge ${user.role === 'admin' ? 'bg-danger' : user.role === 'lecteur' ? 'bg-info' : 'bg-primary'}">
-                    ${user.role === 'admin' ? 'Administrateur' : user.role === 'lecteur' ? 'Lecteur' : 'Utilisateur'}
+                <span class="badge ${getRoleBadgeColor(user.role)}">
+                    ${getRoleDisplayName(user.role)}
                 </span>
             </td>
             <td>${Array.isArray(user.pointVente) ? user.pointVente.join(', ') : user.pointVente}</td>

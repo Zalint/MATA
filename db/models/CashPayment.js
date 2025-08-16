@@ -99,6 +99,24 @@ const CashPayment = sequelize.define('CashPayment', {
   date: {
     type: DataTypes.DATEONLY,
     allowNull: true
+  },
+  // Champs pour les paiements manuels
+  reference: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  comment: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  is_manual: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    allowNull: true
+  },
+  created_by: {
+    type: DataTypes.STRING,
+    allowNull: true
   }
 }, {
   tableName: 'cash_payments',
