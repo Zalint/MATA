@@ -47,6 +47,9 @@
                             <a class="nav-link" href="#" data-section="prix">Prix</a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="config-produits">Configuration Produits</a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" href="#" data-section="stocks">Gestion des Stocks</a>
                         </li>
                         <li class="nav-item">
@@ -225,6 +228,79 @@
                 </div>
             </div>
 
+            <!-- Section Configuration Produits -->
+            <div id="config-produits-section" class="admin-section">
+                <div class="row">
+                    <!-- Onglets pour produits.js et produitsInventaire.js -->
+                    <div class="col-12">
+                        <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="produits-tab" data-bs-toggle="tab" data-bs-target="#produits-content" type="button" role="tab" aria-controls="produits-content" aria-selected="true">
+                                    <i class="fas fa-box-open"></i> Produits Généraux (produits.js)
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="inventaire-tab" data-bs-toggle="tab" data-bs-target="#inventaire-content" type="button" role="tab" aria-controls="inventaire-content" aria-selected="false">
+                                    <i class="fas fa-warehouse"></i> Produits Inventaire (produitsInventaire.js)
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Configuration Produits Généraux -->
+                <div class="tab-content" id="configTabContent">
+                    <div class="tab-pane fade show active" id="produits-content" role="tabpanel" aria-labelledby="produits-tab">
+                        <div class="card mt-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">Gestion des Produits Généraux</h5>
+                                <div>
+                                    <button class="btn btn-success btn-sm me-2" id="add-category-btn" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                                        <i class="fas fa-plus"></i> Ajouter Catégorie
+                                    </button>
+                                    <button class="btn btn-info btn-sm me-2" id="save-produits-btn">
+                                        <i class="fas fa-save"></i> Sauvegarder
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm" id="reload-produits-btn">
+                                        <i class="fas fa-sync"></i> Recharger
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div id="produits-categories" class="accordion">
+                                    <!-- Les catégories seront générées dynamiquement -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Configuration Produits Inventaire -->
+                    <div class="tab-pane fade" id="inventaire-content" role="tabpanel" aria-labelledby="inventaire-tab">
+                        <div class="card mt-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">Gestion des Produits d'Inventaire</h5>
+                                <div>
+                                    <button class="btn btn-success btn-sm me-2" id="add-inventaire-category-btn" data-bs-toggle="modal" data-bs-target="#addInventaireCategoryModal">
+                                        <i class="fas fa-plus"></i> Ajouter Catégorie
+                                    </button>
+                                    <button class="btn btn-info btn-sm me-2" id="save-inventaire-btn">
+                                        <i class="fas fa-save"></i> Sauvegarder
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm" id="reload-inventaire-btn">
+                                        <i class="fas fa-sync"></i> Recharger
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div id="inventaire-categories" class="accordion">
+                                    <!-- Les catégories seront générées dynamiquement -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Section Corrections -->
             <div id="corrections-section" class="admin-section">
                 <div class="card">
@@ -258,6 +334,132 @@
                         </div>
                         <button class="btn btn-primary" id="corriger-total">Corriger le Total</button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour ajouter une catégorie -->
+    <div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addCategoryModalLabel">Ajouter une nouvelle catégorie</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addCategoryForm">
+                        <div class="mb-3">
+                            <label for="newCategoryName" class="form-label">Nom de la catégorie</label>
+                            <input type="text" class="form-control" id="newCategoryName" placeholder="Ex: Nouvelle Catégorie" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="saveCategoryBtn">Ajouter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour ajouter une catégorie d'inventaire -->
+    <div class="modal fade" id="addInventaireCategoryModal" tabindex="-1" aria-labelledby="addInventaireCategoryModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addInventaireCategoryModalLabel">Ajouter une nouvelle catégorie d'inventaire</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addInventaireCategoryForm">
+                        <div class="mb-3">
+                            <label for="newInventaireCategoryName" class="form-label">Nom de la catégorie</label>
+                            <input type="text" class="form-control" id="newInventaireCategoryName" placeholder="Ex: Nouvelle Catégorie" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="saveInventaireCategoryBtn">Ajouter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour ajouter un produit d'inventaire -->
+    <div class="modal fade" id="addInventaireProductModal" tabindex="-1" aria-labelledby="addInventaireProductModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addInventaireProductModalLabel">Ajouter un nouveau produit d'inventaire</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addInventaireProductForm">
+                        <input type="hidden" id="inventaireProductModalCategory">
+                        <div class="mb-3">
+                            <label for="newInventaireProductName" class="form-label">Nom du produit</label>
+                            <input type="text" class="form-control" id="newInventaireProductName" placeholder="Ex: Nouveau Produit" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newInventairePrixDefault" class="form-label">Prix par défaut</label>
+                            <input type="number" class="form-control" id="newInventairePrixDefault" placeholder="0" min="0" step="0.01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newInventaireAlternatives" class="form-label">Prix alternatifs (séparés par des virgules)</label>
+                            <input type="text" class="form-control" id="newInventaireAlternatives" placeholder="Ex: 3500,3600">
+                        </div>
+                        <div class="mb-3">
+                            <label for="newInventairePrixSacreCoeur" class="form-label">Prix Sacré Coeur (optionnel)</label>
+                            <input type="number" class="form-control" id="newInventairePrixSacreCoeur" placeholder="0" min="0" step="0.01">
+                        </div>
+                        <div class="mb-3">
+                            <label for="newInventairePrixKeurMassar" class="form-label">Prix Keur Massar (optionnel)</label>
+                            <input type="number" class="form-control" id="newInventairePrixKeurMassar" placeholder="0" min="0" step="0.01">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="saveInventaireProductBtn">Ajouter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour ajouter un produit général -->
+    <div class="modal fade" id="addProductModal" tabindex="-1" aria-labelledby="addProductModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addProductModalLabel">Ajouter un nouveau produit</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addProductForm">
+                        <input type="hidden" id="productModalCategory">
+                        <div class="mb-3">
+                            <label for="newProductName" class="form-label">Nom du produit</label>
+                            <input type="text" class="form-control" id="newProductName" placeholder="Ex: Nouveau Produit" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newProductDefault" class="form-label">Prix par défaut</label>
+                            <input type="number" class="form-control" id="newProductDefault" placeholder="0" min="0" step="0.01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newProductAlternatives" class="form-label">Prix alternatifs (séparés par des virgules)</label>
+                            <input type="text" class="form-control" id="newProductAlternatives" placeholder="Ex: 3500,3600,3700">
+                        </div>
+                        <div class="mb-3">
+                            <label for="newProductSacreCoeur" class="form-label">Prix Sacré Coeur (optionnel)</label>
+                            <input type="number" class="form-control" id="newProductSacreCoeur" placeholder="0" min="0" step="0.01">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="saveProductBtn">Ajouter</button>
                 </div>
             </div>
         </div>

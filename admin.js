@@ -1001,6 +1001,1071 @@ function hideLoading() {
     // Le loading est remplacé par les données ou le message "Aucune donnée"
 }
 
+// ==== GESTION DE LA CONFIGURATION DES PRODUITS ====
+
+// Variables globales pour la configuration des produits
+let currentProduitsConfig = {};
+let currentInventaireConfig = {};
+
+// Charger la configuration des produits généraux
+async function chargerConfigProduits() {
+    try {
+        const response = await fetch('/api/admin/config/produits', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            currentProduitsConfig = data.produits;
+            afficherProduitsConfig();
+        } else {
+            console.error('Erreur lors du chargement de la configuration des produits:', data.message);
+            alert('Erreur lors du chargement de la configuration des produits');
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement de la configuration des produits:', error);
+        alert('Erreur lors du chargement de la configuration des produits');
+    }
+}
+
+// Charger la configuration des produits d'inventaire
+async function chargerConfigInventaire() {
+    try {
+        const response = await fetch('/api/admin/config/produits-inventaire', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            currentInventaireConfig = data.produitsInventaire;
+            afficherInventaireConfig();
+        } else {
+            console.error('Erreur lors du chargement de la configuration d\'inventaire:', data.message);
+            alert('Erreur lors du chargement de la configuration d\'inventaire');
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement de la configuration d\'inventaire:', error);
+        alert('Erreur lors du chargement de la configuration d\'inventaire');
+    }
+}
+
+// Afficher la configuration des produits généraux
+// Fonction pour générer le bouton de suppression conditionnel
+function getCategorieDeleteButton(categorie) {
+    const categoriesPrincipales = ['Bovin', 'Ovin', 'Volaille', 'Pack', 'Caprin', 'Autres'];
+    
+    if (categoriesPrincipales.includes(categorie)) {
+        return `<button class="btn btn-sm btn-secondary" disabled title="Catégorie principale - ne peut pas être supprimée">
+                    <i class="fas fa-lock"></i>
+                </button>`;
+    } else {
+        return `<button class="btn btn-sm btn-danger" onclick="supprimerCategorie('${categorie}')">
+                    <i class="fas fa-trash"></i>
+                </button>`;
+    }
+}
+
+function afficherProduitsConfig() {
+    const container = document.getElementById('produits-categories');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    Object.keys(currentProduitsConfig).forEach((categorie, index) => {
+        if (typeof currentProduitsConfig[categorie] === 'object' && currentProduitsConfig[categorie] !== null) {
+            const categorieHtml = `
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading-${index}">
+                        <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${index}" aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="collapse-${index}">
+                            <i class="fas fa-folder-open me-2"></i>
+                            ${categorie} (${Object.keys(currentProduitsConfig[categorie]).length} produits)
+                            <div class="ms-auto me-3">
+                                                            <button class="btn btn-sm btn-success" onclick="ajouterProduitCategorie('${categorie}')" data-bs-toggle="modal" data-bs-target="#addProductModal">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            ${getCategorieDeleteButton(categorie)}
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="collapse-${index}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" aria-labelledby="heading-${index}" data-bs-parent="#produits-categories">
+                        <div class="accordion-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Produit</th>
+                                            <th>Prix Défaut</th>
+                                            <th>Alternatives</th>
+                                            <th>Prix Spéciaux</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${genererLignesProduits(categorie)}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', categorieHtml);
+        }
+    });
+}
+
+// Générer les lignes de produits pour une catégorie
+function genererLignesProduits(categorie) {
+    let html = '';
+    const produits = currentProduitsConfig[categorie];
+    
+    Object.keys(produits).forEach(produit => {
+        const config = produits[produit];
+        if (typeof config === 'object' && config.default !== undefined) {
+            const alternatives = config.alternatives ? config.alternatives.join(', ') : '';
+            const prixSpeciaux = Object.keys(config)
+                .filter(key => !['default', 'alternatives'].includes(key))
+                .map(key => `${key}: ${config[key]}`)
+                .join(', ');
+            
+            html += `
+                <tr>
+                    <td>
+                        <input type="text" class="form-control form-control-sm" value="${produit}" 
+                               onchange="modifierNomProduit('${categorie}', '${produit}', this.value)">
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm" value="${config.default}" 
+                               onchange="modifierPrixDefaut('${categorie}', '${produit}', this.value)">
+                    </td>
+                    <td>
+                        <input type="text" class="form-control form-control-sm" value="${alternatives}" 
+                               placeholder="Ex: 3500,3600,3700"
+                               onchange="modifierAlternatives('${categorie}', '${produit}', this.value)">
+                    </td>
+                    <td>
+                        <small class="text-muted">${prixSpeciaux}</small>
+                        <button class="btn btn-sm btn-outline-primary ms-1" onclick="modifierPrixSpeciaux('${categorie}', '${produit}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="supprimerProduit('${categorie}', '${produit}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+    });
+    
+    return html;
+}
+
+// Reorganiser les produits d'inventaire par catégories logiques
+function reorganiserInventaireParCategories() {
+    const inventaireParCategories = {
+        "Viandes": {},
+        "Œufs et Produits Laitiers": {},
+        "Abats et Sous-produits": {},
+        "Produits sur Pieds": {},
+        "Déchets": {},
+        "Autres": {}
+    };
+    
+    Object.keys(currentInventaireConfig).forEach(produit => {
+        const config = currentInventaireConfig[produit];
+        if (typeof config === 'object' && config.prixDefault !== undefined) {
+            // Catégoriser les produits selon leur nom
+            if (produit.includes('Boeuf') || produit.includes('Veau') || produit.includes('Poulet') || produit.includes('Agneau')) {
+                inventaireParCategories["Viandes"][produit] = config;
+            } else if (produit.includes('Tablette') || produit.includes('Oeuf')) {
+                inventaireParCategories["Œufs et Produits Laitiers"][produit] = config;
+            } else if (produit.includes('Foie') || produit.includes('Yell') || produit.includes('Abats') || produit.includes('Tete')) {
+                inventaireParCategories["Abats et Sous-produits"][produit] = config;
+            } else if (produit.includes('sur pieds') || produit.includes('sur pied')) {
+                inventaireParCategories["Produits sur Pieds"][produit] = config;
+            } else if (produit.includes('Déchet') || produit.includes('Dechet')) {
+                inventaireParCategories["Déchets"][produit] = config;
+            } else {
+                inventaireParCategories["Autres"][produit] = config;
+            }
+        }
+    });
+    
+    // Supprimer les catégories vides
+    Object.keys(inventaireParCategories).forEach(categorie => {
+        if (Object.keys(inventaireParCategories[categorie]).length === 0) {
+            delete inventaireParCategories[categorie];
+        }
+    });
+    
+    return inventaireParCategories;
+}
+
+// Fonction pour générer le bouton de suppression conditionnel pour l'inventaire
+function getCategorieInventaireDeleteButton(categorie) {
+    const categoriesInventairePrincipales = ['Viandes', 'Œufs et Produits Laitiers', 'Abats et Sous-produits', 'Produits sur Pieds', 'Déchets', 'Autres'];
+    
+    if (categoriesInventairePrincipales.includes(categorie)) {
+        return `<button class="btn btn-sm btn-secondary" disabled title="Catégorie logique - ne peut pas être supprimée">
+                    <i class="fas fa-lock"></i>
+                </button>`;
+    } else {
+        return `<button class="btn btn-sm btn-danger" onclick="supprimerCategorieInventaire('${categorie}')">
+                    <i class="fas fa-trash"></i>
+                </button>`;
+    }
+}
+
+// Afficher la configuration des produits d'inventaire avec accordéon
+function afficherInventaireConfig() {
+    const container = document.getElementById('inventaire-categories');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    const inventaireParCategories = reorganiserInventaireParCategories();
+    
+    Object.keys(inventaireParCategories).forEach((categorie, index) => {
+        const produits = inventaireParCategories[categorie];
+        const nombreProduits = Object.keys(produits).length;
+        
+        const categorieHtml = `
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="inventaire-heading-${index}">
+                    <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#inventaire-collapse-${index}" aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="inventaire-collapse-${index}">
+                        <i class="fas fa-warehouse me-2"></i>
+                        ${categorie} (${nombreProduits} produits)
+                        <div class="ms-auto me-3">
+                            <button class="btn btn-sm btn-success" onclick="ajouterProduitInventaireCategorie('${categorie}')" data-bs-toggle="modal" data-bs-target="#addInventaireProductModal">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            ${getCategorieInventaireDeleteButton(categorie)}
+                        </div>
+                    </button>
+                </h2>
+                <div id="inventaire-collapse-${index}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" aria-labelledby="inventaire-heading-${index}" data-bs-parent="#inventaire-categories">
+                    <div class="accordion-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Produit</th>
+                                        <th>Prix Défaut</th>
+                                        <th>Alternatives</th>
+                                        <th>Prix Spéciaux</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${genererLignesProduitsInventaire(produits)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.insertAdjacentHTML('beforeend', categorieHtml);
+    });
+}
+
+// Générer les lignes de produits pour une catégorie d'inventaire
+function genererLignesProduitsInventaire(produits) {
+    let html = '';
+    
+    Object.keys(produits).forEach(produit => {
+        const config = produits[produit];
+        const alternatives = config.alternatives ? config.alternatives.join(', ') : '';
+        const prixSpeciaux = Object.keys(config)
+            .filter(key => !['prixDefault', 'alternatives'].includes(key))
+            .map(key => `${key}: ${config[key]}`)
+            .join(', ');
+        
+        html += `
+            <tr>
+                <td>
+                    <input type="text" class="form-control form-control-sm" value="${produit}" 
+                           onchange="modifierNomProduitInventaire('${produit}', this.value)">
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm" value="${config.prixDefault}" 
+                           onchange="modifierPrixInventaire('${produit}', 'prixDefault', this.value)">
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" value="${alternatives}" 
+                           placeholder="Ex: 3500,3600"
+                           onchange="modifierAlternativesInventaire('${produit}', this.value)">
+                </td>
+                <td>
+                    <small class="text-muted">${prixSpeciaux}</small>
+                    <button class="btn btn-sm btn-outline-primary ms-1" onclick="modifierPrixSpeciauxInventaire('${produit}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-danger" onclick="supprimerProduitInventaire('${produit}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    return html;
+}
+
+// Fonctions de modification pour les produits généraux
+function modifierNomProduit(categorie, ancienNom, nouveauNom) {
+    if (nouveauNom && nouveauNom !== ancienNom) {
+        const config = currentProduitsConfig[categorie][ancienNom];
+        delete currentProduitsConfig[categorie][ancienNom];
+        currentProduitsConfig[categorie][nouveauNom] = config;
+        afficherProduitsConfig();
+    }
+}
+
+function modifierPrixDefaut(categorie, produit, nouveauPrix) {
+    currentProduitsConfig[categorie][produit].default = parseFloat(nouveauPrix) || 0;
+}
+
+function modifierAlternatives(categorie, produit, alternativesStr) {
+    if (alternativesStr.trim()) {
+        const alternatives = alternativesStr.split(',').map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
+        currentProduitsConfig[categorie][produit].alternatives = alternatives;
+    } else {
+        currentProduitsConfig[categorie][produit].alternatives = [];
+    }
+}
+
+function modifierPrixSpeciaux(categorie, produit) {
+    // Fermer tous les modals existants pour éviter les conflits
+    const existingModals = document.querySelectorAll('.modal.show');
+    existingModals.forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) {
+            bsModal.hide();
+        }
+    });
+    
+    // Supprimer les modals de prix spéciaux existants
+    const existingPrixModal = document.getElementById('prixSpeciauxModal');
+    if (existingPrixModal) {
+        existingPrixModal.remove();
+    }
+    
+    // Récupérer la configuration actuelle du produit
+    const config = currentProduitsConfig[categorie][produit];
+    const prixSpeciaux = Object.keys(config)
+        .filter(key => !['default', 'alternatives'].includes(key));
+    
+    // Créer le modal dynamiquement
+    let modalHtml = `
+        <div class="modal fade" id="prixSpeciauxModal" tabindex="-1" aria-labelledby="prixSpeciauxModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="prixSpeciauxModalLabel">Prix spéciaux pour "${produit}" (${categorie})</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Point de vente</label>
+                                <select class="form-select" id="nouveauPointVente">
+                                    <option value="">Sélectionner un point de vente</option>
+                                    <!-- Les options seront chargées dynamiquement depuis points-vente.js -->
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Prix</label>
+                                <input type="number" class="form-control" id="nouveauPrixSpecial" placeholder="0" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <button type="button" class="btn btn-success w-100" onclick="ajouterPrixSpecial('${categorie}', '${produit}')">
+                                    <i class="fas fa-plus"></i> Ajouter
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Point de Vente</th>
+                                        <th>Prix</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="prixSpeciauxTableBody">
+                                    <!-- Le contenu sera généré par refreshPrixSpeciauxTable -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    
+    // Ajouter le nouveau modal au DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Afficher le modal
+    const modal = new bootstrap.Modal(document.getElementById('prixSpeciauxModal'));
+    modal.show();
+    
+    // Remplir le tableau avec les données actuelles
+    refreshPrixSpeciauxTable(categorie, produit);
+    
+    // Charger les points de vente dans le dropdown initial
+    updatePointsVenteDropdown([]);
+    
+    // Nettoyer le modal quand il se ferme
+    document.getElementById('prixSpeciauxModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+function ajouterPrixSpecial(categorie, produit) {
+    const pointVente = document.getElementById('nouveauPointVente').value;
+    const prix = parseFloat(document.getElementById('nouveauPrixSpecial').value);
+    
+    if (!pointVente) {
+        alert('Veuillez sélectionner un point de vente');
+        return;
+    }
+    
+    if (!prix || prix <= 0) {
+        alert('Veuillez saisir un prix valide');
+        return;
+    }
+    
+    // Vérifier si le prix spécial existe déjà
+    if (currentProduitsConfig[categorie][produit][pointVente]) {
+        alert(`Un prix spécial pour "${pointVente}" existe déjà. Utilisez l'édition pour le modifier.`);
+        return;
+    }
+    
+    // Ajouter le prix spécial
+    currentProduitsConfig[categorie][produit][pointVente] = prix;
+    
+    // Recharger seulement le tableau dans le modal
+    refreshPrixSpeciauxTable(categorie, produit);
+    
+    // Vider les champs
+    document.getElementById('nouveauPointVente').value = '';
+    document.getElementById('nouveauPrixSpecial').value = '';
+    
+    // Recharger l'affichage principal
+    afficherProduitsConfig();
+}
+
+function modifierPrixSpecialExistant(categorie, produit, pointVente, nouveauPrix) {
+    const prix = parseFloat(nouveauPrix);
+    if (prix && prix > 0) {
+        currentProduitsConfig[categorie][produit][pointVente] = prix;
+        afficherProduitsConfig();
+    }
+}
+
+function refreshPrixSpeciauxTable(categorie, produit) {
+    const config = currentProduitsConfig[categorie][produit];
+    const prixSpeciaux = Object.keys(config)
+        .filter(key => !['default', 'alternatives'].includes(key));
+    
+    const tbody = document.getElementById('prixSpeciauxTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    prixSpeciaux.forEach(pointVente => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${pointVente}</td>
+            <td>
+                <input type="number" class="form-control form-control-sm" value="${config[pointVente]}" 
+                       onchange="modifierPrixSpecialExistant('${categorie}', '${produit}', '${pointVente}', this.value)">
+            </td>
+            <td>
+                <button class="btn btn-sm btn-danger" onclick="supprimerPrixSpecial('${categorie}', '${produit}', '${pointVente}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    // Mettre à jour les options du dropdown pour exclure les points de vente déjà utilisés
+    updatePointsVenteDropdown(prixSpeciaux);
+}
+
+// Fonction pour mettre à jour le dropdown des points de vente
+async function updatePointsVenteDropdown(prixSpeciauxExistants = []) {
+    const dropdown = document.getElementById('nouveauPointVente');
+    if (!dropdown) return;
+    
+    try {
+        const response = await fetch('/api/admin/points-vente', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            console.error('Erreur lors du chargement des points de vente');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.pointsVente) {
+            console.error('Format de réponse invalide pour les points de vente');
+            return;
+        }
+        
+        // Vider le dropdown
+        dropdown.innerHTML = '<option value="">Sélectionner un point de vente</option>';
+        
+        // Filtrer seulement les points de vente actifs
+        const pointsVenteActifs = Object.entries(data.pointsVente)
+            .filter(([nom, config]) => config.active === true)
+            .map(([nom]) => nom)
+            .sort(); // Trier alphabétiquement
+        
+        // Ajouter les options pour les points de vente actifs non encore utilisés
+        pointsVenteActifs.forEach(pointVente => {
+            if (!prixSpeciauxExistants.includes(pointVente)) {
+                const option = document.createElement('option');
+                option.value = pointVente;
+                option.textContent = pointVente === 'Sacre Coeur' ? 'Sacré Coeur' : pointVente;
+                dropdown.appendChild(option);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des points de vente:', error);
+    }
+}
+
+function supprimerPrixSpecial(categorie, produit, pointVente) {
+    if (confirm(`Êtes-vous sûr de vouloir supprimer le prix spécial pour "${pointVente}" ?`)) {
+        if (confirm(`Cette suppression est définitive. Confirmer la suppression du prix spécial pour "${pointVente}" ?`)) {
+            delete currentProduitsConfig[categorie][produit][pointVente];
+            // Recharger seulement le tableau dans le modal
+            refreshPrixSpeciauxTable(categorie, produit);
+            // Recharger l'affichage principal
+            afficherProduitsConfig();
+        }
+    }
+}
+
+function supprimerProduit(categorie, produit) {
+    if (confirm(`Êtes-vous sûr de vouloir supprimer le produit "${produit}" ?`)) {
+        if (confirm(`Cette suppression est définitive et supprimera tous les prix associés. Confirmer la suppression du produit "${produit}" ?`)) {
+            delete currentProduitsConfig[categorie][produit];
+            afficherProduitsConfig();
+        }
+    }
+}
+
+function supprimerCategorie(categorie) {
+    // Protection pour les catégories principales - ne pas permettre leur suppression
+    const categoriesPrincipales = ['Bovin', 'Ovin', 'Volaille', 'Pack', 'Caprin', 'Autres'];
+    
+    if (categoriesPrincipales.includes(categorie)) {
+        alert(`La catégorie "${categorie}" est une catégorie principale du système et ne peut pas être supprimée. Vous pouvez seulement supprimer des produits individuels.`);
+        return;
+    }
+    
+    const nombreProduits = Object.keys(currentProduitsConfig[categorie]).length;
+    if (confirm(`Êtes-vous sûr de vouloir supprimer la catégorie "${categorie}" et ses ${nombreProduits} produits ?`)) {
+        if (confirm(`Cette suppression est définitive et supprimera TOUS les produits de la catégorie "${categorie}". Confirmer la suppression définitive ?`)) {
+            delete currentProduitsConfig[categorie];
+            afficherProduitsConfig();
+        }
+    }
+}
+
+function ajouterProduitCategorie(categorie) {
+    document.getElementById('productModalCategory').value = categorie;
+    document.getElementById('addProductModalLabel').textContent = `Ajouter un produit à ${categorie}`;
+}
+
+// Fonctions pour l'inventaire
+function ajouterProduitInventaireCategorie(categorie) {
+    document.getElementById('inventaireProductModalCategory').value = categorie;
+    document.getElementById('addInventaireProductModalLabel').textContent = `Ajouter un produit à ${categorie}`;
+}
+
+function supprimerCategorieInventaire(categorie) {
+    // Protection pour les catégories d'inventaire - ne pas permettre leur suppression
+    const categoriesInventairePrincipales = ['Viandes', 'Œufs et Produits Laitiers', 'Abats et Sous-produits', 'Produits sur Pieds', 'Déchets', 'Autres'];
+    
+    if (categoriesInventairePrincipales.includes(categorie)) {
+        alert(`La catégorie "${categorie}" est une catégorie logique du système d'inventaire et ne peut pas être supprimée. Vous pouvez seulement supprimer des produits individuels.`);
+        return;
+    }
+    
+    // Pour l'inventaire, on ne peut pas vraiment supprimer les catégories car elles sont logiques
+    // mais on peut supprimer tous les produits de la catégorie
+    const inventaireParCategories = reorganiserInventaireParCategories();
+    const produits = inventaireParCategories[categorie];
+    const nombreProduits = Object.keys(produits).length;
+    
+    if (confirm(`Êtes-vous sûr de vouloir supprimer tous les ${nombreProduits} produits de la catégorie "${categorie}" ?`)) {
+        if (confirm(`Cette suppression est définitive et supprimera TOUS les produits de la catégorie "${categorie}". Confirmer la suppression définitive ?`)) {
+            Object.keys(produits).forEach(produit => {
+                delete currentInventaireConfig[produit];
+            });
+            afficherInventaireConfig();
+        }
+    }
+}
+
+function modifierPrixSpeciauxInventaire(produit) {
+    // Fermer tous les modals existants pour éviter les conflits
+    const existingModals = document.querySelectorAll('.modal.show');
+    existingModals.forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) {
+            bsModal.hide();
+        }
+    });
+    
+    // Supprimer les modals de prix spéciaux existants
+    const existingPrixModal = document.getElementById('prixSpeciauxInventaireModal');
+    if (existingPrixModal) {
+        existingPrixModal.remove();
+    }
+    
+    // Récupérer la configuration actuelle du produit
+    const config = currentInventaireConfig[produit];
+    const prixSpeciaux = Object.keys(config)
+        .filter(key => !['prixDefault', 'alternatives'].includes(key));
+    
+    // Créer le modal dynamiquement
+    let modalHtml = `
+        <div class="modal fade" id="prixSpeciauxInventaireModal" tabindex="-1" aria-labelledby="prixSpeciauxInventaireModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="prixSpeciauxInventaireModalLabel">Prix spéciaux pour "${produit}" (Inventaire)</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Point de vente</label>
+                                <select class="form-select" id="nouveauPointVenteInventaire">
+                                    <option value="">Sélectionner un point de vente</option>
+                                    <!-- Les options seront chargées dynamiquement depuis points-vente.js -->
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Prix</label>
+                                <input type="number" class="form-control" id="nouveauPrixSpecialInventaire" placeholder="0" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <button type="button" class="btn btn-success w-100" onclick="ajouterPrixSpecialInventaire('${produit}')">
+                                    <i class="fas fa-plus"></i> Ajouter
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Point de Vente</th>
+                                        <th>Prix</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="prixSpeciauxInventaireTableBody">
+                                    <!-- Le contenu sera généré par refreshPrixSpeciauxInventaireTable -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    
+    // Ajouter le nouveau modal au DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Afficher le modal
+    const modal = new bootstrap.Modal(document.getElementById('prixSpeciauxInventaireModal'));
+    modal.show();
+    
+    // Remplir le tableau avec les données actuelles
+    refreshPrixSpeciauxInventaireTable(produit);
+    
+    // Charger les points de vente dans le dropdown initial
+    updatePointsVenteDropdownInventaire([]);
+    
+    // Nettoyer le modal quand il se ferme
+    document.getElementById('prixSpeciauxInventaireModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+function refreshPrixSpeciauxInventaireTable(produit) {
+    const config = currentInventaireConfig[produit];
+    const prixSpeciaux = Object.keys(config)
+        .filter(key => !['prixDefault', 'alternatives'].includes(key));
+    
+    const tbody = document.getElementById('prixSpeciauxInventaireTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    prixSpeciaux.forEach(pointVente => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${pointVente}</td>
+            <td>
+                <input type="number" class="form-control form-control-sm" value="${config[pointVente]}" 
+                       onchange="modifierPrixSpecialExistantInventaire('${produit}', '${pointVente}', this.value)">
+            </td>
+            <td>
+                <button class="btn btn-sm btn-danger" onclick="supprimerPrixSpecialInventaire('${produit}', '${pointVente}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    // Mettre à jour les options du dropdown pour exclure les points de vente déjà utilisés
+    updatePointsVenteDropdownInventaire(prixSpeciaux);
+}
+
+async function updatePointsVenteDropdownInventaire(prixSpeciauxExistants = []) {
+    const dropdown = document.getElementById('nouveauPointVenteInventaire');
+    if (!dropdown) return;
+    
+    try {
+        const response = await fetch('/api/admin/points-vente', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            console.error('Erreur lors du chargement des points de vente');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.pointsVente) {
+            console.error('Format de réponse invalide pour les points de vente');
+            return;
+        }
+        
+        // Vider le dropdown
+        dropdown.innerHTML = '<option value="">Sélectionner un point de vente</option>';
+        
+        // Filtrer seulement les points de vente actifs
+        const pointsVenteActifs = Object.entries(data.pointsVente)
+            .filter(([nom, config]) => config.active === true)
+            .map(([nom]) => nom)
+            .sort(); // Trier alphabétiquement
+        
+        // Ajouter les options pour les points de vente actifs non encore utilisés
+        pointsVenteActifs.forEach(pointVente => {
+            if (!prixSpeciauxExistants.includes(pointVente)) {
+                const option = document.createElement('option');
+                option.value = pointVente;
+                option.textContent = pointVente === 'Sacre Coeur' ? 'Sacré Coeur' : pointVente;
+                dropdown.appendChild(option);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des points de vente:', error);
+    }
+}
+
+function ajouterPrixSpecialInventaire(produit) {
+    const pointVente = document.getElementById('nouveauPointVenteInventaire').value;
+    const prix = parseFloat(document.getElementById('nouveauPrixSpecialInventaire').value);
+    
+    if (!pointVente) {
+        alert('Veuillez sélectionner un point de vente');
+        return;
+    }
+    
+    if (!prix || prix <= 0) {
+        alert('Veuillez saisir un prix valide');
+        return;
+    }
+    
+    // Vérifier si le prix spécial existe déjà
+    if (currentInventaireConfig[produit][pointVente]) {
+        alert(`Un prix spécial pour "${pointVente}" existe déjà. Utilisez l'édition pour le modifier.`);
+        return;
+    }
+    
+    // Ajouter le prix spécial
+    currentInventaireConfig[produit][pointVente] = prix;
+    
+    // Recharger seulement le tableau dans le modal
+    refreshPrixSpeciauxInventaireTable(produit);
+    
+    // Vider les champs
+    document.getElementById('nouveauPointVenteInventaire').value = '';
+    document.getElementById('nouveauPrixSpecialInventaire').value = '';
+    
+    // Recharger l'affichage principal
+    afficherInventaireConfig();
+}
+
+function modifierPrixSpecialExistantInventaire(produit, pointVente, nouveauPrix) {
+    const prix = parseFloat(nouveauPrix);
+    if (prix && prix > 0) {
+        currentInventaireConfig[produit][pointVente] = prix;
+        afficherInventaireConfig();
+    }
+}
+
+function supprimerPrixSpecialInventaire(produit, pointVente) {
+    if (confirm(`Êtes-vous sûr de vouloir supprimer le prix spécial pour "${pointVente}" ?`)) {
+        if (confirm(`Cette suppression est définitive. Confirmer la suppression du prix spécial pour "${pointVente}" ?`)) {
+            delete currentInventaireConfig[produit][pointVente];
+            // Recharger seulement le tableau dans le modal
+            refreshPrixSpeciauxInventaireTable(produit);
+            // Recharger l'affichage principal
+            afficherInventaireConfig();
+        }
+    }
+}
+
+// Fonctions de modification pour les produits d'inventaire
+function modifierNomProduitInventaire(ancienNom, nouveauNom) {
+    if (nouveauNom && nouveauNom !== ancienNom) {
+        const config = currentInventaireConfig[ancienNom];
+        delete currentInventaireConfig[ancienNom];
+        currentInventaireConfig[nouveauNom] = config;
+        afficherInventaireConfig();
+    }
+}
+
+function modifierPrixInventaire(produit, champ, nouveauPrix) {
+    if (nouveauPrix) {
+        currentInventaireConfig[produit][champ] = parseFloat(nouveauPrix);
+    } else {
+        delete currentInventaireConfig[produit][champ];
+    }
+}
+
+function modifierAlternativesInventaire(produit, alternativesStr) {
+    if (alternativesStr.trim()) {
+        const alternatives = alternativesStr.split(',').map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
+        currentInventaireConfig[produit].alternatives = alternatives;
+    } else {
+        currentInventaireConfig[produit].alternatives = [];
+    }
+}
+
+function supprimerProduitInventaire(produit) {
+    if (confirm(`Êtes-vous sûr de vouloir supprimer le produit d'inventaire "${produit}" ?`)) {
+        if (confirm(`Cette suppression est définitive et supprimera tous les prix associés. Confirmer la suppression du produit "${produit}" ?`)) {
+            delete currentInventaireConfig[produit];
+            afficherInventaireConfig();
+        }
+    }
+}
+
+// Sauvegarder la configuration des produits
+async function sauvegarderConfigProduits() {
+    try {
+        const response = await fetch('/api/admin/config/produits', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ produits: currentProduitsConfig })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            alert('Configuration des produits sauvegardée avec succès !');
+        } else {
+            alert(`Erreur lors de la sauvegarde: ${data.message}`);
+        }
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde:', error);
+        alert('Erreur lors de la sauvegarde de la configuration des produits');
+    }
+}
+
+// Sauvegarder la configuration de l'inventaire
+async function sauvegarderConfigInventaire() {
+    try {
+        const response = await fetch('/api/admin/config/produits-inventaire', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ produitsInventaire: currentInventaireConfig })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            alert('Configuration des produits d\'inventaire sauvegardée avec succès !');
+        } else {
+            alert(`Erreur lors de la sauvegarde: ${data.message}`);
+        }
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde:', error);
+        alert('Erreur lors de la sauvegarde de la configuration des produits d\'inventaire');
+    }
+}
+
+// Initialiser les event listeners pour la configuration des produits
+function initConfigProduitsEventListeners() {
+    // Boutons de sauvegarde
+    const saveProduits = document.getElementById('save-produits-btn');
+    if (saveProduits) {
+        saveProduits.addEventListener('click', sauvegarderConfigProduits);
+    }
+    
+    const saveInventaire = document.getElementById('save-inventaire-btn');
+    if (saveInventaire) {
+        saveInventaire.addEventListener('click', sauvegarderConfigInventaire);
+    }
+    
+    // Boutons de rechargement
+    const reloadProduits = document.getElementById('reload-produits-btn');
+    if (reloadProduits) {
+        reloadProduits.addEventListener('click', chargerConfigProduits);
+    }
+    
+    const reloadInventaire = document.getElementById('reload-inventaire-btn');
+    if (reloadInventaire) {
+        reloadInventaire.addEventListener('click', chargerConfigInventaire);
+    }
+    
+    // Modal pour ajouter une catégorie
+    const saveCategoryBtn = document.getElementById('saveCategoryBtn');
+    if (saveCategoryBtn) {
+        saveCategoryBtn.addEventListener('click', function() {
+            const categoryName = document.getElementById('newCategoryName').value.trim();
+            if (categoryName) {
+                if (!currentProduitsConfig[categoryName]) {
+                    currentProduitsConfig[categoryName] = {};
+                    afficherProduitsConfig();
+                    document.getElementById('newCategoryName').value = '';
+                    bootstrap.Modal.getInstance(document.getElementById('addCategoryModal')).hide();
+                } else {
+                    alert('Cette catégorie existe déjà');
+                }
+            }
+        });
+    }
+    
+    // Modal pour ajouter un produit général
+    const saveProductBtn = document.getElementById('saveProductBtn');
+    if (saveProductBtn) {
+        saveProductBtn.addEventListener('click', function() {
+            const category = document.getElementById('productModalCategory').value;
+            const productName = document.getElementById('newProductName').value.trim();
+            const defaultPrice = parseFloat(document.getElementById('newProductDefault').value) || 0;
+            const alternativesStr = document.getElementById('newProductAlternatives').value.trim();
+            const sacreCoeurPrice = parseFloat(document.getElementById('newProductSacreCoeur').value);
+            
+            if (productName && category) {
+                if (!currentProduitsConfig[category][productName]) {
+                    const productConfig = {
+                        default: defaultPrice,
+                        alternatives: alternativesStr ? 
+                            alternativesStr.split(',').map(p => parseFloat(p.trim())).filter(p => !isNaN(p)) : 
+                            [defaultPrice]
+                    };
+                    
+                    if (sacreCoeurPrice) {
+                        productConfig['Sacre Coeur'] = sacreCoeurPrice;
+                    }
+                    
+                    currentProduitsConfig[category][productName] = productConfig;
+                    afficherProduitsConfig();
+                    
+                    // Réinitialiser le formulaire
+                    document.getElementById('newProductName').value = '';
+                    document.getElementById('newProductDefault').value = '';
+                    document.getElementById('newProductAlternatives').value = '';
+                    document.getElementById('newProductSacreCoeur').value = '';
+                    
+                    bootstrap.Modal.getInstance(document.getElementById('addProductModal')).hide();
+                } else {
+                    alert('Ce produit existe déjà dans cette catégorie');
+                }
+            }
+        });
+    }
+    
+    // Modal pour ajouter une catégorie d'inventaire
+    const saveInventaireCategoryBtn = document.getElementById('saveInventaireCategoryBtn');
+    if (saveInventaireCategoryBtn) {
+        saveInventaireCategoryBtn.addEventListener('click', function() {
+            alert('Les catégories d\'inventaire sont logiques et ne peuvent pas être ajoutées manuellement. Utilisez "Ajouter Produit" dans une catégorie existante.');
+        });
+    }
+    
+    // Modal pour ajouter un produit d'inventaire
+    const saveInventaireProductBtn = document.getElementById('saveInventaireProductBtn');
+    if (saveInventaireProductBtn) {
+        saveInventaireProductBtn.addEventListener('click', function() {
+            const category = document.getElementById('inventaireProductModalCategory').value;
+            const productName = document.getElementById('newInventaireProductName').value.trim();
+            const defaultPrice = parseFloat(document.getElementById('newInventairePrixDefault').value) || 0;
+            const alternativesStr = document.getElementById('newInventaireAlternatives').value.trim();
+            const sacreCoeurPrice = parseFloat(document.getElementById('newInventairePrixSacreCoeur').value);
+            const keurMassarPrice = parseFloat(document.getElementById('newInventairePrixKeurMassar').value);
+            
+            if (productName) {
+                if (!currentInventaireConfig[productName]) {
+                    const productConfig = {
+                        prixDefault: defaultPrice,
+                        alternatives: alternativesStr ? 
+                            alternativesStr.split(',').map(p => parseFloat(p.trim())).filter(p => !isNaN(p)) : 
+                            [defaultPrice]
+                    };
+                    
+                    if (sacreCoeurPrice) {
+                        productConfig['Sacre Coeur'] = sacreCoeurPrice;
+                    }
+                    
+                    if (keurMassarPrice) {
+                        productConfig['Keur Massar'] = keurMassarPrice;
+                    }
+                    
+                    currentInventaireConfig[productName] = productConfig;
+                    afficherInventaireConfig();
+                    
+                    // Réinitialiser le formulaire
+                    document.getElementById('newInventaireProductName').value = '';
+                    document.getElementById('newInventairePrixDefault').value = '';
+                    document.getElementById('newInventaireAlternatives').value = '';
+                    document.getElementById('newInventairePrixSacreCoeur').value = '';
+                    document.getElementById('newInventairePrixKeurMassar').value = '';
+                    
+                    bootstrap.Modal.getInstance(document.getElementById('addInventaireProductModal')).hide();
+                } else {
+                    alert('Ce produit existe déjà');
+                }
+            }
+        });
+    }
+}
+
 // Initialisation
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Initialisation de la page...'); // Log de débogage
@@ -1022,6 +2087,11 @@ document.addEventListener('DOMContentLoaded', function() {
             initPointsVenteEventListeners();
             initPrixEventListeners();
             initCorrectionsEventListeners();
+            initConfigProduitsEventListeners();
+            
+            // Charger la configuration des produits
+            chargerConfigProduits();
+            chargerConfigInventaire();
             
             // Initialiser la section stocks si elle existe
             const stocksSection = document.getElementById('stocks-section');

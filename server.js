@@ -12,8 +12,8 @@ const path = require('path');
 const session = require('express-session');
 const users = require('./users');
 const pointsVente = require('./points-vente');
-const produits = require('./produits');
-const produitsInventaire = require('./produitsInventaire');
+const produits = require('./data/by-date/produits');
+const produitsInventaire = require('./data/by-date/produitsInventaire');
 const bcrypt = require('bcrypt');
 const fsPromises = require('fs').promises;
 const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf } = require('./db/models');
@@ -439,6 +439,128 @@ app.get('/api/admin/points-vente', checkAuth, checkAdmin, (req, res) => {
 // Route pour obtenir la base de données des produits
 app.get('/api/admin/produits', checkAuth, checkAdmin, (req, res) => {
     res.json({ success: true, produits });
+});
+
+// ==== ROUTES DE CONFIGURATION DES PRODUITS (ADMIN UNIQUEMENT) ====
+
+// Route pour lire la configuration des produits généraux
+app.get('/api/admin/config/produits', checkAuth, checkAdmin, (req, res) => {
+    try {
+        const produitsPath = path.join(__dirname, 'data/by-date/produits.js');
+        const produitsContent = fs.readFileSync(produitsPath, 'utf8');
+        
+        // Extraire l'objet produits du fichier JavaScript
+        const produitsMatch = produitsContent.match(/const produits = ({[\s\S]*?});/);
+        if (!produitsMatch) {
+            return res.status(500).json({ success: false, message: 'Format de fichier produits invalide' });
+        }
+        
+        // Évaluer l'objet JavaScript de manière sécurisée
+        const produitsObj = eval('(' + produitsMatch[1] + ')');
+        
+        res.json({ success: true, produits: produitsObj });
+    } catch (error) {
+        console.error('Erreur lors de la lecture des produits:', error);
+        res.status(500).json({ success: false, message: 'Erreur lors de la lecture de la configuration des produits' });
+    }
+});
+
+// Route pour sauvegarder la configuration des produits généraux
+app.post('/api/admin/config/produits', checkAuth, checkAdmin, (req, res) => {
+    try {
+        const { produits: nouveauxProduits } = req.body;
+        
+        if (!nouveauxProduits || typeof nouveauxProduits !== 'object') {
+            return res.status(400).json({ success: false, message: 'Configuration de produits invalide' });
+        }
+        
+        const produitsPath = path.join(__dirname, 'data/by-date/produits.js');
+        
+        // Créer une sauvegarde
+        const backupPath = `${produitsPath}.backup.${Date.now()}`;
+        fs.copyFileSync(produitsPath, backupPath);
+        
+        // Lire le contenu actuel pour préserver les fonctions utilitaires
+        const produitsContent = fs.readFileSync(produitsPath, 'utf8');
+        const functionsMatch = produitsContent.match(/(\/\/ Fonctions utilitaires[\s\S]*)/);
+        const functionsContent = functionsMatch ? functionsMatch[1] : '';
+        
+        // Générer le nouveau contenu
+        const newContent = `const produits = ${JSON.stringify(nouveauxProduits, null, 4)};
+
+${functionsContent}`;
+        
+        // Écrire le nouveau fichier
+        fs.writeFileSync(produitsPath, newContent, 'utf8');
+        
+        // Recharger le module dans le cache Node.js
+        delete require.cache[require.resolve('./data/by-date/produits')];
+        
+        res.json({ success: true, message: 'Configuration des produits sauvegardée avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde des produits:', error);
+        res.status(500).json({ success: false, message: 'Erreur lors de la sauvegarde de la configuration des produits' });
+    }
+});
+
+// Route pour lire la configuration des produits d'inventaire
+app.get('/api/admin/config/produits-inventaire', checkAuth, checkAdmin, (req, res) => {
+    try {
+        const inventairePath = path.join(__dirname, 'data/by-date/produitsInventaire.js');
+        const inventaireContent = fs.readFileSync(inventairePath, 'utf8');
+        
+        // Extraire l'objet produitsInventaire du fichier JavaScript
+        const inventaireMatch = inventaireContent.match(/const produitsInventaire = ({[\s\S]*?});/);
+        if (!inventaireMatch) {
+            return res.status(500).json({ success: false, message: 'Format de fichier produitsInventaire invalide' });
+        }
+        
+        // Évaluer l'objet JavaScript de manière sécurisée
+        const inventaireObj = eval('(' + inventaireMatch[1] + ')');
+        
+        res.json({ success: true, produitsInventaire: inventaireObj });
+    } catch (error) {
+        console.error('Erreur lors de la lecture des produits d\'inventaire:', error);
+        res.status(500).json({ success: false, message: 'Erreur lors de la lecture de la configuration des produits d\'inventaire' });
+    }
+});
+
+// Route pour sauvegarder la configuration des produits d'inventaire
+app.post('/api/admin/config/produits-inventaire', checkAuth, checkAdmin, (req, res) => {
+    try {
+        const { produitsInventaire: nouveauxProduitsInventaire } = req.body;
+        
+        if (!nouveauxProduitsInventaire || typeof nouveauxProduitsInventaire !== 'object') {
+            return res.status(400).json({ success: false, message: 'Configuration de produits d\'inventaire invalide' });
+        }
+        
+        const inventairePath = path.join(__dirname, 'data/by-date/produitsInventaire.js');
+        
+        // Créer une sauvegarde
+        const backupPath = `${inventairePath}.backup.${Date.now()}`;
+        fs.copyFileSync(inventairePath, backupPath);
+        
+        // Lire le contenu actuel pour préserver les fonctions utilitaires
+        const inventaireContent = fs.readFileSync(inventairePath, 'utf8');
+        const functionsMatch = inventaireContent.match(/(\/\/ Fonctions utilitaires[\s\S]*)/);
+        const functionsContent = functionsMatch ? functionsMatch[1] : '';
+        
+        // Générer le nouveau contenu
+        const newContent = `const produitsInventaire = ${JSON.stringify(nouveauxProduitsInventaire, null, 4)};
+
+${functionsContent}`;
+        
+        // Écrire le nouveau fichier
+        fs.writeFileSync(inventairePath, newContent, 'utf8');
+        
+        // Recharger le module dans le cache Node.js
+        delete require.cache[require.resolve('./data/by-date/produitsInventaire')];
+        
+        res.json({ success: true, message: 'Configuration des produits d\'inventaire sauvegardée avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde des produits d\'inventaire:', error);
+        res.status(500).json({ success: false, message: 'Erreur lors de la sauvegarde de la configuration des produits d\'inventaire' });
+    }
 });
 
 // Routes pour la gestion des utilisateurs
