@@ -89,6 +89,7 @@ function populatePointVenteFilter() {
 
 // Fonction pour appliquer les filtres
 function applyCashPaymentFilters() {
+    const monthFilter = document.getElementById('month-filter-cash').value.trim();
     const dateFilter = document.getElementById('date-filter-cash').value;
     const pointVenteFilter = document.getElementById('point-vente-filter-cash').value;
     
@@ -103,6 +104,34 @@ function applyCashPaymentFilters() {
 
     // Filtrer les données
     let filteredData = [...allCashPaymentData];
+    
+    // Si un filtre de mois est spécifié
+    if (monthFilter) {
+        console.log('Applying month filter...', monthFilter);
+        filteredData = filteredData.filter(dateEntry => {
+            if (!dateEntry.date) return false;
+            
+            let entryYearMonth;
+            
+            // Analyser la date selon le format (DD/MM/YYYY ou YYYY-MM-DD)
+            if (dateEntry.date.includes('/')) {
+                // Format DD/MM/YYYY
+                const [day, month, year] = dateEntry.date.split('/');
+                entryYearMonth = `${year}-${month.padStart(2, '0')}`;
+            } else if (dateEntry.date.includes('-')) {
+                // Format YYYY-MM-DD
+                const [year, month] = dateEntry.date.split('-');
+                entryYearMonth = `${year}-${month.padStart(2, '0')}`;
+            } else {
+                console.warn('Format de date non reconnu:', dateEntry.date);
+                return false;
+            }
+            
+            console.log(`Comparing ${entryYearMonth} with ${monthFilter}`);
+            return entryYearMonth === monthFilter;
+        });
+        console.log('Filtered data by month:', filteredData.length, 'entries');
+    }
     
     // Si un filtre de date est spécifié
     if (dateFilter) {
@@ -145,7 +174,20 @@ function applyCashPaymentFilters() {
     if (filteredData.length > 0) {
         displayCashPaymentData(filteredData);
         document.getElementById('no-cash-payment-data').style.display = 'none';
+        console.log('Totaux mis à jour avec les données filtrées');
     } else {
+        // Réinitialiser les totaux à zéro si aucune donnée
+        document.getElementById('total-positif-global').textContent = '0 FCFA';
+        document.getElementById('total-negatif-retraits').textContent = '0 FCFA';
+        document.getElementById('total-positif-pdv-breakdown').innerHTML = '';
+        const autresElement = document.getElementById('total-positif-autres');
+        if (autresElement) {
+            const parentP = autresElement.closest('p');
+            if (parentP) {
+                parentP.innerHTML = `Autre(s): <strong class="float-end"><span id="total-positif-autres">0 FCFA</span> (0%)</strong>`;
+            }
+        }
+        
         document.getElementById('cash-payment-table-body').innerHTML = '';
         document.getElementById('no-cash-payment-data').style.display = 'block';
         document.getElementById('no-cash-payment-data').textContent = 'Aucune donnée ne correspond aux filtres sélectionnés.';
@@ -575,6 +617,188 @@ function parseCSV(csvContent) {
     return data;
 }
 
+// Fonction pour initialiser le filtre de mois avec le mois en cours
+function initMonthFilterCashPayment() {
+    const monthFilter = document.getElementById('month-filter-cash');
+    if (monthFilter && !monthFilter.value) {
+        const maintenant = new Date();
+        const moisCourant = maintenant.getFullYear() + '-' + String(maintenant.getMonth() + 1).padStart(2, '0');
+        monthFilter.value = moisCourant;
+        console.log(`Filtre de mois Cash Payment initialisé au mois en cours: ${moisCourant}`);
+        
+        // Appliquer automatiquement le filtre si l'option auto est activée
+        if (document.getElementById('auto-apply-filter') && document.getElementById('auto-apply-filter').checked) {
+            // Attendre un court délai pour que les données soient chargées
+            setTimeout(() => {
+                console.log('Application automatique du filtre de mois...');
+                applyCashPaymentFilters();
+            }, 500);
+        }
+    }
+}
+
+// Fonction pour ouvrir le modal d'ajout manuel de paiement
+async function openManualPaymentModal() {
+    // Remplir le dropdown des points de vente
+    populateManualPaymentPointsVente();
+    
+    // Définir la date par défaut à aujourd'hui
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    document.getElementById('manualPaymentDate').value = dateStr;
+    
+    // Réinitialiser le formulaire
+    document.getElementById('manualPaymentForm').reset();
+    document.getElementById('manualPaymentDate').value = dateStr; // Remettre la date après le reset
+    
+    // Afficher/cacher le mapping des références selon les permissions
+    await checkPaymentRefMappingVisibility();
+    
+    // Ouvrir le modal
+    const modal = new bootstrap.Modal(document.getElementById('addManualPaymentModal'));
+    modal.show();
+}
+
+// Fonction pour vérifier la visibilité du mapping des références de paiement
+async function checkPaymentRefMappingVisibility() {
+    const currentUser = window.currentUser;
+    const mappingInfo = document.getElementById('paymentRefMappingInfo');
+    
+    if (currentUser && currentUser.role && mappingInfo) {
+        const userRole = currentUser.role.toLowerCase();
+        const adminRoles = ['admin', 'superviseur']; // Administrateurs et superviseurs
+        
+        if (adminRoles.includes(userRole)) {
+            // Charger et afficher le mapping pour les administrateurs et superviseurs
+            try {
+                const response = await fetch('/api/payment-ref-mapping');
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    // Construire le HTML du mapping dynamiquement
+                    let mappingHTML = '<p class="mb-2"><strong>Mapping des références de paiement :</strong></p><div class="row small">';
+                    
+                    Object.entries(result.data).forEach(([ref, pointVente]) => {
+                        mappingHTML += `<div class="col-md-4">${ref} = ${pointVente}</div>`;
+                    });
+                    
+                    mappingHTML += '</div>';
+                    mappingInfo.innerHTML = mappingHTML;
+                    mappingInfo.style.display = 'block';
+                    
+                    console.log(`Mapping des références chargé et affiché pour ${currentUser.username}`);
+                } else {
+                    console.error('Erreur lors du chargement du mapping:', result.message);
+                    mappingInfo.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement du mapping des références:', error);
+                mappingInfo.style.display = 'none';
+            }
+        } else {
+            // Cacher le mapping pour les autres utilisateurs
+            mappingInfo.style.display = 'none';
+            console.log(`Mapping des références caché pour ${userRole} (${currentUser.username})`);
+        }
+    } else {
+        // Cacher par défaut si pas d'utilisateur connecté
+        if (mappingInfo) {
+            mappingInfo.style.display = 'none';
+        }
+    }
+}
+
+// Fonction pour remplir le dropdown des points de vente dans le modal
+async function populateManualPaymentPointsVente() {
+    try {
+        const response = await fetch('/api/points-vente');
+        const pointsVente = await response.json();
+        
+        const select = document.getElementById('manualPaymentPointVente');
+        // Garder l'option par défaut et vider les autres
+        select.innerHTML = '<option value="">Sélectionner un point de vente</option>';
+        
+        pointsVente.forEach(pointVente => {
+            const option = document.createElement('option');
+            option.value = pointVente;
+            option.textContent = pointVente;
+            select.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des points de vente:', error);
+        alert('Erreur lors du chargement des points de vente');
+    }
+}
+
+// Fonction pour sauvegarder un paiement manuel
+async function saveManualPayment() {
+    const form = document.getElementById('manualPaymentForm');
+    const formData = new FormData(form);
+    
+    // Validation des champs requis
+    const date = document.getElementById('manualPaymentDate').value;
+    const pointVente = document.getElementById('manualPaymentPointVente').value;
+    const amount = document.getElementById('manualPaymentAmount').value;
+    
+    if (!date || !pointVente || !amount) {
+        alert('Veuillez remplir tous les champs obligatoires (Date, Point de Vente, Montant)');
+        return;
+    }
+    
+    // Préparer les données
+    const paymentData = {
+        date: date,
+        pointVente: pointVente,
+        amount: parseFloat(amount),
+        reference: document.getElementById('manualPaymentReference').value || '',
+        comment: document.getElementById('manualPaymentComment').value || '',
+        isManual: true
+    };
+    
+    try {
+        // Désactiver le bouton pendant l'envoi
+        const saveButton = document.getElementById('saveManualPayment');
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Sauvegarde...';
+        
+        const response = await fetch('/api/cash-payments/manual', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(paymentData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Fermer le modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addManualPaymentModal'));
+            modal.hide();
+            
+            // Afficher un message de succès
+            alert('Paiement ajouté avec succès !');
+            
+            // Recharger les données pour afficher le nouveau paiement
+            loadCashPaymentData();
+            
+        } else {
+            alert(`Erreur lors de l'ajout du paiement: ${result.message || 'Erreur inconnue'}`);
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'ajout du paiement manuel:', error);
+        alert('Erreur lors de l\'ajout du paiement. Veuillez réessayer.');
+    } finally {
+        // Réactiver le bouton
+        const saveButton = document.getElementById('saveManualPayment');
+        saveButton.disabled = false;
+        saveButton.innerHTML = '<i class="bi bi-save"></i> Sauvegarder';
+    }
+}
+
 // Initialisation des gestionnaires d'événements
 document.addEventListener('DOMContentLoaded', function() {
     // Gestionnaire pour l'onglet Cash Paiement
@@ -604,8 +828,32 @@ document.addEventListener('DOMContentLoaded', function() {
             // Charger les données de paiement
             loadCashPaymentData();
             
+            // Vérifier les permissions admin pour afficher le bouton "Effacer les données"
+            if (typeof checkCashPaymentAdminPermissions === 'function') {
+                checkCashPaymentAdminPermissions();
+            }
+            
+            // Initialiser le filtre de mois avec le mois en cours
+            initMonthFilterCashPayment();
+            
             // Initialiser le datepicker si ce n'est pas déjà fait
             initDatepicker();
+        });
+    }
+    
+    // Gestionnaire pour le bouton d'ajout manuel de paiement
+    const addManualPaymentButton = document.getElementById('add-manual-payment');
+    if (addManualPaymentButton) {
+        addManualPaymentButton.addEventListener('click', function() {
+            openManualPaymentModal();
+        });
+    }
+    
+    // Gestionnaire pour le bouton de sauvegarde du paiement manuel
+    const saveManualPaymentButton = document.getElementById('saveManualPayment');
+    if (saveManualPaymentButton) {
+        saveManualPaymentButton.addEventListener('click', function() {
+            saveManualPayment();
         });
     }
     
@@ -646,6 +894,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const applyFiltersBtn = document.getElementById('apply-filters-cash');
     if (applyFiltersBtn) {
         applyFiltersBtn.addEventListener('click', applyCashPaymentFilters);
+    }
+    
+    // Gestionnaire pour le filtre de mois (changement automatique)
+    const monthFilter = document.getElementById('month-filter-cash');
+    if (monthFilter) {
+        monthFilter.addEventListener('change', function() {
+            if (document.getElementById('auto-apply-filter')?.checked) {
+                applyCashPaymentFilters();
+            }
+        });
     }
     
     // Gestionnaire pour le filtre de point de vente (changement automatique)

@@ -509,6 +509,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Charger les données de paiement
             loadCashPaymentData();
+            
+            // Vérifier les permissions admin pour afficher le bouton "Effacer les données"
+            checkCashPaymentAdminPermissions();
         });
     }
 
@@ -1541,6 +1544,85 @@ function canModifyStockMatinFields(username) {
     return privilegedUsers.includes(userRole);
 }
 
+// Fonction pour vérifier les permissions admin dans la section Cash Payment
+function checkCashPaymentAdminPermissions() {
+    const currentUser = window.currentUser;
+    const clearButton = document.getElementById('clear-cash-payment-data');
+    const addManualPaymentButton = document.getElementById('add-manual-payment');
+    const cashPaymentTitle = document.getElementById('cash-payment-title');
+    
+    if (currentUser && currentUser.role) {
+        const userRole = currentUser.role.toLowerCase();
+        const adminRoles = ['admin', 'superviseur']; // Rôles avec privilèges admin complets
+        const superUserRoles = ['superutilisateur']; // Rôles superutilisateur
+        
+        if (adminRoles.includes(userRole)) {
+            // Utilisateur admin/superviseur : permissions différenciées
+            if (userRole === 'admin') {
+                // ADMIN : accès complet (effacer + ajouter)
+                if (clearButton) {
+                    clearButton.style.display = 'inline-block';
+                }
+                if (addManualPaymentButton) {
+                    addManualPaymentButton.style.display = 'inline-block';
+                }
+                if (cashPaymentTitle) {
+                    cashPaymentTitle.textContent = 'Importation et Analyse des Paiements en Espèces';
+                }
+                console.log(`Utilisateur admin (${currentUser.username}) : accès complet - effacer et ajouter`);
+            } else if (userRole === 'superviseur') {
+                // SUPERVISEUR : ajouter seulement, pas effacer
+                if (clearButton) {
+                    clearButton.style.display = 'none';
+                }
+                if (addManualPaymentButton) {
+                    addManualPaymentButton.style.display = 'inline-block';
+                }
+                if (cashPaymentTitle) {
+                    cashPaymentTitle.textContent = 'Analyse des Paiements en Espèces';
+                }
+                console.log(`Utilisateur superviseur (${currentUser.username}) : peut ajouter mais pas effacer`);
+            }
+        } else if (superUserRoles.includes(userRole)) {
+            // Superutilisateur : pas d'accès aux fonctions d'administration des paiements
+            if (clearButton) {
+                clearButton.style.display = 'none';
+            }
+            if (addManualPaymentButton) {
+                addManualPaymentButton.style.display = 'none';
+            }
+            if (cashPaymentTitle) {
+                cashPaymentTitle.textContent = 'Analyse des Paiements en Espèces';
+            }
+            console.log(`Superutilisateur (${currentUser.username}) : pas d'accès aux fonctions d'administration des paiements`);
+        } else {
+            // Utilisateur standard : cacher tous les boutons admin
+            if (clearButton) {
+                clearButton.style.display = 'none';
+            }
+            if (addManualPaymentButton) {
+                addManualPaymentButton.style.display = 'none';
+            }
+            if (cashPaymentTitle) {
+                cashPaymentTitle.textContent = 'Analyse des Paiements en Espèces';
+            }
+            console.log(`Utilisateur standard ${userRole} (${currentUser.username}) : tous les boutons admin cachés`);
+        }
+    } else {
+        // Pas d'utilisateur connecté : cacher tous les boutons par sécurité
+        if (clearButton) {
+            clearButton.style.display = 'none';
+        }
+        if (addManualPaymentButton) {
+            addManualPaymentButton.style.display = 'none';
+        }
+        if (cashPaymentTitle) {
+            cashPaymentTitle.textContent = 'Analyse des Paiements en Espèces';
+        }
+        console.log('Aucun utilisateur connecté : tous les boutons admin cachés');
+    }
+}
+
 // Fonction pour mettre à jour l'état des boutons du stock selon la date sélectionnée
 function updateStockButtonsState() {
     const addStockButton = document.getElementById('add-stock-row');
@@ -2233,19 +2315,46 @@ function creerGraphiqueVentesParProduit(donnees) {
         }
     });
     
+    // Stocker les données globalement pour le filtrage
+    donneesVentesGlobales = donnees;
+    
     // Créer également le tableau des ventes par point de vente
     creerTableauVentesParPointVente(donnees);
+    
+    // Ajouter l'event listener pour le filtre de mois si pas encore fait
+    ajouterEventListenerFiltreMois();
 }
 
 // Fonction pour créer le tableau des ventes par point de vente
-async function creerTableauVentesParPointVente(donnees) {
+async function creerTableauVentesParPointVente(donnees, moisFiltre = null) {
     console.log('Création du tableau des ventes par point de vente avec les données:', donnees);
     
     try {
+        // Initialiser le filtre de mois si pas encore fait
+        if (!moisFiltre) {
+            initialiserFiltreDefautMois();
+            moisFiltre = document.getElementById('moisFilterPointVente').value;
+        }
+        
         // Récupérer la liste des points de vente actifs via l'API
         const response = await fetch('/api/points-vente');
         const pointsVenteActifs = await response.json();
         console.log('Points de vente actifs récupérés:', pointsVenteActifs);
+        
+        // Filtrer les données par mois si un filtre est spécifié
+        let donneesFiltered = donnees;
+        if (moisFiltre && moisFiltre !== '') {
+            donneesFiltered = donnees.filter(vente => {
+                const dateVente = vente.Date || vente.date || '';
+                if (dateVente) {
+                    const dateObj = new Date(dateVente);
+                    const moisVente = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0');
+                    return moisVente === moisFiltre;
+                }
+                return false;
+            });
+            console.log(`Données filtrées pour le mois ${moisFiltre}:`, donneesFiltered.length, 'ventes');
+        }
         
         // Regrouper les ventes par point de vente
         const ventesParPointVente = {};
@@ -2257,8 +2366,8 @@ async function creerTableauVentesParPointVente(donnees) {
             nombreVentesParPointVente[pdv] = 0;
         });
         
-        // Calculer les totaux par point de vente
-        donnees.forEach(vente => {
+        // Calculer les totaux par point de vente avec les données filtrées
+        donneesFiltered.forEach(vente => {
             const pointVente = vente.pointVente || vente['Point de Vente'] || '';
             const montant = parseFloat(vente.Montant || 0);
             
@@ -2328,6 +2437,9 @@ async function creerTableauVentesParPointVente(donnees) {
         // Activer les boutons d'export après la création du tableau
         activerBoutonsExportPointVente(sortedPointsVente, totalGeneral, Object.values(nombreVentesParPointVente).reduce((sum, nb) => sum + nb, 0));
         
+        // Mettre à jour le titre avec le mois sélectionné si un filtre est appliqué
+        updateTitreTableauAvecMois(moisFiltre);
+        
     } catch (error) {
         console.error('Erreur lors de la création du tableau des ventes par point de vente:', error);
         
@@ -2343,6 +2455,58 @@ async function creerTableauVentesParPointVente(donnees) {
                 </tr>
             `;
         }
+    }
+}
+
+// Fonction pour initialiser le filtre de mois avec le mois en cours
+function initialiserFiltreDefautMois() {
+    const moisFilter = document.getElementById('moisFilterPointVente');
+    if (moisFilter && !moisFilter.value) {
+        const maintenant = new Date();
+        const moisCourant = maintenant.getFullYear() + '-' + String(maintenant.getMonth() + 1).padStart(2, '0');
+        moisFilter.value = moisCourant;
+        console.log(`Filtre de mois initialisé au mois en cours: ${moisCourant}`);
+    }
+}
+
+// Fonction pour mettre à jour le titre du tableau avec le mois sélectionné
+function updateTitreTableauAvecMois(moisFiltre) {
+    // Chercher spécifiquement le titre du tableau des ventes par point de vente
+    const tableCard = document.getElementById('ventesParPointVenteTable')?.closest('.card');
+    const titre = tableCard?.querySelector('.card-title');
+    
+    if (titre && moisFiltre) {
+        const [annee, mois] = moisFiltre.split('-');
+        const moisNoms = [
+            'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+            'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+        ];
+        const nomMois = moisNoms[parseInt(mois) - 1];
+        titre.textContent = `Ventes par Point de Vente - ${nomMois} ${annee}`;
+    } else if (titre) {
+        titre.textContent = 'Ventes par Point de Vente';
+    }
+}
+
+// Variable globale pour stocker les données des ventes (pour le filtrage)
+let donneesVentesGlobales = [];
+
+// Fonction pour ajouter l'event listener du filtre de mois
+function ajouterEventListenerFiltreMois() {
+    const moisFilter = document.getElementById('moisFilterPointVente');
+    if (moisFilter && !moisFilter.hasAttribute('data-listener-added')) {
+        moisFilter.addEventListener('change', function() {
+            const moisSelectionne = this.value;
+            console.log(`Mois sélectionné: ${moisSelectionne}`);
+            
+            if (donneesVentesGlobales.length > 0) {
+                creerTableauVentesParPointVente(donneesVentesGlobales, moisSelectionne);
+            }
+        });
+        
+        // Marquer que l'event listener a été ajouté
+        moisFilter.setAttribute('data-listener-added', 'true');
+        console.log('Event listener ajouté au filtre de mois');
     }
 }
 
@@ -6686,6 +6850,9 @@ document.getElementById('stock-alerte-tab').addEventListener('click', function(e
 document.getElementById('cash-payment-tab').addEventListener('click', function(e) {
     e.preventDefault();
     showSection('cash-payment-section');
+    
+    // Vérifier les permissions admin pour afficher le bouton "Effacer les données"
+    checkCashPaymentAdminPermissions();
 });
 
 document.getElementById('estimation-tab').addEventListener('click', function(e) {

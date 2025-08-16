@@ -121,6 +121,41 @@ const {
     checkReconciliationAccess
 } = require('./middlewares/auth');
 
+// Middleware pour vérifier les permissions admin strictes (effacement des données)
+const checkStrictAdminOnly = (req, res, next) => {
+    const userRole = req.session.user.role;
+    
+    if (userRole === 'admin') {
+        next();
+    } else {
+        res.status(403).json({
+            success: false,
+            message: 'Accès refusé. Permissions administrateur strictes requises.'
+        });
+    }
+};
+
+// Fonction utilitaire pour charger le mapping des références de paiement
+const getPaymentRefMapping = () => {
+    try {
+        // Invalider le cache pour avoir toujours la version la plus récente
+        delete require.cache[require.resolve('./data/by-date/paymentRefMapping.js')];
+        return require('./data/by-date/paymentRefMapping.js');
+    } catch (error) {
+        console.error('Erreur lors du chargement du mapping des références:', error);
+        // Fallback vers un mapping par défaut
+        return {
+            'V_TB': 'Touba',
+            'V_DHR': 'Dahra',
+            'V_LGR': 'Linguere',
+            'V_MBA': 'Mbao',
+            'V_OSF': 'O.Foire',
+            'V_SAC': 'Sacre Coeur',
+            'V_ABATS': 'Abattage'
+        };
+    }
+};
+
 // Middleware d'authentification par API key pour services externes comme Relevance AI
 const validateApiKey = (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
@@ -2321,18 +2356,8 @@ app.post('/api/cash-payments/import', checkAuth, checkWriteAccess, async (req, r
             return res.status(400).json({ success: false, message: 'Données invalides' });
         }
         
-        // Mapping des références de paiement aux points de vente
-        const paymentRefToPointDeVente = {
-            'V_TB': 'Touba',
-            'V_DHR': 'Dahra',
-            'V_ALS': 'Aliou Sow',
-            'V_LGR': 'Linguere',
-            'V_MBA': 'Mbao',
-            'V_KM': 'Keur Massar',
-            'V_OSF': 'O.Foire',
-            'V_SAC': 'Sacre Coeur',
-            'V_ABATS': 'Abattage'
-        };
+        // Charger le mapping des références de paiement via la fonction utilitaire
+        const paymentRefToPointDeVente = getPaymentRefMapping();
         
         // Convertir les dates du format "1 avr. 2025, 16:18" en format standard
         const processedData = data.map(item => {
@@ -2512,7 +2537,7 @@ app.get('/api/cash-payments/aggregated', checkAuth, checkReadAccess, async (req,
     }
 });
 
-app.delete('/api/cash-payments/clear', checkAuth, checkWriteAccess, async (req, res) => {
+app.delete('/api/cash-payments/clear', checkAuth, checkStrictAdminOnly, async (req, res) => {
     try {
         // S'assurer que la table existe
         await sequelize.query(`
@@ -2724,6 +2749,190 @@ app.put('/api/cash-payments/update-point-vente', checkAuth, checkWriteAccess, as
     }
 });
 
+// Middleware pour vérifier les permissions admin uniquement pour les paiements manuels
+const checkAdminOnly = (req, res, next) => {
+    const userRole = req.session.user.role;
+    const allowedRoles = ['admin', 'superviseur']; // Admin et Superviseur peuvent ajouter des paiements manuels
+    
+    if (allowedRoles.includes(userRole)) {
+        next();
+    } else {
+        res.status(403).json({
+            success: false,
+            message: 'Accès refusé. Permissions administrateur ou superviseur requises.'
+        });
+    }
+};
+
+// Route pour ajouter manuellement un paiement en espèces
+app.post('/api/cash-payments/manual', checkAuth, checkAdminOnly, async (req, res) => {
+    try {
+        const { date, pointVente, amount, reference, comment } = req.body;
+        const username = req.session.user.username;
+        
+        // Validation des données
+        if (!date || !pointVente || amount === undefined || amount === null) {
+            return res.status(400).json({
+                success: false,
+                message: 'Date, point de vente et montant sont requis'
+            });
+        }
+        
+        // Vérifier que le point de vente existe et est actif
+        const pointsVente = require('./points-vente.js');
+        if (!pointsVente[pointVente] || !pointsVente[pointVente].active) {
+            return res.status(400).json({
+                success: false,
+                message: `Le point de vente "${pointVente}" n'existe pas ou n'est pas actif`
+            });
+        }
+        
+        // Convertir la date au format DD/MM/YYYY pour cohérence avec les données existantes
+        const dateObj = new Date(date);
+        const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
+        
+        // Vérifier s'il existe déjà un paiement pour cette date et ce point de vente
+        const existingPayment = await CashPayment.findOne({
+            where: {
+                date: formattedDate,
+                point_de_vente: pointVente
+            }
+        });
+        
+        if (existingPayment) {
+            // Mettre à jour le total existant
+            const currentAmount = existingPayment.amount || 0;
+            const newAmount = currentAmount + parseFloat(amount);
+            
+            // Construire le nouveau commentaire
+            const newComment = comment || `Ajout manuel: ${amount} FCFA par ${username}`;
+            const updatedComment = existingPayment.comment ? 
+                `${existingPayment.comment}; ${newComment}` : 
+                newComment;
+            
+            await existingPayment.update({
+                amount: newAmount,
+                comment: updatedComment,
+                is_manual: true,
+                created_by: username
+            });
+            
+            console.log(`Paiement manuel ajouté - Mise à jour: ${pointVente} ${formattedDate} - Nouveau total: ${newAmount} FCFA (ajout de ${amount} FCFA)`);
+        } else {
+            // Créer un nouveau paiement
+            await CashPayment.create({
+                date: formattedDate,
+                point_de_vente: pointVente,
+                amount: parseFloat(amount),
+                reference: reference || '',
+                comment: comment || `Paiement manuel ajouté par ${username}`,
+                is_manual: true,
+                created_by: username
+            });
+            
+            console.log(`Nouveau paiement manuel créé: ${pointVente} ${formattedDate} - ${amount} FCFA`);
+        }
+        
+        res.json({
+            success: true,
+            message: `Paiement de ${amount} FCFA ajouté avec succès pour ${pointVente} le ${formattedDate}`
+        });
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'ajout du paiement manuel:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de l\'ajout du paiement'
+        });
+    }
+});
+
+// Route pour récupérer le mapping des références de paiement
+app.get('/api/payment-ref-mapping', checkAuth, (req, res) => {
+    try {
+        const paymentRefMapping = getPaymentRefMapping();
+        res.json({
+            success: true,
+            data: paymentRefMapping
+        });
+    } catch (error) {
+        console.error('Erreur lors de la lecture du mapping des références:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la lecture du mapping des références'
+        });
+    }
+});
+
+// Middleware pour vérifier les permissions admin ou superutilisateur pour la configuration
+const checkAdminOrSuperUser = (req, res, next) => {
+    const userRole = req.session.user.username.toUpperCase();
+    const adminUsers = ['SALIOU', 'OUSMANE'];
+    const superUsers = ['NADOU', 'PAPI'];
+    
+    if (adminUsers.includes(userRole) || superUsers.includes(userRole)) {
+        next();
+    } else {
+        res.status(403).json({
+            success: false,
+            message: 'Accès refusé. Permissions administrateur ou superutilisateur requises.'
+        });
+    }
+};
+
+// Route pour mettre à jour le mapping des références de paiement
+app.post('/api/payment-ref-mapping', checkAuth, checkAdminOrSuperUser, async (req, res) => {
+    try {
+        const { mapping } = req.body;
+        const username = req.session.user.username;
+        
+        if (!mapping || typeof mapping !== 'object') {
+            return res.status(400).json({
+                success: false,
+                message: 'Données de mapping invalides'
+            });
+        }
+        
+        const filePath = path.join(__dirname, 'data', 'by-date', 'paymentRefMapping.js');
+        
+        // Créer une sauvegarde avant modification
+        const backupPath = path.join(__dirname, 'data', 'by-date', `paymentRefMapping.backup.${Date.now()}.js`);
+        try {
+            const fs = require('fs');
+            fs.copyFileSync(filePath, backupPath);
+            console.log(`Sauvegarde créée: ${backupPath}`);
+        } catch (backupError) {
+            console.warn('Impossible de créer une sauvegarde:', backupError);
+        }
+        
+        // Formater le contenu du fichier JavaScript
+        const fileContent = `const paymentRefMapping = ${JSON.stringify(mapping, null, 4)};
+
+module.exports = paymentRefMapping;`;
+        
+        // Écrire le nouveau fichier
+        const fs = require('fs');
+        fs.writeFileSync(filePath, fileContent, 'utf8');
+        
+        // Invalider le cache de require pour recharger le module
+        delete require.cache[require.resolve('./data/by-date/paymentRefMapping')];
+        
+        console.log(`Mapping des références de paiement mis à jour par ${username}`);
+        
+        res.json({
+            success: true,
+            message: 'Mapping des références mis à jour avec succès'
+        });
+        
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du mapping:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de la mise à jour du mapping'
+        });
+    }
+});
+
 // Route pour importer des données de paiement en espèces depuis une source externe
 app.post('/api/external/cash-payment/import', validateApiKey, async (req, res) => {
     const transaction = await sequelize.transaction();
@@ -2735,18 +2944,8 @@ app.post('/api/external/cash-payment/import', validateApiKey, async (req, res) =
             return res.status(400).json({ success: false, message: 'Données invalides - un tableau de paiements est requis' });
         }
         
-        // Mapping des références de paiement aux points de vente (cohérent avec l'endpoint existant)
-        const paymentRefToPointDeVente = {
-            'V_TB': 'Touba',
-            'V_DHR': 'Dahra',
-            'V_ALS': 'Aliou Sow', // Réajouté pour cohérence
-            'V_LGR': 'Linguere',
-            'V_MBA': 'Mbao',
-            'V_KM': 'Keur Massar',
-            'V_OSF': 'O.Foire',
-            'V_SAC': 'Sacre Coeur',
-            'V_ABATS': 'Abattage'
-        };
+        // Charger le mapping des références de paiement via la fonction utilitaire
+        const paymentRefToPointDeVente = getPaymentRefMapping();
         
         // Vérifier les doublons par tr_id (ID externe)
         const externalIds = data.map(item => item.id).filter(Boolean);
