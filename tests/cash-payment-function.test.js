@@ -122,6 +122,7 @@ const addCashPaymentToReconciliation = async () => {
         // Mapping des références de paiement aux points de vente
         const PAYMENT_REF_MAPPING = {
           'V_TB': 'Touba',
+          'V_PROD': 'MATA PROD',
           'V_DHR': 'Dahra', 
           'V_ALS': 'Aliou Sow',
           'V_LGR': 'Linguere',

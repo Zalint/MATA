@@ -245,16 +245,11 @@ async function chargerProduits() {
             if (produitFilter) {
                 produitFilter.innerHTML = '<option value="">Tous</option>';
                 
-                // Créer une liste plate de tous les produits
-                const tousProduits = [];
-                Object.entries(data.produits).forEach(([categorie, produits]) => {
-                    Object.keys(produits).forEach(produit => {
-                        tousProduits.push(produit);
-                    });
-                });
+                // Liste limitée des produits pour le filtre
+                const produitsLimites = ['Boeuf', 'Veau', 'Poulet', 'Volaille'];
                 
-                // Trier et ajouter les produits
-                tousProduits.sort().forEach(produit => {
+                // Ajouter seulement les produits de la liste limitée
+                produitsLimites.forEach(produit => {
                     const option = document.createElement('option');
                     option.value = produit;
                     option.textContent = produit;
