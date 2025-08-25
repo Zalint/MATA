@@ -4730,14 +4730,53 @@ app.get('/api/external/achats-boeuf', validateApiKey, async (req, res) => {
         
         // Helper function to calculate totals for a given array of achats
         const calculateTotals = (achatsArray) => {
+            // Séparer les achats par type d'animal
+            const boeufAchats = achatsArray.filter(achat => achat.bete && achat.bete.toLowerCase() === 'boeuf');
+            const veauAchats = achatsArray.filter(achat => achat.bete && achat.bete.toLowerCase() === 'veau');
+            
             const totals = {
+                // Nombres d'animaux
+                nbrBoeuf: boeufAchats.length,
+                nbrVeau: veauAchats.length,
+                
+                // Totaux Bœuf
+                totalPrixBoeuf: boeufAchats.reduce((sum, achat) => sum + achat.prix, 0),
+                totalAbatsBoeuf: boeufAchats.reduce((sum, achat) => sum + achat.abats, 0),
+                totalFraisAbattageBoeuf: boeufAchats.reduce((sum, achat) => sum + achat.frais_abattage, 0),
+                totalKgBoeuf: boeufAchats.reduce((sum, achat) => sum + achat.nbr_kg, 0),
+                
+                // Totaux Veau
+                totalPrixVeau: veauAchats.reduce((sum, achat) => sum + achat.prix, 0),
+                totalAbatsVeau: veauAchats.reduce((sum, achat) => sum + achat.abats, 0),
+                totalFraisAbattageVeau: veauAchats.reduce((sum, achat) => sum + achat.frais_abattage, 0),
+                totalKgVeau: veauAchats.reduce((sum, achat) => sum + achat.nbr_kg, 0),
+                
+                // Totaux généraux (pour compatibilité)
                 totalPrix: achatsArray.reduce((sum, achat) => sum + achat.prix, 0),
                 totalAbats: achatsArray.reduce((sum, achat) => sum + achat.abats, 0),
                 totalFraisAbattage: achatsArray.reduce((sum, achat) => sum + achat.frais_abattage, 0),
                 totalKg: achatsArray.reduce((sum, achat) => sum + achat.nbr_kg, 0),
             };
             
-            // Calculate average price per kg if there are kgs
+            // Calculs moyennes Bœuf
+            if (totals.totalKgBoeuf > 0) {
+                totals.avgPrixKgBoeuf = totals.totalPrixBoeuf / totals.totalKgBoeuf;
+                totals.avgPrixKgSansAbatsBoeuf = totals.totalPrixBoeuf / totals.totalKgBoeuf;
+            } else {
+                totals.avgPrixKgBoeuf = 0;
+                totals.avgPrixKgSansAbatsBoeuf = 0;
+            }
+            
+            // Calculs moyennes Veau
+            if (totals.totalKgVeau > 0) {
+                totals.avgPrixKgVeau = totals.totalPrixVeau / totals.totalKgVeau;
+                totals.avgPrixKgSansAbatsVeau = totals.totalPrixVeau / totals.totalKgVeau;
+            } else {
+                totals.avgPrixKgVeau = 0;
+                totals.avgPrixKgSansAbatsVeau = 0;
+            }
+            
+            // Calculs moyennes générales (pour compatibilité)
             if (totals.totalKg > 0) {
                 totals.avgPrixKg = totals.totalPrix / totals.totalKg;
                 totals.avgPrixKgSansAbats = totals.totalPrix / totals.totalKg;
