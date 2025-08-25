@@ -4699,39 +4699,135 @@ app.get('/api/external/achats-boeuf', validateApiKey, async (req, res) => {
         });
         
         // Format the data for response
-        const formattedAchats = achats.map(achat => ({
-            id: achat.id,
-            date: achat.date,
-            mois: achat.mois,
-            annee: achat.annee,
-            bete: achat.bete,
-            prix: parseFloat(achat.prix) || 0,
-            abats: parseFloat(achat.abats) || 0,
-            frais_abattage: parseFloat(achat.frais_abattage) || 0,
-            nbr_kg: parseFloat(achat.nbr_kg) || 0,
-            prix_achat_kg: parseFloat(achat.prix_achat_kg) || 0,
-            commentaire: achat.commentaire,
-            nomClient: achat.nomClient,           // Add new field
-            numeroClient: achat.numeroClient,        // Add new field
-            telephoneClient: achat.telephoneClient,     // Add new field
-            adresseClient: achat.adresseClient,       // Add new field
-            creance: achat.creance              // Add new field
-        }));
+        const formattedAchats = achats.map(achat => {
+            const prix = parseFloat(achat.prix) || 0;
+            const nbr_kg = parseFloat(achat.nbr_kg) || 0;
+            const prix_achat_kg = parseFloat(achat.prix_achat_kg) || 0;
+            
+            // Calculate prix_achat_kg_sans_abats
+            const prix_achat_kg_sans_abats = nbr_kg > 0 ? prix / nbr_kg : 0;
+            
+            return {
+                id: achat.id,
+                date: achat.date,
+                mois: achat.mois,
+                annee: achat.annee,
+                bete: achat.bete,
+                prix: prix,
+                abats: parseFloat(achat.abats) || 0,
+                frais_abattage: parseFloat(achat.frais_abattage) || 0,
+                nbr_kg: nbr_kg,
+                prix_achat_kg: prix_achat_kg,
+                prix_achat_kg_sans_abats: prix_achat_kg_sans_abats,
+                commentaire: achat.commentaire,
+                nomClient: achat.nomClient,           // Add new field
+                numeroClient: achat.numeroClient,        // Add new field
+                telephoneClient: achat.telephoneClient,     // Add new field
+                adresseClient: achat.adresseClient,       // Add new field
+                creance: achat.creance              // Add new field
+            };
+        });
         
-        // Calculate totals
-        const totals = {
-            totalPrix: formattedAchats.reduce((sum, achat) => sum + achat.prix, 0),
-            totalAbats: formattedAchats.reduce((sum, achat) => sum + achat.abats, 0),
-            totalFraisAbattage: formattedAchats.reduce((sum, achat) => sum + achat.frais_abattage, 0),
-            totalKg: formattedAchats.reduce((sum, achat) => sum + achat.nbr_kg, 0),
+        // Helper function to calculate totals for a given array of achats
+        const calculateTotals = (achatsArray) => {
+            const totals = {
+                totalPrix: achatsArray.reduce((sum, achat) => sum + achat.prix, 0),
+                totalAbats: achatsArray.reduce((sum, achat) => sum + achat.abats, 0),
+                totalFraisAbattage: achatsArray.reduce((sum, achat) => sum + achat.frais_abattage, 0),
+                totalKg: achatsArray.reduce((sum, achat) => sum + achat.nbr_kg, 0),
+            };
+            
+            // Calculate average price per kg if there are kgs
+            if (totals.totalKg > 0) {
+                totals.avgPrixKg = totals.totalPrix / totals.totalKg;
+                totals.avgPrixKgSansAbats = totals.totalPrix / totals.totalKg;
+            } else {
+                totals.avgPrixKg = 0;
+                totals.avgPrixKgSansAbats = 0;
+            }
+            
+            return totals;
+        };
+
+        // Calculate totals for all data
+        const totals = calculateTotals(formattedAchats);
+        
+        // Calculate week number (ISO week)
+        const getWeekNumber = (date) => {
+            const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+            const dayNum = d.getUTCDay() || 7;
+            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+            return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
         };
         
-        // Calculate average price per kg if there are kgs
-        if (totals.totalKg > 0) {
-            totals.avgPrixKg = totals.totalPrix / totals.totalKg;
+        // Get all achats from database for week/month calculations (not filtered by date)
+        const allAchats = await AchatBoeuf.findAll({
+            order: [['date', 'DESC']],
+        });
+        
+        const allFormattedAchats = allAchats.map(achat => {
+            const prix = parseFloat(achat.prix) || 0;
+            const nbr_kg = parseFloat(achat.nbr_kg) || 0;
+            const prix_achat_kg_sans_abats = nbr_kg > 0 ? prix / nbr_kg : 0;
+            
+            return {
+                id: achat.id,
+                date: achat.date,
+                mois: achat.mois,
+                annee: achat.annee,
+                bete: achat.bete,
+                prix: prix,
+                abats: parseFloat(achat.abats) || 0,
+                frais_abattage: parseFloat(achat.frais_abattage) || 0,
+                nbr_kg: nbr_kg,
+                prix_achat_kg: parseFloat(achat.prix_achat_kg) || 0,
+                prix_achat_kg_sans_abats: prix_achat_kg_sans_abats,
+                commentaire: achat.commentaire,
+                nomClient: achat.nomClient,
+                numeroClient: achat.numeroClient,
+                telephoneClient: achat.telephoneClient,
+                adresseClient: achat.adresseClient,
+                creance: achat.creance
+            };
+        });
+        
+        // Determine reference date for week/month calculations
+        let referenceDate;
+        if (date) {
+            // Use the provided date
+            referenceDate = new Date(standardiserDateFormat(date));
+        } else if (startDate) {
+            // Use start date if range is provided
+            referenceDate = new Date(standardiserDateFormat(startDate));
         } else {
-            totals.avgPrixKg = 0;
+            // Use current date if no specific date is provided
+            referenceDate = new Date();
         }
+        
+        const refYear = referenceDate.getFullYear();
+        const refMonth = referenceDate.getMonth() + 1;
+        const refWeek = getWeekNumber(referenceDate);
+        
+        // Filter for week (same year and week number as reference date)
+        const weekAchats = allFormattedAchats.filter(achat => {
+            const achatDate = new Date(achat.date);
+            const achatYear = achatDate.getFullYear();
+            const achatWeek = getWeekNumber(achatDate);
+            return achatYear === refYear && achatWeek === refWeek;
+        });
+        
+        // Filter for month (same year and month as reference date)
+        const monthAchats = allFormattedAchats.filter(achat => {
+            const achatDate = new Date(achat.date);
+            const achatYear = achatDate.getFullYear();
+            const achatMonth = achatDate.getMonth() + 1;
+            return achatYear === refYear && achatMonth === refMonth;
+        });
+        
+        // Calculate week and month totals
+        const week = calculateTotals(weekAchats);
+        const month = calculateTotals(monthAchats);
         
         console.log(`Found ${formattedAchats.length} beef purchase entries`);
         console.log('==== END EXTERNAL API - ACHATS BOEUF ====');
@@ -4740,7 +4836,9 @@ app.get('/api/external/achats-boeuf', validateApiKey, async (req, res) => {
             success: true,
             data: {
                 achats: formattedAchats,
-                totals: totals
+                totals: totals,
+                week: week,
+                month: month
             }
         });
     } catch (error) {
