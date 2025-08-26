@@ -4741,10 +4741,23 @@ app.get('/api/external/gestionStock', validateApiKey, async (req, res) => {
         };
         
         const allProducts = produitsInventaire.getTousLesProduits();
-        const targetProducts = produit ? [produit] : allProducts;
         
-        if (produit && !allProducts.includes(produit)) {
-            return res.status(400).json({ success: false, message: `Invalid product: ${produit}. Available products: ${allProducts.join(', ')}` });
+        // Parse multiple products from produit parameter (comma-separated)
+        let targetProducts;
+        if (produit) {
+            const requestedProducts = produit.split(',').map(p => p.trim()).filter(p => p.length > 0);
+            targetProducts = requestedProducts;
+            
+            // Validate all requested products
+            const invalidProducts = requestedProducts.filter(p => !allProducts.includes(p));
+            if (invalidProducts.length > 0) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `Invalid products: ${invalidProducts.join(', ')}. Available products: ${allProducts.join(', ')}` 
+                });
+            }
+        } else {
+            targetProducts = allProducts;
         }
         
         const allPDVs = Object.keys(pointsVente).filter(pdv => pointsVente[pdv].active);
