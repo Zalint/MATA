@@ -4647,7 +4647,7 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
         let volumeAbattoirBoeuf = 0;
         let volumeAbattoirVeau = 0;
         
-        // Check if Abattage exists in details and calculate volumes from positive transfers only
+        // Calculate volumes from positive transfers TO Abattage (impact = +)
         if (detailsByPDV['Abattage']) {
             if (detailsByPDV['Abattage']['Boeuf'] && detailsByPDV['Abattage']['Boeuf'].transfertsNombre > 0) {
                 volumeAbattoirBoeuf = detailsByPDV['Abattage']['Boeuf'].transfertsNombre;
