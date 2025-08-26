@@ -4831,7 +4831,8 @@ app.get('/api/external/gestionStock', validateApiKey, async (req, res) => {
                         Transferts: agg.Transferts,
                         VentesTheoriques: agg.VentesTheoriques,
                         Produit: product,
-                        AvgVentesTheorique: avgVentesTheorique
+                        AvgVentesTheorique: avgVentesTheorique,
+                        AvgVentesTheoriqueDayCount: agg.count
                     });
                 });
                 
