@@ -4649,11 +4649,11 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
         
         // Check if Abattage exists in details and calculate volumes from positive transfers only
         if (detailsByPDV['Abattage']) {
-            if (detailsByPDV['Abattage']['Boeuf'] && detailsByPDV['Abattage']['Boeuf'].transferts > 0) {
-                volumeAbattoirBoeuf = detailsByPDV['Abattage']['Boeuf'].transferts;
+            if (detailsByPDV['Abattage']['Boeuf'] && detailsByPDV['Abattage']['Boeuf'].transfertsNombre > 0) {
+                volumeAbattoirBoeuf = detailsByPDV['Abattage']['Boeuf'].transfertsNombre;
             }
-            if (detailsByPDV['Abattage']['Veau'] && detailsByPDV['Abattage']['Veau'].transferts > 0) {
-                volumeAbattoirVeau = detailsByPDV['Abattage']['Veau'].transferts;
+            if (detailsByPDV['Abattage']['Veau'] && detailsByPDV['Abattage']['Veau'].transfertsNombre > 0) {
+                volumeAbattoirVeau = detailsByPDV['Abattage']['Veau'].transfertsNombre;
             }
         }
         
