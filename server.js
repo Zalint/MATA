@@ -16,7 +16,7 @@ const produits = require('./data/by-date/produits');
 const produitsInventaire = require('./data/by-date/produitsInventaire');
 const bcrypt = require('bcrypt');
 const fsPromises = require('fs').promises;
-const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf } = require('./db/models');
+const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf, Depense } = require('./db/models');
 const { testConnection, sequelize } = require('./db');
 const { Op, fn, col, literal } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
@@ -4643,11 +4643,27 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             });
         });
         
+        // Calculate volumeAbattoirBoeuf and volumeAbattoirVeau for Abattage point de vente
+        let volumeAbattoirBoeuf = 0;
+        let volumeAbattoirVeau = 0;
+        
+        // Check if Abattage exists in details and calculate volumes from positive transfers only
+        if (detailsByPDV['Abattage']) {
+            if (detailsByPDV['Abattage']['Boeuf'] && detailsByPDV['Abattage']['Boeuf'].transferts > 0) {
+                volumeAbattoirBoeuf = detailsByPDV['Abattage']['Boeuf'].transferts;
+            }
+            if (detailsByPDV['Abattage']['Veau'] && detailsByPDV['Abattage']['Veau'].transferts > 0) {
+                volumeAbattoirVeau = detailsByPDV['Abattage']['Veau'].transferts;
+            }
+        }
+        
         // Format the response
         const formattedResponse = {
             date: date,
             resume: Object.values(reconciliationByPDV),
-            details: detailsByPDV
+            details: detailsByPDV,
+            volumeAbattoirBoeuf: volumeAbattoirBoeuf,
+            volumeAbattoirVeau: volumeAbattoirVeau
         };
         
         console.log(`Completed reconciliation for ${date} with ${formattedResponse.resume.length} points de vente`);
