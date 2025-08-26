@@ -4647,13 +4647,32 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
         let volumeAbattoirBoeuf = 0;
         let volumeAbattoirVeau = 0;
         
-        // Calculate volumes from positive transfers TO Abattage (impact = +)
+        // Calculate volumes from positive transfers (impact = +) for Abattage
+        // Use the transfertsData that's already loaded in the reconciliation API
         if (detailsByPDV['Abattage']) {
-            if (detailsByPDV['Abattage']['Boeuf'] && detailsByPDV['Abattage']['Boeuf'].transfertsNombre > 0) {
-                volumeAbattoirBoeuf = detailsByPDV['Abattage']['Boeuf'].transfertsNombre;
+            if (detailsByPDV['Abattage']['Boeuf']) {
+                // Filter positive transfers for Abattage/Boeuf
+                const positiveTransfers = transfertsData.transferts.filter(t => 
+                    t.pointVente === 'Abattage' && 
+                    t.produit === 'Boeuf' && 
+                    t.impact === 1
+                );
+                
+                if (positiveTransfers.length > 0) {
+                    volumeAbattoirBoeuf = positiveTransfers.reduce((sum, transfer) => sum + transfer.quantite, 0);
+                }
             }
-            if (detailsByPDV['Abattage']['Veau'] && detailsByPDV['Abattage']['Veau'].transfertsNombre > 0) {
-                volumeAbattoirVeau = detailsByPDV['Abattage']['Veau'].transfertsNombre;
+            if (detailsByPDV['Abattage']['Veau']) {
+                // Filter positive transfers for Abattage/Veau
+                const positiveTransfersVeau = transfertsData.transferts.filter(t => 
+                    t.pointVente === 'Abattage' && 
+                    t.produit === 'Veau' && 
+                    t.impact === 1
+                );
+                
+                if (positiveTransfersVeau.length > 0) {
+                    volumeAbattoirVeau = positiveTransfersVeau.reduce((sum, transfer) => sum + transfer.quantite, 0);
+                }
             }
         }
         
