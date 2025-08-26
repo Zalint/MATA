@@ -4667,6 +4667,216 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
     }
 });
 
+// External API version for gestionStock
+app.get('/api/external/gestionStock', validateApiKey, async (req, res) => {
+    try {
+        const { date, startDate, endDate, produit } = req.query;
+        
+        if (!date && !startDate && !endDate) {
+            return res.status(400).json({ success: false, message: 'At least one date parameter is required' });
+        }
+        
+        const dateFormatRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (date && !dateFormatRegex.test(date)) {
+            return res.status(400).json({ success: false, message: 'Date must be in YYYY-MM-DD format' });
+        }
+        if (startDate && !dateFormatRegex.test(startDate)) {
+            return res.status(400).json({ success: false, message: 'startDate must be in YYYY-MM-DD format' });
+        }
+        if (endDate && !dateFormatRegex.test(endDate)) {
+            return res.status(400).json({ success: false, message: 'endDate must be in YYYY-MM-DD format' });
+        }
+        
+        console.log('==== EXTERNAL API - GESTION STOCK ====');
+        
+        const convertToInternalFormat = (dateStr) => {
+            const [year, month, day] = dateStr.split('-');
+            return `${day}-${month}-${year}`;
+        };
+        
+        const getDateRange = (start, end) => {
+            const dates = [];
+            const currentDate = new Date(start);
+            const endDate = new Date(end);
+            while (currentDate <= endDate) {
+                dates.push(currentDate.toISOString().split('T')[0]);
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            return dates;
+        };
+        
+        const allProducts = produitsInventaire.getTousLesProduits();
+        const targetProducts = produit ? [produit] : allProducts;
+        
+        if (produit && !allProducts.includes(produit)) {
+            return res.status(400).json({ success: false, message: `Invalid product: ${produit}. Available products: ${allProducts.join(', ')}` });
+        }
+        
+        const allPDVs = Object.keys(pointsVente).filter(pdv => pointsVente[pdv].active);
+        
+        const axiosInstance = require('axios').create({
+            baseURL: `http://localhost:${PORT}`,
+            headers: { 'X-API-Key': req.headers['x-api-key'] }
+        });
+        
+        const fetchData = async (endpoint, params = {}) => {
+            try {
+                const response = await axiosInstance.get(endpoint, { params });
+                return response.data;
+            } catch (error) {
+                console.error(`Error fetching ${endpoint}:`, error.message);
+                return null;
+            }
+        };
+        
+        const processDateData = async (dateStr) => {
+            const internalDate = convertToInternalFormat(dateStr);
+            
+            const [stockMatinData, stockSoirData, transfertsData] = await Promise.all([
+                fetchData('/api/external/stock/matin', { date: internalDate }),
+                fetchData('/api/external/stock/soir', { date: internalDate }),
+                fetchData('/api/external/transferts', { date: internalDate })
+            ]);
+            
+            const pointsDeVente = [];
+            
+            allPDVs.forEach(pdv => {
+                const details = [];
+                
+                targetProducts.forEach(product => {
+                    const stockMatinKey = `${pdv}-${product}`;
+                    const stockSoirKey = `${pdv}-${product}`;
+                    
+                    const stockMatin = stockMatinData && stockMatinData[stockMatinKey] ? 
+                        parseFloat(stockMatinData[stockMatinKey].Nombre || stockMatinData[stockMatinKey].quantite || 0) : 0;
+                    const stockSoir = stockSoirData && stockSoirData[stockSoirKey] ? 
+                        parseFloat(stockSoirData[stockSoirKey].Nombre || stockSoirData[stockSoirKey].quantite || 0) : 0;
+                    
+                    let transferts = 0;
+                    if (transfertsData && transfertsData.transferts) {
+                        transferts = transfertsData.transferts
+                            .filter(t => t.pointVente === pdv && t.categorie === product)
+                            .reduce((sum, t) => sum + parseFloat(t.quantite || 0), 0);
+                    }
+                    
+                    const ventesTheoriques = Math.abs(stockSoir - (stockMatin + transferts));
+                    
+                    details.push({
+                        StockMatin: stockMatin,
+                        StockSoir: stockSoir,
+                        Transferts: transferts,
+                        VentesTheoriques: ventesTheoriques,
+                        Produit: product
+                    });
+                });
+                
+                if (details.some(d => d.StockMatin > 0 || d.StockSoir > 0 || d.Transferts > 0)) {
+                    pointsDeVente.push({
+                        PointDeVente: pdv,
+                        details: details
+                    });
+                }
+            });
+            
+            return {
+                date: dateStr,
+                pointsDeVente: pointsDeVente
+            };
+        };
+        
+        const processPeriodData = async (startDateStr, endDateStr) => {
+            const dates = getDateRange(startDateStr, endDateStr);
+            const aggregatedData = {};
+            
+            for (const dateStr of dates) {
+                const dateData = await processDateData(dateStr);
+                
+                dateData.pointsDeVente.forEach(pdvData => {
+                    if (!aggregatedData[pdvData.PointDeVente]) {
+                        aggregatedData[pdvData.PointDeVente] = {};
+                    }
+                    
+                    pdvData.details.forEach(detail => {
+                        if (!aggregatedData[pdvData.PointDeVente][detail.Produit]) {
+                            aggregatedData[pdvData.PointDeVente][detail.Produit] = {
+                                StockMatin: 0,
+                                StockSoir: 0,
+                                Transferts: 0,
+                                VentesTheoriques: 0,
+                                count: 0
+                            };
+                        }
+                        
+                        const agg = aggregatedData[pdvData.PointDeVente][detail.Produit];
+                        agg.StockMatin += detail.StockMatin;
+                        agg.StockSoir += detail.StockSoir;
+                        agg.Transferts += detail.Transferts;
+                        agg.VentesTheoriques += detail.VentesTheoriques;
+                        agg.count++;
+                    });
+                });
+            }
+            
+            const pointsDeVente = [];
+            Object.keys(aggregatedData).forEach(pdv => {
+                const details = [];
+                
+                Object.keys(aggregatedData[pdv]).forEach(product => {
+                    const agg = aggregatedData[pdv][product];
+                    const avgVentesTheorique = agg.count > 0 ? Math.round(agg.VentesTheoriques / agg.count) : 0;
+                    
+                    details.push({
+                        StockMatin: agg.StockMatin,
+                        StockSoir: agg.StockSoir,
+                        Transferts: agg.Transferts,
+                        VentesTheoriques: agg.VentesTheoriques,
+                        Produit: product,
+                        AvgVentesTheorique: avgVentesTheorique
+                    });
+                });
+                
+                pointsDeVente.push({
+                    PointDeVente: pdv,
+                    details: details
+                });
+            });
+            
+            return {
+                startDate: startDateStr,
+                endDate: endDateStr,
+                pointsDeVente: pointsDeVente
+            };
+        };
+        
+        const response = {};
+        
+        if (date) {
+            const targetData = await processDateData(date);
+            response.target = [targetData];
+        }
+        
+        if (startDate && endDate) {
+            const periodData = await processPeriodData(startDate, endDate);
+            response.period = [periodData];
+        } else if (startDate || endDate) {
+            const singleDate = startDate || endDate;
+            const periodData = await processPeriodData(singleDate, singleDate);
+            response.period = [periodData];
+        }
+        
+        console.log('==== END EXTERNAL API - GESTION STOCK ====');
+        
+        res.json(response);
+    } catch (error) {
+        console.error('Error in gestionStock API:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error processing gestionStock request',
+            error: error.message
+        });
+    }
+});
+
 // External API version for beef purchases
 app.get('/api/external/achats-boeuf', validateApiKey, async (req, res) => {
     try {
