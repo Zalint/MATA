@@ -829,6 +829,7 @@ const dateDebutPicker = flatpickr("#date-debut", {
     defaultDate: "today",
     onChange: function(selectedDates, dateStr) {
         console.log('Date de début changée:', dateStr);
+        // Recharger immédiatement à chaque changement
         chargerVentes();
     }
 });
@@ -839,6 +840,7 @@ const dateFinPicker = flatpickr("#date-fin", {
     defaultDate: "today",
     onChange: function(selectedDates, dateStr) {
         console.log('Date de fin changée:', dateStr);
+        // Recharger immédiatement à chaque changement
         chargerVentes();
     }
 });
@@ -2149,10 +2151,11 @@ function creerGraphiqueVentesParMois(donnees) {
     }
     console.log('Canvas ventesParMoisChart trouvé');
 
-    // Détruire le graphique existant s'il existe
+    // Si le graphique existe déjà, le mettre à jour au lieu de le détruire
     if (ventesParMoisChart) {
-        console.log('Destruction du graphique existant');
-        ventesParMoisChart.destroy();
+        console.log('Mise à jour du graphique existant');
+    } else {
+        console.log('Création d\'un nouveau graphique');
     }
 
     // Fonction pour standardiser les dates au format DD-MM-YY
@@ -2204,6 +2207,15 @@ function creerGraphiqueVentesParMois(donnees) {
     });
 
     const montants = dates.map(date => ventesParJour[date]);
+
+    // Si le graphique existe déjà, le mettre à jour
+    if (ventesParMoisChart) {
+        ventesParMoisChart.data.labels = dates;
+        ventesParMoisChart.data.datasets[0].data = montants;
+        ventesParMoisChart.update('none'); // Mise à jour sans animation
+        console.log('Graphique mis à jour avec succès');
+        return;
+    }
 
     // Créer le nouveau graphique
     ventesParMoisChart = new Chart(ctx, {
@@ -2272,10 +2284,11 @@ function creerGraphiqueVentesParProduit(donnees) {
     }
     console.log('Canvas ventesParProduitChart trouvé');
 
-    // Détruire le graphique existant s'il existe
+    // Si le graphique existe déjà, le mettre à jour au lieu de le détruire
     if (ventesParProduitChart) {
-        console.log('Destruction du graphique existant');
-        ventesParProduitChart.destroy();
+        console.log('Mise à jour du graphique existant');
+    } else {
+        console.log('Création d\'un nouveau graphique');
     }
 
     // Regrouper les ventes par produit
@@ -2295,6 +2308,24 @@ function creerGraphiqueVentesParProduit(donnees) {
     // Préparer les données pour le graphique
     const labels = sortedProduits.map(([produit]) => produit);
     const montants = sortedProduits.map(([, montant]) => montant);
+
+    // Si le graphique existe déjà, le mettre à jour
+    if (ventesParProduitChart) {
+        ventesParProduitChart.data.labels = labels;
+        ventesParProduitChart.data.datasets[0].data = montants;
+        ventesParProduitChart.update('none'); // Mise à jour sans animation
+        console.log('Graphique produit mis à jour avec succès');
+        
+        // Stocker les données globalement pour le filtrage
+        donneesVentesGlobales = donnees;
+        
+        // Créer également le tableau des ventes par point de vente
+        creerTableauVentesParPointVente(donnees);
+        
+        // Ajouter l'event listener pour le filtre de mois si pas encore fait
+        ajouterEventListenerFiltreMois();
+        return;
+    }
 
     // Créer le nouveau graphique
     ventesParProduitChart = new Chart(ctx, {
@@ -2765,9 +2796,16 @@ function creerGraphiqueVentesParCategorie(donnees) {
 
     const ctx = document.getElementById('ventesParCategorieChart').getContext('2d');
 
+    // Si le graphique existe déjà, le mettre à jour
     if (ventesParCategorieChart) {
-        ventesParCategorieChart.destroy();
-        console.log('Ancien graphique des ventes par catégorie détruit.');
+        console.log('Mise à jour du graphique des ventes par catégorie');
+        ventesParCategorieChart.data.labels = labels;
+        ventesParCategorieChart.data.datasets[0].data = data;
+        ventesParCategorieChart.data.datasets[0].backgroundColor = backgroundColors;
+        ventesParCategorieChart.data.datasets[0].borderColor = borderColors;
+        ventesParCategorieChart.update('none'); // Mise à jour sans animation
+        console.log('Graphique catégorie mis à jour avec succès');
+        return;
     }
 
     console.log('Configuration du nouveau graphique Pie avec datalabels');
@@ -2841,8 +2879,17 @@ let currentPage = 1;
 const itemsPerPage = 30;
 let allVentes = [];
 
+// Variable pour annuler les requêtes précédentes
+let currentVentesRequest = null;
+
 // Fonction pour charger les ventes avec pagination
 async function chargerVentes() {
+    // Annuler la requête précédente si elle existe
+    if (currentVentesRequest) {
+        console.log('Annulation de la requête précédente');
+        currentVentesRequest.abort();
+    }
+    
     try {
         // S'assurer que la section de visualisation est visible
         // La visibilité est maintenant gérée par les gestionnaires d'onglets
@@ -2861,19 +2908,25 @@ async function chargerVentes() {
         const formatDateForApi = (dateStr, isEndDate = false) => {
             if (!dateStr) return '';
             const [jour, mois, annee] = dateStr.split('/');
-            // Ajuster le mois pour qu'il soit correct (les mois commencent à 0 en JavaScript)
-            const date = new Date(annee, parseInt(mois) - 1, parseInt(jour));
+            
+            // Formater directement au format YYYY-MM-DD sans passer par toISOString()
+            let year = parseInt(annee);
+            let month = parseInt(mois);
+            let day = parseInt(jour);
             
             // Si c'est une date de fin, ajouter un jour pour inclure la date
             if (isEndDate) {
-                date.setDate(date.getDate() + 1);
+                const tempDate = new Date(year, month - 1, day + 1);
+                year = tempDate.getFullYear();
+                month = tempDate.getMonth() + 1;
+                day = tempDate.getDate();
             }
             
-            return date.toISOString().split('T')[0];
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         };
 
         const debut = formatDateForApi(dateDebut);
-        const fin = formatDateForApi(dateFin, true); // Ajouter un jour à la date de fin pour l'inclure
+        const fin = formatDateForApi(dateFin, false); // Traiter la date de fin comme la date de début
 
         console.log('Chargement des ventes avec les paramètres:', { 
             dateDebut, 
@@ -2892,8 +2945,13 @@ async function chargerVentes() {
                    d1.getDate() === d2.getDate();
         };
 
+        // Créer un nouveau AbortController pour cette requête
+        const abortController = new AbortController();
+        currentVentesRequest = abortController;
+        
         const response = await fetch(`/api/ventes?dateDebut=${debut}&dateFin=${fin}&pointVente=${pointVente}`, {
-            credentials: 'include'
+            credentials: 'include',
+            signal: abortController.signal
         });
         
         if (!response.ok) {
@@ -2929,17 +2987,20 @@ async function chargerVentes() {
             // Mettre à jour les informations de pagination
             updatePaginationInfo();
 
-            // Attendre un court instant pour s'assurer que les canvas sont rendus
-            setTimeout(() => {
-                // Mettre à jour les graphiques
-                creerGraphiqueVentesParMois(ventesFormatees);
-                creerGraphiqueVentesParProduit(ventesFormatees);
-                creerGraphiqueVentesParCategorie(ventesFormatees);
-            }, 100);
+            // Mettre à jour les graphiques immédiatement
+            creerGraphiqueVentesParMois(ventesFormatees);
+            creerGraphiqueVentesParProduit(ventesFormatees);
+            creerGraphiqueVentesParCategorie(ventesFormatees);
         } else {
             throw new Error(data.message || 'Erreur lors du chargement des ventes');
         }
     } catch (error) {
+        // Ne pas afficher d'erreur si la requête a été annulée
+        if (error.name === 'AbortError') {
+            console.log('Requête annulée - nouvelle requête en cours');
+            return;
+        }
+        
         console.error('Erreur lors du chargement des ventes:', error);
         const tbody = document.querySelector('#tableau-ventes tbody');
         if (tbody) {
@@ -2949,6 +3010,11 @@ async function chargerVentes() {
         const montantTotalElement = document.getElementById('montant-total');
         if (montantTotalElement) {
             montantTotalElement.textContent = '0 FCFA';
+        }
+    } finally {
+        // Nettoyer la référence à la requête courante
+        if (currentVentesRequest) {
+            currentVentesRequest = null;
         }
     }
 }
@@ -7977,17 +8043,25 @@ async function exportVisualisationToExcel() {
         const formatDateForApi = (dateStr, isEndDate = false) => {
             if (!dateStr) return '';
             const [jour, mois, annee] = dateStr.split('/');
-            const date = new Date(annee, parseInt(mois) - 1, parseInt(jour));
             
+            // Formater directement au format YYYY-MM-DD sans passer par toISOString()
+            let year = parseInt(annee);
+            let month = parseInt(mois);
+            let day = parseInt(jour);
+            
+            // Si c'est une date de fin, ajouter un jour pour inclure la date
             if (isEndDate) {
-                date.setDate(date.getDate() + 1);
+                const tempDate = new Date(year, month - 1, day + 1);
+                year = tempDate.getFullYear();
+                month = tempDate.getMonth() + 1;
+                day = tempDate.getDate();
             }
             
-            return date.toISOString().split('T')[0];
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         };
 
         const debut = formatDateForApi(dateDebut);
-        const fin = formatDateForApi(dateFin, true);
+        const fin = formatDateForApi(dateFin, false);
 
         // Fetch all data from API (not just current page)
         const response = await fetch(`/api/ventes?dateDebut=${debut}&dateFin=${fin}&pointVente=${pointVente}`, {
