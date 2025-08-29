@@ -4272,7 +4272,7 @@ function ajouterLigneStock() {
     const tdProduit = document.createElement('td');
     const selectProduit = document.createElement('select');
     selectProduit.className = 'form-select form-select-sm produit-select';
-    PRODUITS.forEach(prod => {
+    PRODUITS_INVENTAIRE.forEach(prod => {
         const option = document.createElement('option');
         option.value = prod;
         option.textContent = prod;
