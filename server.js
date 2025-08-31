@@ -11,7 +11,32 @@ const { stringify } = require('csv-stringify');
 const path = require('path');
 const session = require('express-session');
 const users = require('./users');
-const pointsVente = require('./points-vente');
+// Charger les points de vente avec fallback
+let pointsVente;
+try {
+    // Essayer d'abord le nouveau chemin
+    pointsVente = require('./data/by-date/points-vente');
+    console.log('Points de vente chargés depuis data/by-date/points-vente.js');
+} catch (error) {
+    try {
+        // Fallback vers l'ancien chemin
+        pointsVente = require('./points-vente');
+        console.log('Points de vente chargés depuis points-vente.js (ancien emplacement)');
+    } catch (fallbackError) {
+        console.error('Erreur lors du chargement des points de vente:', fallbackError);
+        // Configuration par défaut en cas d'erreur
+        pointsVente = {
+            "Mbao": { active: true },
+            "O.Foire": { active: true },
+            "Keur Massar": { active: true },
+            "Linguere": { active: true },
+            "Dahra": { active: true },
+            "Abattage": { active: true },
+            "Sacre Coeur": { active: true }
+        };
+        console.log('Utilisation de la configuration par défaut des points de vente');
+    }
+}
 // Function to reload products configuration
 function reloadProduitsConfig() {
     try {
@@ -19,18 +44,44 @@ function reloadProduitsConfig() {
         delete require.cache[require.resolve('./data/by-date/produits')];
         delete require.cache[require.resolve('./data/by-date/produitsInventaire')];
         
+        // Clear cache for points de vente (both locations)
+        try {
+            delete require.cache[require.resolve('./data/by-date/points-vente')];
+        } catch (e) {
+            // Ignore if file doesn't exist
+        }
+        try {
+            delete require.cache[require.resolve('./points-vente')];
+        } catch (e) {
+            // Ignore if file doesn't exist
+        }
+        
         // Reload the modules
         const newProduits = require('./data/by-date/produits');
         const newProduitsInventaire = require('./data/by-date/produitsInventaire');
         
+        // Reload points de vente with fallback
+        let newPointsVente;
+        try {
+            newPointsVente = require('./data/by-date/points-vente');
+        } catch (error) {
+            try {
+                newPointsVente = require('./points-vente');
+            } catch (fallbackError) {
+                console.warn('Impossible de recharger les points de vente, utilisation de la version actuelle');
+                newPointsVente = pointsVente;
+            }
+        }
+        
         // Update the global variables
         global.produits = newProduits;
         global.produitsInventaire = newProduitsInventaire;
+        global.pointsVente = newPointsVente;
         
-        console.log('Products configuration reloaded successfully');
+        console.log('Products and points de vente configuration reloaded successfully');
         return { success: true, message: 'Configuration rechargée avec succès' };
     } catch (error) {
-        console.error('Error reloading products configuration:', error);
+        console.error('Error reloading configuration:', error);
         return { success: false, message: 'Erreur lors du rechargement de la configuration' };
     }
 }
@@ -111,6 +162,8 @@ app.get('/api/points-vente', (req, res) => {
 
 
 
+
+
 // Route pour obtenir tous les points de vente (physiques + virtuels) pour les transferts
 app.get('/api/points-vente/transferts', (req, res) => {
     try {
@@ -146,6 +199,78 @@ const {
     checkReconciliationAccess
 } = require('./middlewares/auth');
 
+// Route pour obtenir la liste des points de vente (admin seulement)
+app.get('/api/admin/points-vente', checkAuth, checkAdmin, (req, res) => {
+    try {
+        res.json({ success: true, pointsVente });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des points de vente:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Route pour gérer les points de vente (admin seulement)
+app.post('/api/admin/points-vente', checkAuth, checkAdmin, async (req, res) => {
+    try {
+        const { nom, action } = req.body;
+        
+        if (action === 'add') {
+            // Ajouter un nouveau point de vente
+            if (!nom || nom.trim() === '') {
+                return res.status(400).json({ success: false, message: 'Le nom du point de vente est requis' });
+            }
+            
+            if (pointsVente[nom]) {
+                return res.status(400).json({ success: false, message: 'Ce point de vente existe déjà' });
+            }
+            
+            pointsVente[nom] = { active: true };
+            
+        } else if (action === 'toggle') {
+            // Activer/désactiver un point de vente
+            if (!nom || !pointsVente[nom]) {
+                return res.status(400).json({ success: false, message: 'Point de vente non trouvé' });
+            }
+            
+            pointsVente[nom].active = !pointsVente[nom].active;
+            
+        } else if (action === 'delete') {
+            // Supprimer un point de vente
+            if (!nom || !pointsVente[nom]) {
+                return res.status(400).json({ success: false, message: 'Point de vente non trouvé' });
+            }
+            
+            delete pointsVente[nom];
+        }
+        
+        // Sauvegarder dans le fichier (nouveau emplacement)
+        const fs = require('fs');
+        const path = require('path');
+        const pointsVentePath = path.join(__dirname, 'data/by-date/points-vente.js');
+        
+        const content = `const pointsVente = ${JSON.stringify(pointsVente, null, 4)};
+
+module.exports = pointsVente;`;
+        
+        try {
+            fs.writeFileSync(pointsVentePath, content, 'utf8');
+            console.log('Points de vente sauvegardés dans data/by-date/points-vente.js');
+        } catch (error) {
+            console.error('Erreur lors de la sauvegarde dans data/by-date, tentative dans l\'ancien emplacement:', error);
+            // Fallback vers l'ancien emplacement
+            const oldPath = path.join(__dirname, 'points-vente.js');
+            fs.writeFileSync(oldPath, content, 'utf8');
+            console.log('Points de vente sauvegardés dans points-vente.js (ancien emplacement)');
+        }
+        
+        res.json({ success: true, message: 'Point de vente mis à jour avec succès' });
+        
+    } catch (error) {
+        console.error('Erreur lors de la gestion des points de vente:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
 // Route pour recharger la configuration des produits (admin seulement)
 app.post('/api/admin/reload-products', checkAuth, checkAdmin, (req, res) => {
     try {
@@ -154,6 +279,7 @@ app.post('/api/admin/reload-products', checkAuth, checkAdmin, (req, res) => {
             // Update the local variables as well
             produits = global.produits;
             produitsInventaire = global.produitsInventaire;
+            pointsVente = global.pointsVente;
         }
         res.json(result);
     } catch (error) {

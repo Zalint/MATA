@@ -163,8 +163,92 @@ async function chargerPointsVente() {
         
         console.log('Points de vente chargés avec succès');
         
+        // Afficher la liste complète des points de vente dans le tableau
+        afficherListePointsVente(pointsVente);
+        
     } catch (error) {
         console.error('Erreur lors du chargement des points de vente:', error);
+    }
+}
+
+// Afficher la liste des points de vente dans le tableau
+function afficherListePointsVente(pointsVente) {
+    const tbody = document.querySelector('#points-vente-table tbody');
+    if (!tbody) {
+        console.error('Tableau des points de vente non trouvé');
+        return;
+    }
+    
+    // Vider le tableau
+    tbody.innerHTML = '';
+    
+    // Trier les points de vente par nom
+    const pointsVenteTries = Object.entries(pointsVente).sort(([a], [b]) => a.localeCompare(b));
+    
+    pointsVenteTries.forEach(([nom, config]) => {
+        const row = document.createElement('tr');
+        
+        // Colonne Nom
+        const tdNom = document.createElement('td');
+        tdNom.textContent = nom;
+        row.appendChild(tdNom);
+        
+        // Colonne Statut
+        const tdStatut = document.createElement('td');
+        const statusBadge = document.createElement('span');
+        statusBadge.className = config.active ? 'badge bg-success' : 'badge bg-danger';
+        statusBadge.textContent = config.active ? 'Actif' : 'Inactif';
+        tdStatut.appendChild(statusBadge);
+        row.appendChild(tdStatut);
+        
+        // Colonne Actions
+        const tdActions = document.createElement('td');
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = config.active ? 'btn btn-warning btn-sm' : 'btn btn-success btn-sm';
+        toggleBtn.textContent = config.active ? 'Désactiver' : 'Activer';
+        toggleBtn.onclick = () => togglePointVente(nom);
+        tdActions.appendChild(toggleBtn);
+        row.appendChild(tdActions);
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Ajouter un nouveau point de vente
+async function ajouterPointVente() {
+    const nomInput = document.getElementById('newPointVente');
+    const nom = nomInput.value.trim();
+    
+    if (!nom) {
+        alert('Veuillez saisir un nom pour le point de vente');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/admin/points-vente', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                nom,
+                action: 'add'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            nomInput.value = '';
+            chargerPointsVente();
+            alert('Point de vente ajouté avec succès');
+        } else {
+            alert(data.message || 'Erreur lors de l\'ajout du point de vente');
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'ajout du point de vente:', error);
+        alert('Erreur lors de l\'ajout du point de vente');
     }
 }
 
@@ -1956,8 +2040,20 @@ async function sauvegarderConfigInventaire() {
     }
 }
 
-// Initialiser les event listeners pour la configuration des produits
-function initConfigProduitsEventListeners() {
+    // Initialiser les event listeners pour les points de vente
+    function initPointsVenteEventListeners() {
+        // Formulaire d'ajout de point de vente
+        const addPointVenteForm = document.getElementById('addPointVenteForm');
+        if (addPointVenteForm) {
+            addPointVenteForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                ajouterPointVente();
+            });
+        }
+    }
+
+    // Initialiser les event listeners pour la configuration des produits
+    function initConfigProduitsEventListeners() {
     // Boutons de sauvegarde
     const saveProduits = document.getElementById('save-produits-btn');
     if (saveProduits) {
