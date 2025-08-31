@@ -1891,6 +1891,22 @@ async function sauvegarderConfigProduits() {
         const data = await response.json();
         if (data.success) {
             alert('Configuration des produits sauvegardée avec succès !');
+            
+            // Recharger automatiquement la configuration serveur
+            try {
+                const reloadResponse = await fetch('/api/admin/reload-products', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const reloadData = await reloadResponse.json();
+                if (reloadData.success) {
+                    console.log('Configuration serveur rechargée automatiquement');
+                } else {
+                    console.warn('Erreur lors du rechargement automatique:', reloadData.message);
+                }
+            } catch (reloadError) {
+                console.warn('Erreur lors du rechargement automatique:', reloadError);
+            }
         } else {
             alert(`Erreur lors de la sauvegarde: ${data.message}`);
         }
@@ -1915,6 +1931,22 @@ async function sauvegarderConfigInventaire() {
         const data = await response.json();
         if (data.success) {
             alert('Configuration des produits d\'inventaire sauvegardée avec succès !');
+            
+            // Recharger automatiquement la configuration serveur
+            try {
+                const reloadResponse = await fetch('/api/admin/reload-products', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const reloadData = await reloadResponse.json();
+                if (reloadData.success) {
+                    console.log('Configuration serveur rechargée automatiquement');
+                } else {
+                    console.warn('Erreur lors du rechargement automatique:', reloadData.message);
+                }
+            } catch (reloadError) {
+                console.warn('Erreur lors du rechargement automatique:', reloadError);
+            }
         } else {
             alert(`Erreur lors de la sauvegarde: ${data.message}`);
         }
@@ -1946,6 +1978,32 @@ function initConfigProduitsEventListeners() {
     const reloadInventaire = document.getElementById('reload-inventaire-btn');
     if (reloadInventaire) {
         reloadInventaire.addEventListener('click', chargerConfigInventaire);
+    }
+    
+        // Bouton de rechargement de la configuration serveur
+    const reloadServerConfigBtn = document.getElementById('reload-server-config-btn');
+    if (reloadServerConfigBtn) {
+        reloadServerConfigBtn.addEventListener('click', async function() {
+            try {
+                const response = await fetch('/api/admin/reload-products', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Configuration serveur rechargée avec succès!');
+                    // Recharger aussi l'interface admin
+                    chargerConfigProduits();
+                    chargerConfigInventaire();
+                } else {
+                    alert('Erreur lors du rechargement: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Erreur lors du rechargement:', error);
+                alert('Erreur lors du rechargement de la configuration serveur');
+            }
+        });
     }
     
     // Modal pour ajouter une catégorie

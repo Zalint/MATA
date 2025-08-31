@@ -12,8 +12,31 @@ const path = require('path');
 const session = require('express-session');
 const users = require('./users');
 const pointsVente = require('./points-vente');
-const produits = require('./data/by-date/produits');
-const produitsInventaire = require('./data/by-date/produitsInventaire');
+// Function to reload products configuration
+function reloadProduitsConfig() {
+    try {
+        // Clear the require cache for products files
+        delete require.cache[require.resolve('./data/by-date/produits')];
+        delete require.cache[require.resolve('./data/by-date/produitsInventaire')];
+        
+        // Reload the modules
+        const newProduits = require('./data/by-date/produits');
+        const newProduitsInventaire = require('./data/by-date/produitsInventaire');
+        
+        // Update the global variables
+        global.produits = newProduits;
+        global.produitsInventaire = newProduitsInventaire;
+        
+        console.log('Products configuration reloaded successfully');
+        return { success: true, message: 'Configuration rechargée avec succès' };
+    } catch (error) {
+        console.error('Error reloading products configuration:', error);
+        return { success: false, message: 'Erreur lors du rechargement de la configuration' };
+    }
+}
+
+let produits = require('./data/by-date/produits');
+let produitsInventaire = require('./data/by-date/produitsInventaire');
 const bcrypt = require('bcrypt');
 const fsPromises = require('fs').promises;
 const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf, Depense } = require('./db/models');
@@ -83,6 +106,22 @@ app.get('/api/points-vente', (req, res) => {
     } catch (error) {
         console.error("Erreur lors de la lecture des points de vente :", error);
         res.status(500).json({ success: false, message: "Erreur serveur" });
+    }
+});
+
+// Route pour recharger la configuration des produits (admin seulement)
+app.post('/api/admin/reload-products', checkAuth, checkAdmin, (req, res) => {
+    try {
+        const result = reloadProduitsConfig();
+        if (result.success) {
+            // Update the local variables as well
+            produits = global.produits;
+            produitsInventaire = global.produitsInventaire;
+        }
+        res.json(result);
+    } catch (error) {
+        console.error('Error in reload products endpoint:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur lors du rechargement' });
     }
 });
 

@@ -80,16 +80,23 @@ class TransfertManager {
 
     handleProduitChange(selectElement) {
         const row = selectElement.closest('tr');
+        if (!row) {
+            console.warn('Row not found for select element:', selectElement);
+            return;
+        }
+        
         const produitSelected = selectElement.value;
         const prixUnitaireInput = row.querySelector('.prix-unitaire-input');
 
-        if (produitSelected) {
+        if (produitSelected && prixUnitaireInput) {
             // Utiliser le prix par défaut de produitsInventaire
             const prixDefaut = produitsInventaire.getPrixDefaut(produitSelected) || 0;
 
             // Mettre à jour le prix unitaire
             prixUnitaireInput.value = prixDefaut;
             this.calculerTotal(row);
+        } else if (produitSelected && !prixUnitaireInput) {
+            console.warn('Prix unitaire input not found in row for product:', produitSelected);
         }
     }
 
