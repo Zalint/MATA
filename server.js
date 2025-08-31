@@ -109,21 +109,7 @@ app.get('/api/points-vente', (req, res) => {
     }
 });
 
-// Route pour recharger la configuration des produits (admin seulement)
-app.post('/api/admin/reload-products', checkAuth, checkAdmin, (req, res) => {
-    try {
-        const result = reloadProduitsConfig();
-        if (result.success) {
-            // Update the local variables as well
-            produits = global.produits;
-            produitsInventaire = global.produitsInventaire;
-        }
-        res.json(result);
-    } catch (error) {
-        console.error('Error in reload products endpoint:', error);
-        res.status(500).json({ success: false, message: 'Erreur serveur lors du rechargement' });
-    }
-});
+
 
 // Route pour obtenir tous les points de vente (physiques + virtuels) pour les transferts
 app.get('/api/points-vente/transferts', (req, res) => {
@@ -159,6 +145,22 @@ const {
     checkEstimationAccess,
     checkReconciliationAccess
 } = require('./middlewares/auth');
+
+// Route pour recharger la configuration des produits (admin seulement)
+app.post('/api/admin/reload-products', checkAuth, checkAdmin, (req, res) => {
+    try {
+        const result = reloadProduitsConfig();
+        if (result.success) {
+            // Update the local variables as well
+            produits = global.produits;
+            produitsInventaire = global.produitsInventaire;
+        }
+        res.json(result);
+    } catch (error) {
+        console.error('Error in reload products endpoint:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur lors du rechargement' });
+    }
+});
 
 // Middleware pour vérifier les permissions admin strictes (effacement des données)
 const checkStrictAdminOnly = (req, res, next) => {
