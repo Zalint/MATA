@@ -82,43 +82,118 @@ function initializeEstimationForm(form) {
     console.log('Estimation form initialized successfully');
 }
 
-// Function to load products from produitsInventaire
+// Function to load products from produitsInventaire and populate the table
 function chargerProduits() {
     try {
-        const categorieSelect = document.getElementById('estimation-categorie');
-        if (!categorieSelect) {
-            console.error('Element estimation-categorie not found');
-            return;
-        }
+        // Charger les produits dans le tableau
+        chargerTableauProduits();
         
-        categorieSelect.innerHTML = '<option value="">Sélectionner une catégorie</option>';
-        
-        // Utiliser les clés de produitsInventaire pour les catégories
-        if (window.produitsInventaire && typeof window.produitsInventaire.getTousLesProduits === 'function') {
-            const categories = window.produitsInventaire.getTousLesProduits();
-            
-            categories.forEach(categorie => {
-                const option = document.createElement('option');
-                option.value = categorie;
-                option.textContent = categorie;
-                categorieSelect.appendChild(option);
-            });
-            
-            console.log('Categories loaded successfully:', categories);
-        } else {
-            console.error('produitsInventaire non disponible ou fonction getTousLesProduits manquante');
-            
-            // Fallback: attendre que produitsInventaire soit chargé
-            setTimeout(() => {
-                if (window.produitsInventaire && typeof window.produitsInventaire.getTousLesProduits === 'function') {
-                    chargerProduits();
-                } else {
-                    console.error('produitsInventaire still not available after delay');
-                }
-            }, 1000);
-        }
+        console.log('Products loaded successfully in table format');
     } catch (error) {
         console.error('Erreur lors du chargement des produits:', error);
+    }
+}
+
+// Function to populate the products table
+function chargerTableauProduits() {
+    const tbody = document.getElementById('estimation-products-tbody');
+    if (!tbody) {
+        console.error('Element estimation-products-tbody not found');
+        return;
+    }
+    
+    // Vider le tableau
+    tbody.innerHTML = '';
+    
+    // Vérifier si produitsInventaire est disponible
+    if (window.produitsInventaire && typeof window.produitsInventaire.getTousLesProduits === 'function') {
+        const allProduits = window.produitsInventaire.getTousLesProduits();
+        
+        // Produits par défaut à afficher
+        const produitsParDefaut = ['Boeuf', 'Veau', 'Agneau', 'Foie', 'Yell'];
+        
+        // Vérifier l'état du bouton "Afficher Tous"
+        const showAllBtn = document.getElementById('show-all-products-btn');
+        const showAll = showAllBtn && showAllBtn.dataset.showAll === 'true';
+        
+        // Filtrer les produits selon l'état
+        const produits = showAll ? allProduits : allProduits.filter(produit => produitsParDefaut.includes(produit));
+        
+        produits.forEach(produit => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="text-start fw-medium">${produit}</td>
+                <td class="text-center">
+                    <div class="input-group input-group-sm">
+                        <input type="number" 
+                               class="form-control text-center prevision-input" 
+                               data-produit="${produit}"
+                               step="0.001" 
+                               min="0" 
+                               value="0"
+                               placeholder="0">
+                        <select class="form-select prevision-unit-select" data-produit="${produit}" style="max-width: 80px;">
+                            <option value="kg">kg</option>
+                            <option value="unite">unité</option>
+                        </select>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <div class="input-group input-group-sm">
+                        <input type="number" 
+                               class="form-control text-center precommande-input" 
+                               data-produit="${produit}"
+                               step="0.001" 
+                               min="0" 
+                               value="0"
+                               placeholder="0">
+                        <select class="form-select precommande-unit-select" data-produit="${produit}" style="max-width: 80px;">
+                            <option value="kg">kg</option>
+                            <option value="unite">unité</option>
+                        </select>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(row);
+            
+            // Les conversions seront affichées seulement dans la popup de confirmation
+        });
+        
+        console.log(`Loaded ${produits.length} products in table`);
+        
+        // Mettre à jour le texte du bouton selon l'état
+        if (showAllBtn) {
+            showAllBtn.textContent = showAll ? '📋 Afficher Essentiels' : '📊 Afficher Tous';
+            showAllBtn.title = showAll ? 'Afficher seulement les produits essentiels' : 'Afficher tous les produits';
+        }
+    } else {
+        // Tentative de rechargement différé
+        let tentatives = 0;
+        const maxTentatives = 5;
+        const intervalleVerification = setInterval(() => {
+            tentatives++;
+            
+            if (window.produitsInventaire && typeof window.produitsInventaire.getTousLesProduits === 'function') {
+                console.log('produitsInventaire chargé avec succès après', tentatives, 'tentative(s)');
+                chargerTableauProduits();
+                clearInterval(intervalleVerification);
+            } else if (tentatives >= maxTentatives) {
+                console.error('produitsInventaire toujours non disponible après', maxTentatives, 'tentatives');
+                
+                // Afficher un message d'erreur dans le tableau
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="text-center text-danger p-4">
+                            <i class="bi bi-exclamation-triangle"></i><br>
+                            Erreur: Impossible de charger la liste des produits<br>
+                            <small>Veuillez recharger la page ou contacter l'administrateur</small>
+                        </td>
+                    </tr>
+                `;
+                
+                clearInterval(intervalleVerification);
+            }
+        }, 500);
     }
 }
 
@@ -192,7 +267,8 @@ async function handleFormSubmission(e) {
     }
     
     try {
-        await sauvegarderEstimation();
+        // Collecter les données et afficher le popup de validation
+        await afficherPopupValidation();
         console.log('Form submitted successfully');
     } catch (error) {
         console.error('Error during form submission:', error);
@@ -200,7 +276,7 @@ async function handleFormSubmission(e) {
         // Re-enable the button
         if (submitButton) {
             submitButton.disabled = false;
-            submitButton.innerHTML = 'Enregistrer';
+            submitButton.innerHTML = '<i class="bi bi-check-circle"></i> Enregistrer l\'estimation';
         }
         
         // Clear the in-progress flag
@@ -213,38 +289,35 @@ function setupInputHandlers() {
     // Form selection fields
     const dateInput = document.getElementById('estimation-date');
     const pointVenteSelect = document.getElementById('estimation-point-vente');
-    const categorieSelect = document.getElementById('estimation-categorie');
-    
-    // Input fields
-    const stockMatinInput = document.getElementById('stock-matin-estimation');
-    const transfertInput = document.getElementById('transfert-estimation');
-    const stockSoirInput = document.getElementById('stock-soir');
-    const precommandeInput = document.getElementById('precommande-kg');
-    const previsionInput = document.getElementById('prevision-kg');
-    
-    // Function to update data when selections change
-    const handleSelectionChange = () => {
-        updateEstimationStockMatin();
-        updateEstimationTransfert();
-        updateEstimationStock();
-        updateDifference();
-        loadLatestEstimation();
-    };
+    const weightParamsBtn = document.getElementById('weight-params-btn');
+    const saveWeightParamsBtn = document.getElementById('save-weight-params-btn');
     
     // Add event listeners for selection fields
-    if (dateInput) dateInput.addEventListener('change', handleSelectionChange);
-    if (pointVenteSelect) pointVenteSelect.addEventListener('change', handleSelectionChange);
-    if (categorieSelect) categorieSelect.addEventListener('change', handleSelectionChange);
+    if (dateInput) {
+        dateInput.addEventListener('change', () => {
+            console.log('Date changed:', dateInput.value);
+            chargerParametresPoids(); // Charger les paramètres pour la nouvelle date
+        });
+    }
+    if (pointVenteSelect) {
+        pointVenteSelect.addEventListener('change', () => {
+            console.log('Point de vente changed:', pointVenteSelect.value);
+        });
+    }
     
-    // Add event listeners for input fields that affect the difference calculation
-    if (stockMatinInput) stockMatinInput.addEventListener('input', updateDifference);
-    if (transfertInput) transfertInput.addEventListener('input', updateDifference);
-    if (stockSoirInput) stockSoirInput.addEventListener('input', updateDifference);
-    if (precommandeInput) precommandeInput.addEventListener('input', updateDifference);
-    if (previsionInput) previsionInput.addEventListener('input', updateDifference);
+    // Event listeners pour les paramètres de poids
+    if (weightParamsBtn) {
+        weightParamsBtn.addEventListener('click', afficherModalParametresPoids);
+    }
+    if (saveWeightParamsBtn) {
+        saveWeightParamsBtn.addEventListener('click', sauvegarderParametresPoids);
+    }
     
     // Set up threshold slider
     initThresholdSlider();
+    
+    // Charger les paramètres de poids initiaux
+    chargerParametresPoids();
 }
 
 // Function to initialize and set up the threshold slider
@@ -531,9 +604,282 @@ function formatDateForInput(date) {
     return `${day}-${month}-${year}`;
 }
 
-// Function to save estimation data
-async function sauvegarderEstimation() {
-    console.log('=== SAVE ESTIMATION START ===');
+// Variables globales pour les paramètres de poids
+let currentWeightParams = {
+    'Boeuf': 150,
+    'Veau': 110,
+    'Agneau': 10,
+    'Poulet': 1.5,
+    'default': 1
+};
+
+// Function to get weight parameter for a product
+function getWeightForProduct(produit) {
+    // Nettoyer le nom du produit pour matcher les clés
+    const cleanProduit = produit.trim();
+    
+    // Vérifier les produits spécifiques
+    if (currentWeightParams[cleanProduit]) {
+        return currentWeightParams[cleanProduit];
+    }
+    
+    // Retourner le poids par défaut
+    return currentWeightParams.default;
+}
+
+// Function to update conversion display
+function updateConversion(produit, type) {
+    const input = document.querySelector(`.${type}-input[data-produit="${produit}"]`);
+    const unitSelect = document.querySelector(`.${type}-unit-select[data-produit="${produit}"]`);
+    const conversionDisplay = document.querySelector(`.${type}-conversion[data-produit="${produit}"]`);
+    
+    if (!input || !unitSelect || !conversionDisplay) return;
+    
+    const value = parseFloat(input.value) || 0;
+    const unit = unitSelect.value;
+    
+    if (unit === 'unite' && value > 0) {
+        const weightPerUnit = getWeightForProduct(produit);
+        const totalKg = value * weightPerUnit;
+        conversionDisplay.textContent = `= ${totalKg.toFixed(1)} kg`;
+        conversionDisplay.style.display = 'block';
+    } else {
+        conversionDisplay.style.display = 'none';
+    }
+}
+
+// Function to convert value to kg
+function convertToKg(produit, value, unit) {
+    if (unit === 'kg') {
+        return value;
+    } else if (unit === 'unite') {
+        const weightPerUnit = getWeightForProduct(produit);
+        return value * weightPerUnit;
+    }
+    return value;
+}
+
+// Function to load weight parameters for current date
+async function chargerParametresPoids() {
+    try {
+        const date = document.getElementById('estimation-date').value;
+        if (!date) return;
+        
+        const response = await fetch(`/api/weight-params/${date}`, {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.params) {
+                currentWeightParams = { ...currentWeightParams, ...data.params };
+                console.log('Paramètres de poids chargés:', currentWeightParams);
+                
+                // Mettre à jour toutes les conversions
+                updateAllConversions();
+            }
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des paramètres de poids:', error);
+    }
+}
+
+// Function to update all conversion displays
+function updateAllConversions() {
+    const precommandeInputs = document.querySelectorAll('.precommande-input');
+    const previsionInputs = document.querySelectorAll('.prevision-input');
+    
+    precommandeInputs.forEach(input => {
+        const produit = input.dataset.produit;
+        updateConversion(produit, 'precommande');
+    });
+    
+    previsionInputs.forEach(input => {
+        const produit = input.dataset.produit;
+        updateConversion(produit, 'prevision');
+    });
+}
+
+// Function to show weight parameters modal
+function afficherModalParametresPoids() {
+    const date = document.getElementById('estimation-date').value;
+    if (!date) {
+        alert('Veuillez sélectionner une date d\'abord');
+        return;
+    }
+    
+    // Remplir la date dans le modal
+    document.getElementById('weight-params-date').textContent = date;
+    
+    // Remplir les valeurs actuelles
+    document.getElementById('weight-boeuf').value = currentWeightParams['Boeuf'] || 150;
+    document.getElementById('weight-veau').value = currentWeightParams['Veau'] || 110;
+    document.getElementById('weight-agneau').value = currentWeightParams['Agneau'] || 10;
+    document.getElementById('weight-poulet').value = currentWeightParams['Poulet'] || 1.5;
+    document.getElementById('weight-default').value = currentWeightParams['default'] || 1;
+    
+    // Afficher le modal
+    const modal = new bootstrap.Modal(document.getElementById('weightParamsModal'));
+    modal.show();
+}
+
+// Function to save weight parameters
+async function sauvegarderParametresPoids() {
+    try {
+        const date = document.getElementById('estimation-date').value;
+        
+        const params = {
+            'Boeuf': parseFloat(document.getElementById('weight-boeuf').value) || 150,
+            'Veau': parseFloat(document.getElementById('weight-veau').value) || 110,
+            'Agneau': parseFloat(document.getElementById('weight-agneau').value) || 10,
+            'Poulet': parseFloat(document.getElementById('weight-poulet').value) || 1.5,
+            'default': parseFloat(document.getElementById('weight-default').value) || 1
+        };
+        
+        const response = await fetch('/api/weight-params', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                date: date,
+                params: params
+            }),
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Mettre à jour les paramètres locaux
+            currentWeightParams = { ...currentWeightParams, ...params };
+            
+            // Mettre à jour toutes les conversions
+            updateAllConversions();
+            
+            // Fermer le modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('weightParamsModal'));
+            modal.hide();
+            
+            alert('Paramètres de poids sauvegardés avec succès');
+        } else {
+            alert('Erreur lors de la sauvegarde: ' + (data.message || 'Erreur inconnue'));
+        }
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde des paramètres de poids:', error);
+        alert('Erreur lors de la sauvegarde des paramètres de poids');
+    }
+}
+
+// Function to show validation popup before saving
+async function afficherPopupValidation() {
+    console.log('=== AFFICHER POPUP VALIDATION START ===');
+    
+    // Vérifier les champs requis
+    const date = document.getElementById('estimation-date').value;
+    const pointVente = document.getElementById('estimation-point-vente').value;
+    
+    if (!date || !pointVente) {
+        alert('Veuillez remplir la date et le point de vente');
+        return;
+    }
+    
+    // Collecter les données des produits
+    const produitsEstimation = collecterDonneesProduits();
+    
+    if (produitsEstimation.length === 0) {
+        alert('Aucun produit avec des valeurs à sauvegarder. Veuillez saisir au moins une pré-commande ou prévision > 0.');
+        return;
+    }
+    
+    // Remplir le popup de validation
+    document.getElementById('validation-date').textContent = date;
+    document.getElementById('validation-point-vente').textContent = pointVente;
+    document.getElementById('validation-products-count').textContent = produitsEstimation.length;
+    
+    // Remplir le tableau de validation
+    const validationTbody = document.getElementById('validation-products-tbody');
+    validationTbody.innerHTML = '';
+    
+    produitsEstimation.forEach(produit => {
+        const row = document.createElement('tr');
+        
+        // Formatage de la pré-commande avec unité originale
+        const precommandeDisplay = produit.precommandeOriginal.unit === 'unite' ? 
+            `${produit.precommandeOriginal.value} unité(s) = ${produit.precommande.toFixed(1)} kg` :
+            `${produit.precommande.toFixed(3)} kg`;
+        
+        // Formatage de la prévision avec unité originale
+        const previsionDisplay = produit.previsionOriginal.unit === 'unite' ? 
+            `${produit.previsionOriginal.value} unité(s) = ${produit.prevision.toFixed(1)} kg` :
+            `${produit.prevision.toFixed(3)} kg`;
+        
+        row.innerHTML = `
+            <td class="fw-medium">${produit.produit}</td>
+            <td class="text-center">${previsionDisplay}</td>
+            <td class="text-center">${precommandeDisplay}</td>
+        `;
+        validationTbody.appendChild(row);
+    });
+    
+    // Afficher le modal
+    const modal = new bootstrap.Modal(document.getElementById('estimationValidationModal'));
+    modal.show();
+    
+    // Configurer le bouton de confirmation
+    const confirmBtn = document.getElementById('confirm-estimation-btn');
+    confirmBtn.onclick = async () => {
+        modal.hide();
+        await sauvegarderEstimations(produitsEstimation, date, pointVente);
+    };
+    
+    console.log('=== AFFICHER POPUP VALIDATION END ===');
+}
+
+// Function to collect product data from the table
+function collecterDonneesProduits() {
+    const produits = [];
+    const precommandeInputs = document.querySelectorAll('.precommande-input');
+    const previsionInputs = document.querySelectorAll('.prevision-input');
+    
+    precommandeInputs.forEach((precommandeInput, index) => {
+        const previsionInput = previsionInputs[index];
+        const produit = precommandeInput.dataset.produit;
+        
+        // Récupérer les valeurs et unités
+        const precommandeValue = parseFloat(precommandeInput.value) || 0;
+        const precommandeUnit = document.querySelector(`.precommande-unit-select[data-produit="${produit}"]`).value;
+        const previsionValue = parseFloat(previsionInput.value) || 0;
+        const previsionUnit = document.querySelector(`.prevision-unit-select[data-produit="${produit}"]`).value;
+        
+        // Convertir en kg
+        const precommandeKg = convertToKg(produit, precommandeValue, precommandeUnit);
+        const previsionKg = convertToKg(produit, previsionValue, previsionUnit);
+        
+        // Seulement inclure les produits avec des valeurs > 0
+        if (precommandeKg > 0 || previsionKg > 0) {
+            produits.push({
+                produit: produit,
+                precommande: precommandeKg,
+                prevision: previsionKg,
+                precommandeOriginal: {
+                    value: precommandeValue,
+                    unit: precommandeUnit
+                },
+                previsionOriginal: {
+                    value: previsionValue,
+                    unit: previsionUnit
+                }
+            });
+        }
+    });
+    
+    return produits;
+}
+
+// Function to save estimations (multiple products)
+async function sauvegarderEstimations(produitsEstimation, date, pointVente) {
+    console.log('=== SAVE ESTIMATIONS START ===');
     
     // Check if save is already in progress
     if (window.saveEstimationInProgress) {
@@ -544,52 +890,30 @@ async function sauvegarderEstimation() {
     // Set flag to prevent multiple simultaneous saves
     window.saveEstimationInProgress = true;
     
-    const stockMatinInput = document.getElementById('stock-matin-estimation');
-    const transfertInput = document.getElementById('transfert-estimation');
-    const stockSoirInput = document.getElementById('stock-soir');
-    
-    const estimation = {
-        date: document.getElementById('estimation-date').value,
-        pointVente: document.getElementById('estimation-point-vente').value,
-        categorie: document.getElementById('estimation-categorie').value,
-        stockSoir: parseFloat(stockSoirInput.value) || 0,
-        stockSoirOriginal: parseFloat(stockSoirInput.dataset.originalValue) || 0,
-        stockMatin: parseFloat(stockMatinInput.value) || 0,
-        stockMatinOriginal: parseFloat(stockMatinInput.dataset.originalValue) || 0,
-        transfert: parseFloat(transfertInput.value) || 0,
-        transfertOriginal: parseFloat(transfertInput.dataset.originalValue) || 0,
-        preCommandeDemain: parseFloat(document.getElementById('precommande-kg').value) || 0,
-        previsionVentes: parseFloat(document.getElementById('prevision-kg').value) || 0,
-        difference: parseFloat(document.getElementById('difference').value) || 0,
-        stockModified: isStockModified()
-    };
-    
-    console.log('Saving estimation data:', estimation);
-
     try {
-        const response = await fetch('/api/estimations', {
+        // Envoyer les données au backend
+        const response = await fetch('/api/estimations/bulk', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(estimation)
+            body: JSON.stringify({
+                date: date,
+                pointVente: pointVente,
+                produits: produitsEstimation
+            })
         });
 
         const data = await response.json();
 
         if (data.success) {
-            alert('Estimation enregistrée avec succès');
+            alert(`Estimation enregistrée avec succès !\n${data.savedCount} produit(s) sauvegardé(s).`);
             
-            // Reset the form but keep the Point de Vente
-            resetEstimationForm();
+            // Reset the form but keep the Point de Vente and reset to default products
+            resetEstimationFormComplete();
             
-            // Reload estimations table if needed
-            if (typeof chargerEstimations === 'function') {
-                await chargerEstimations();
-            } else {
-                // Refresh the page as fallback
-                window.location.reload();
-            }
+            // Reload estimations table
+            await chargerEstimations();
         } else {
             alert('Erreur lors de l\'enregistrement de l\'estimation: ' + (data.message || 'Erreur inconnue'));
         }
@@ -599,7 +923,7 @@ async function sauvegarderEstimation() {
     } finally {
         // Clear the flag regardless of success or failure
         window.saveEstimationInProgress = false;
-        console.log('=== SAVE ESTIMATION END ===');
+        console.log('=== SAVE ESTIMATIONS END ===');
     }
 }
 
@@ -630,13 +954,6 @@ function resetEstimationForm() {
     // Get form elements
     const dateInput = document.getElementById('estimation-date');
     const pointVenteSelect = document.getElementById('estimation-point-vente');
-    const categorieSelect = document.getElementById('estimation-categorie');
-    const stockMatinInput = document.getElementById('stock-matin-estimation');
-    const transfertInput = document.getElementById('transfert-estimation');
-    const stockSoirInput = document.getElementById('stock-soir');
-    const precommandeInput = document.getElementById('precommande-kg');
-    const previsionInput = document.getElementById('prevision-kg');
-    const differenceInput = document.getElementById('difference');
     
     // Store the current Point de Vente selection
     const currentPointVente = pointVenteSelect ? pointVenteSelect.value : '';
@@ -653,60 +970,62 @@ function resetEstimationForm() {
         }
     }
     
-    // Reset category selection
-    if (categorieSelect) {
-        categorieSelect.selectedIndex = 0; // Select the first option (usually "Sélectionner une catégorie")
-    }
+    // Reset all product inputs to 0
+    const precommandeInputs = document.querySelectorAll('.precommande-input');
+    const previsionInputs = document.querySelectorAll('.prevision-input');
     
-    // Clear all input fields
-    if (stockMatinInput) {
-        stockMatinInput.value = '';
-        stockMatinInput.style.fontStyle = 'normal';
-        delete stockMatinInput.dataset.originalValue;
-    }
+    precommandeInputs.forEach(input => {
+        input.value = '0';
+    });
     
-    if (transfertInput) {
-        transfertInput.value = '';
-        transfertInput.style.fontStyle = 'normal';
-        delete transfertInput.dataset.originalValue;
-    }
-    
-    if (stockSoirInput) {
-        stockSoirInput.value = '';
-        stockSoirInput.style.fontStyle = 'normal';
-        delete stockSoirInput.dataset.originalValue;
-    }
-    
-    if (precommandeInput) {
-        precommandeInput.value = '';
-    }
-    
-    if (previsionInput) {
-        previsionInput.value = '';
-    }
-    
-    if (differenceInput) {
-        differenceInput.value = '';
-        differenceInput.style.color = 'black';
-    }
+    previsionInputs.forEach(input => {
+        input.value = '0';
+    });
     
     // Restore the Point de Vente selection
     if (pointVenteSelect && currentPointVente) {
         pointVenteSelect.value = currentPointVente;
     }
     
-    // Hide any original value indicators
-    const stockMatinOriginal = document.getElementById('stock-matin-original');
-    const transfertOriginal = document.getElementById('transfert-original');
-    const stockSoirOriginal = document.getElementById('stock-soir-original');
-    
-    if (stockMatinOriginal) stockMatinOriginal.style.display = 'none';
-    if (transfertOriginal) transfertOriginal.style.display = 'none';
-    if (stockSoirOriginal) stockSoirOriginal.style.display = 'none';
-    
     console.log('Form reset completed, Point de Vente preserved:', currentPointVente);
     console.log('=== RESET ESTIMATION FORM END ===');
 }
+
+// Function to completely reset the estimation form (including product filter)
+function resetEstimationFormComplete() {
+    console.log('=== RESET ESTIMATION FORM COMPLETE START ===');
+    
+    // Reset to default products (hide the "all products" view)
+    const showAllBtn = document.getElementById('show-all-products-btn');
+    if (showAllBtn) {
+        showAllBtn.dataset.showAll = 'false';
+    }
+    
+    // Recharger le tableau avec les produits par défaut
+    chargerTableauProduits();
+    
+    console.log('=== RESET ESTIMATION FORM COMPLETE END ===');
+}
+
+// Function to toggle between default and all products
+function toggleProductsDisplay() {
+    console.log('=== TOGGLE PRODUCTS DISPLAY START ===');
+    
+    const showAllBtn = document.getElementById('show-all-products-btn');
+    if (!showAllBtn) return;
+    
+    // Basculer l'état
+    const currentShowAll = showAllBtn.dataset.showAll === 'true';
+    showAllBtn.dataset.showAll = (!currentShowAll).toString();
+    
+    // Recharger le tableau avec la nouvelle configuration
+    chargerTableauProduits();
+    
+    console.log('=== TOGGLE PRODUCTS DISPLAY END ===');
+}
+
+// Rendre les fonctions accessibles globalement
+window.toggleProductsDisplay = toggleProductsDisplay;
 
 // Function to load estimations from the server
 async function chargerEstimations() {
@@ -776,7 +1095,7 @@ function afficherEstimations(estimations) {
     
     if (!estimations || estimations.length === 0) {
         const emptyRow = document.createElement('tr');
-        emptyRow.innerHTML = `<td colspan="13" class="text-center">Aucune donnée disponible</td>`;
+        emptyRow.innerHTML = `<td colspan="14" class="text-center">Aucune donnée disponible</td>`;
         tbody.appendChild(emptyRow);
         console.log('No estimations to display');
         return;
@@ -877,21 +1196,27 @@ function afficherEstimations(estimations) {
         // Get status indicator based on threshold
         const statusIndicator = getStatusIndicator(differencePercentage, thresholdValue);
         
-        // Build the row HTML - update to include new columns
+        // Build the row HTML - update to include new columns with checkbox and recalculate button
         row.innerHTML = `
+            <td class="text-center">
+                <input type="checkbox" class="estimation-checkbox" data-id="${estimation.id}">
+            </td>
             <td class="text-center">${formatDate(estimation.date)}</td>
             <td class="text-center">${estimation.pointVente}</td>
-            <td class="text-center">${estimation.categorie}</td>
-            <td class="text-center">${stockMatinDisplay}</td>
-            <td class="text-center">${transfertDisplay}</td>
-            <td class="text-center">${stockSoirDisplay}</td>
+            <td class="text-center">${estimation.categorie || estimation.produit || ''}</td>
+            <td class="text-center stock-column" style="display: none;">${stockMatinDisplay}</td>
+            <td class="text-center stock-column" style="display: none;">${transfertDisplay}</td>
+            <td class="text-center stock-column" style="display: none;">${stockSoirDisplay}</td>
             <td class="text-center">${ventesTheoFormatted}</td>
-            <td class="text-center">${precommandeFormatted}</td>
             <td class="text-center">${previsionFormatted}</td>
+            <td class="text-center">${precommandeFormatted}</td>
             <td class="text-center" style="color: ${differenceColor};">${differenceFormatted}</td>
             <td class="text-center" style="color: ${differencePercentageColor};">${differencePercentageFormatted}</td>
             <td class="text-center">${statusIndicator}</td>
             <td class="text-center">
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="recalculerVentesTheo(${estimation.id})" title="Recalculer les ventes théoriques">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
                 <button class="btn btn-sm btn-danger" onclick="supprimerEstimation(${estimation.id})" aria-label="Supprimer l'estimation">
                     <i class="bi bi-trash"></i>
                 </button>
@@ -937,6 +1262,40 @@ function formatDate(dateString) {
         console.error('Error formatting date:', e);
         return dateString; // Return original if error
     }
+}
+
+// Function to recalculate theoretical sales for a specific estimation
+async function recalculerVentesTheo(id) {
+    console.log('=== RECALCULATE VENTES THEO START ===', id);
+    
+    try {
+        const response = await fetch(`/api/estimations/${id}/recalculate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            console.log('Ventes théoriques recalculées avec succès');
+            await chargerEstimations(); // Reload the table
+            
+            // Show success message
+            if (data.ventesTheo !== undefined) {
+                alert(`Ventes théoriques recalculées: ${data.ventesTheo.toFixed(3)} kg`);
+            }
+        } else {
+            console.error('Failed to recalculate ventes theo:', data.message || 'Unknown error');
+            alert('Erreur lors du recalcul: ' + (data.message || 'Erreur inconnue'));
+        }
+    } catch (error) {
+        console.error('Error recalculating ventes theo:', error);
+        alert('Erreur lors du recalcul des ventes théoriques');
+    }
+    
+    console.log('=== RECALCULATE VENTES THEO END ===');
 }
 
 // Function to delete an estimation
@@ -1483,8 +1842,9 @@ function populateFilterOptions() {
     const categorieValues = new Set();
     
     tableRows.forEach(row => {
-        const pointVente = row.cells[1]?.textContent?.trim();
-        const categorie = row.cells[2]?.textContent?.trim();
+        // Note: cells[0] is checkbox, cells[1] is date, cells[2] is point de vente, cells[3] is categorie
+        const pointVente = row.cells[2]?.textContent?.trim();
+        const categorie = row.cells[3]?.textContent?.trim();
         
         if (pointVente) pointVenteValues.add(pointVente);
         if (categorie) categorieValues.add(categorie);
@@ -1541,9 +1901,10 @@ function applyFilters() {
     // Check each row against filters
     tableRows.forEach(row => {
         // Get cell values (these are displayed values)
-        const rowDate = row.cells[0]?.textContent?.trim();
-        const pointVente = row.cells[1]?.textContent?.trim();
-        const categorie = row.cells[2]?.textContent?.trim();
+        // Note: cells[0] is checkbox, cells[1] is date, cells[2] is point de vente, cells[3] is categorie
+        const rowDate = row.cells[1]?.textContent?.trim();
+        const pointVente = row.cells[2]?.textContent?.trim();
+        const categorie = row.cells[3]?.textContent?.trim();
         
         // Format the date filter value to match the table display format
         // Our filter uses DD-MM-YYYY but table shows DD/MM/YYYY
@@ -1639,7 +2000,7 @@ function showNoResultsMessageIfNeeded(visibleRowCount) {
     if (visibleRowCount === 0) {
         const noResultsRow = document.createElement('tr');
         noResultsRow.id = 'no-filter-results-row';
-        noResultsRow.innerHTML = `<td colspan="13" class="text-center py-3">Aucun résultat ne correspond aux filtres sélectionnés</td>`;
+        noResultsRow.innerHTML = `<td colspan="14" class="text-center py-3">Aucun résultat ne correspond aux filtres sélectionnés</td>`;
         tbody.appendChild(noResultsRow);
     }
 } 
@@ -1825,5 +2186,60 @@ async function exportEstimationsToExcel() {
     }
 }
 
-// Make the export function globally available
-window.exportEstimationsToExcel = exportEstimationsToExcel; 
+// Function to toggle stock columns visibility
+function toggleStockColumns() {
+    const stockColumns = document.querySelectorAll('.stock-column');
+    const toggleBtn = document.getElementById('toggle-stock-columns');
+    
+    if (!stockColumns.length || !toggleBtn) {
+        console.warn('Stock columns or toggle button not found');
+        return;
+    }
+    
+    // Check current state
+    const isHidden = stockColumns[0].style.display === 'none';
+    
+    stockColumns.forEach(column => {
+        column.style.display = isHidden ? 'table-cell' : 'none';
+    });
+    
+    // Update button text and icon
+    if (isHidden) {
+        toggleBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Masquer Stocks';
+        toggleBtn.className = 'btn btn-info btn-sm';
+    } else {
+        toggleBtn.innerHTML = '<i class="bi bi-bar-chart"></i> Afficher Stocks';
+        toggleBtn.className = 'btn btn-outline-info btn-sm';
+    }
+    
+    console.log('Stock columns toggled:', isHidden ? 'shown' : 'hidden');
+}
+
+// Function to add recalculation functionality
+function ajouterFonctionnaliteRecalcul() {
+    // Add global recalculate button functionality
+    const selectAllCheckbox = document.getElementById('select-all-estimations');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.estimation-checkbox');
+            checkboxes.forEach(cb => cb.checked = this.checked);
+        });
+    }
+}
+
+// Initialize stock column toggle functionality when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up toggle button
+    const toggleBtn = document.getElementById('toggle-stock-columns');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', toggleStockColumns);
+    }
+    
+    // Add recalculation functionality
+    ajouterFonctionnaliteRecalcul();
+});
+
+// Make functions globally available
+window.exportEstimationsToExcel = exportEstimationsToExcel;
+window.recalculerVentesTheo = recalculerVentesTheo;
+window.supprimerEstimation = supprimerEstimation; 
