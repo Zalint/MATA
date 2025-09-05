@@ -1493,9 +1493,10 @@ async function loadLatestEstimation() {
     const pointVenteSelect = document.getElementById('estimation-point-vente');
     const categorieSelect = document.getElementById('estimation-categorie');
 
-        // Check required elements
+        // Check required elements - return silently if not found (elements not ready yet)
         if (!dateInput || !pointVenteSelect || !categorieSelect) {
-            throw new Error('Required form elements not found');
+            console.log('Required form elements not found yet, skipping loadLatestEstimation');
+            return;
         }
         
         // Ensure date is set to today if empty

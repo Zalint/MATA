@@ -90,7 +90,7 @@ let produits = require('./data/by-date/produits');
 let produitsInventaire = require('./data/by-date/produitsInventaire');
 const bcrypt = require('bcrypt');
 const fsPromises = require('fs').promises;
-const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf, Depense, WeightParams } = require('./db/models');
+const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf, Depense, WeightParams, Precommande } = require('./db/models');
 const { testConnection, sequelize } = require('./db');
 const { Op, fn, col, literal } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
@@ -159,6 +159,7 @@ app.use(session({
         sameSite: 'lax'
     }
 }));
+
 
 app.get('/api/points-vente', (req, res) => {
     try {
@@ -2413,6 +2414,494 @@ async function loadVentesWithIds() {
     throw error;
   }
 }
+
+// ================================
+// ROUTES POUR LES PRÉ-COMMANDES
+// ================================
+
+// Route pour ajouter des pré-commandes
+app.post('/api/precommandes', checkAuth, checkWriteAccess, async (req, res) => {
+    console.log('=== AJOUT PRÉ-COMMANDES ===');
+    console.log('Utilisateur:', req.session.user?.username);
+    console.log('Nombre d\'entrées:', Array.isArray(req.body) ? req.body.length : 'Non array');
+    
+    const entries = req.body;
+    
+    // Vérifier si le point de vente est actif pour chaque pré-commande
+    for (const entry of entries) {
+        if (!pointsVente[entry.pointVente]?.active) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Le point de vente ${entry.pointVente} est désactivé` 
+            });
+        }
+        
+        // Vérifier si le produit existe dans la catégorie
+        if (entry.categorie && entry.produit) {
+            const categorieExists = produits[entry.categorie];
+            if (!categorieExists) {
+                return res.status(400).json({
+                    success: false,
+                    message: `La catégorie "${entry.categorie}" n'existe pas`
+                });
+            }
+            
+            const produitExists = produits[entry.categorie][entry.produit] !== undefined;
+            if (!produitExists) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Le produit "${entry.produit}" n'existe pas dans la catégorie "${entry.categorie}"`
+                });
+            }
+        }
+    }
+    
+    try {
+        // Préparer les données pour l'insertion
+        const precommandesToInsert = entries.map(entry => {
+            // Standardiser les dates au format dd-mm-yyyy
+            const dateEnregistrementStandardisee = standardiserDateFormat(entry.dateEnregistrement);
+            const dateReceptionStandardisee = standardiserDateFormat(entry.dateReception);
+            
+            // Convertir les valeurs numériques en nombre avec une précision fixe
+            const nombre = parseFloat(parseFloat(entry.quantite).toFixed(2)) || 0;
+            const prixUnit = parseFloat(parseFloat(entry.prixUnit).toFixed(2)) || 0;
+            const montant = parseFloat(parseFloat(entry.total).toFixed(2)) || 0;
+            
+            return {
+                mois: entry.mois,
+                dateEnregistrement: dateEnregistrementStandardisee,
+                dateReception: dateReceptionStandardisee,
+                semaine: entry.semaine,
+                pointVente: entry.pointVente,
+                preparation: entry.preparation || entry.pointVente,
+                categorie: entry.categorie,
+                produit: entry.produit,
+                prixUnit: prixUnit,
+                nombre: nombre,
+                montant: montant,
+                nomClient: entry.nomClient || null,
+                numeroClient: entry.numeroClient || null,
+                adresseClient: entry.adresseClient || null,
+                commentaire: entry.commentaire || null,
+                label: entry.label || null
+            };
+        });
+        
+        // Insérer les pré-commandes dans la base de données
+        await Precommande.bulkCreate(precommandesToInsert);
+        console.log('✅ Pré-commandes ajoutées avec succès');
+        
+        // Récupérer les 10 dernières pré-commandes pour l'affichage
+        const dernieresPrecommandes = await Precommande.findAll({
+            order: [['createdAt', 'DESC']],
+            limit: 10
+        });
+        
+        // Formater les données pour la réponse
+        const formattedPrecommandes = dernieresPrecommandes.map(precommande => ({
+            id: precommande.id,
+            Mois: precommande.mois,
+            'Date Enregistrement': precommande.dateEnregistrement,
+            'Date Réception': precommande.dateReception,
+            Semaine: precommande.semaine,
+            'Point de Vente': precommande.pointVente,
+            Preparation: precommande.preparation,
+            Catégorie: precommande.categorie,
+            Produit: precommande.produit,
+            PU: precommande.prixUnit,
+            Nombre: precommande.nombre,
+            Montant: precommande.montant,
+            nomClient: precommande.nomClient,
+            numeroClient: precommande.numeroClient,
+            adresseClient: precommande.adresseClient,
+            commentaire: precommande.commentaire,
+            label: precommande.label
+        }));
+        
+        res.json({ success: true, dernieresPrecommandes: formattedPrecommandes });
+    } catch (error) {
+        console.error('Erreur lors de l\'ajout des pré-commandes:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de l\'ajout des pré-commandes',
+            error: error.message
+        });
+    }
+});
+
+// Route pour obtenir les pré-commandes avec filtres
+app.get('/api/precommandes', checkAuth, checkReadAccess, async (req, res) => {
+    try {
+        const { dateDebut, dateFin, pointVente, label } = req.query;
+        
+        console.log('Paramètres reçus:', { dateDebut, dateFin, pointVente, label });
+        
+        // Préparer les conditions de filtrage
+        const whereConditions = {};
+        
+        if (dateDebut || dateFin) {
+            // Utiliser la même logique que pour les ventes pour filtrer par date
+            const convertISOToAppFormat = (isoDate) => {
+                const date = new Date(isoDate);
+                const jour = date.getDate().toString().padStart(2, '0');
+                const mois = (date.getMonth() + 1).toString().padStart(2, '0');
+                const annee = date.getFullYear();
+                return `${jour}-${mois}-${annee}`;
+            };
+            
+            const debutFormatted = dateDebut ? convertISOToAppFormat(dateDebut) : null;
+            const finFormatted = dateFin ? convertISOToAppFormat(dateFin) : null;
+            
+            // Récupérer toutes les pré-commandes et filtrer en JavaScript (comme pour les ventes)
+            const toutesPrecommandes = await Precommande.findAll({
+                order: [['dateEnregistrement', 'DESC'], ['id', 'DESC']]
+            });
+            
+            const isDateInRange = (dateToCheck, startDate, endDate) => {
+                const convertToComparable = (dateStr) => {
+                    if (!dateStr) return '';
+                    const [day, month, year] = dateStr.split('-');
+                    return `${year}-${month}-${day}`;
+                };
+                
+                const comparableDate = convertToComparable(dateToCheck);
+                const comparableStart = startDate ? convertToComparable(startDate) : '';
+                const comparableEnd = endDate ? convertToComparable(endDate) : '';
+                
+                let isInRange = true;
+                
+                if (comparableStart && comparableDate) {
+                    isInRange = isInRange && (comparableDate >= comparableStart);
+                }
+                
+                if (comparableEnd && comparableDate) {
+                    isInRange = isInRange && (comparableDate <= comparableEnd);
+                }
+                
+                return isInRange;
+            };
+            
+            let precommandesFiltrees = toutesPrecommandes.filter(precommande => {
+                return isDateInRange(precommande.dateEnregistrement, debutFormatted, finFormatted);
+            });
+            
+            // Filtrer par point de vente si spécifié
+            if (pointVente && pointVente !== 'tous') {
+                precommandesFiltrees = precommandesFiltrees.filter(precommande => 
+                    precommande.pointVente === pointVente
+                );
+            }
+            
+            // Filtrer par label si spécifié
+            if (label) {
+                precommandesFiltrees = precommandesFiltrees.filter(precommande => 
+                    precommande.label && precommande.label.toLowerCase().includes(label.toLowerCase())
+                );
+            }
+            
+            // Formater les données pour la réponse
+            const formattedPrecommandes = precommandesFiltrees.map(precommande => ({
+                id: precommande.id,
+                Mois: precommande.mois,
+                'Date Enregistrement': precommande.dateEnregistrement,
+                'Date Réception': precommande.dateReception,
+                Semaine: precommande.semaine,
+                'Point de Vente': precommande.pointVente,
+                Preparation: precommande.preparation,
+                Catégorie: precommande.categorie,
+                Produit: precommande.produit,
+                PU: precommande.prixUnit,
+                Nombre: precommande.nombre,
+                Montant: precommande.montant,
+                nomClient: precommande.nomClient,
+                numeroClient: precommande.numeroClient,
+                adresseClient: precommande.adresseClient,
+                commentaire: precommande.commentaire,
+                label: precommande.label
+            }));
+            
+            res.json({ success: true, precommandes: formattedPrecommandes });
+        } else {
+            // Si pas de filtre de date, récupérer toutes les pré-commandes
+            const toutesPrecommandes = await Precommande.findAll({
+                order: [['dateEnregistrement', 'DESC'], ['id', 'DESC']]
+            });
+            
+            let precommandesFiltrees = toutesPrecommandes;
+            
+            // Filtrer par point de vente si spécifié
+            if (pointVente && pointVente !== 'tous') {
+                precommandesFiltrees = precommandesFiltrees.filter(precommande => 
+                    precommande.pointVente === pointVente
+                );
+            }
+            
+            // Filtrer par label si spécifié
+            if (label) {
+                precommandesFiltrees = precommandesFiltrees.filter(precommande => 
+                    precommande.label && precommande.label.toLowerCase().includes(label.toLowerCase())
+                );
+            }
+            
+            const formattedPrecommandes = precommandesFiltrees.map(precommande => ({
+                id: precommande.id,
+                Mois: precommande.mois,
+                'Date Enregistrement': precommande.dateEnregistrement,
+                'Date Réception': precommande.dateReception,
+                Semaine: precommande.semaine,
+                'Point de Vente': precommande.pointVente,
+                Preparation: precommande.preparation,
+                Catégorie: precommande.categorie,
+                Produit: precommande.produit,
+                PU: precommande.prixUnit,
+                Nombre: precommande.nombre,
+                Montant: precommande.montant,
+                nomClient: precommande.nomClient,
+                numeroClient: precommande.numeroClient,
+                adresseClient: precommande.adresseClient,
+                commentaire: precommande.commentaire,
+                label: precommande.label
+            }));
+            
+            res.json({ success: true, precommandes: formattedPrecommandes });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la récupération des pré-commandes:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la récupération des pré-commandes',
+            error: error.message
+        });
+    }
+});
+
+// Route pour convertir une pré-commande en vente réelle
+app.post('/api/precommandes/:id/convert', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const precommandeId = req.params.id;
+        const { dateVente, pointVenteDestination } = req.body;
+        
+        if (!dateVente || !pointVenteDestination) {
+            return res.status(400).json({
+                success: false,
+                message: 'Date de vente et point de vente de destination sont requis'
+            });
+        }
+        
+        // Vérifier que la pré-commande existe
+        const precommande = await Precommande.findByPk(precommandeId);
+        if (!precommande) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Pré-commande non trouvée'
+            });
+        }
+        
+        // Vérifier que le point de vente de destination est actif
+        if (!pointsVente[pointVenteDestination]?.active) {
+            return res.status(400).json({
+                success: false, 
+                message: `Le point de vente ${pointVenteDestination} est désactivé`
+            });
+        }
+        
+        // Créer la vente réelle basée sur la pré-commande
+        const dateVenteStandardisee = standardiserDateFormat(dateVente);
+        
+        const nouvelleVente = {
+            mois: precommande.mois,
+            date: dateVenteStandardisee,
+            semaine: precommande.semaine,
+            pointVente: pointVenteDestination,
+            preparation: precommande.preparation,
+            categorie: precommande.categorie,
+            produit: precommande.produit,
+            prixUnit: precommande.prixUnit,
+            nombre: precommande.nombre,
+            montant: precommande.montant,
+            nomClient: precommande.nomClient,
+            numeroClient: precommande.numeroClient,
+            adresseClient: precommande.adresseClient ? 
+                `${precommande.adresseClient} [Provenant de pré-commande]` : 
+                '[Provenant de pré-commande]', // Marqueur pour identification
+            creance: false
+        };
+        
+        // Créer la vente dans la base de données
+        const venteCreee = await Vente.create(nouvelleVente);
+        
+        // Supprimer la pré-commande
+        await precommande.destroy();
+        
+        console.log(`Pré-commande ${precommandeId} convertie en vente ${venteCreee.id}`);
+        
+        res.json({ 
+            success: true, 
+            message: 'Pré-commande convertie en vente avec succès',
+            venteCreee: {
+                id: venteCreee.id,
+                Mois: venteCreee.mois,
+                Date: venteCreee.date,
+                Semaine: venteCreee.semaine,
+                'Point de Vente': venteCreee.pointVente,
+                Preparation: venteCreee.preparation,
+                Catégorie: venteCreee.categorie,
+                Produit: venteCreee.produit,
+                PU: venteCreee.prixUnit,
+                Nombre: venteCreee.nombre,
+                Montant: venteCreee.montant,
+                nomClient: venteCreee.nomClient,
+                numeroClient: venteCreee.numeroClient,
+                adresseClient: venteCreee.adresseClient,
+                creance: venteCreee.creance
+            }
+        });
+    } catch (error) {
+        console.error('Erreur lors de la conversion de la pré-commande:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la conversion de la pré-commande',
+            error: error.message
+        });
+    }
+});
+
+// Route pour supprimer une pré-commande
+app.delete('/api/precommandes/:id', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const precommandeId = req.params.id;
+        
+        // Trouver la pré-commande à supprimer
+        const precommande = await Precommande.findByPk(precommandeId);
+        
+        if (!precommande) {
+            return res.status(404).json({
+            success: false, 
+                message: 'Pré-commande non trouvée'
+            });
+        }
+        
+        // Vérifier l'accès par point de vente si nécessaire
+        const userPointVente = req.session.user.pointVente;
+        if (userPointVente !== 'tous' && precommande.pointVente !== userPointVente) {
+            return res.status(403).json({
+                success: false, 
+                message: 'Accès non autorisé pour ce point de vente'
+            });
+        }
+        
+        // Supprimer la pré-commande
+        await precommande.destroy();
+        
+        console.log(`Pré-commande ${precommandeId} supprimée avec succès`);
+        
+        res.json({ 
+            success: true, 
+            message: 'Pré-commande supprimée avec succès'
+        });
+    } catch (error) {
+        console.error('Erreur lors de la suppression de la pré-commande:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la suppression de la pré-commande',
+            error: error.message
+        });
+    }
+});
+
+// Route pour mettre à jour une pré-commande
+app.put('/api/precommandes/:id', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const precommandeId = req.params.id;
+        const updatedPrecommande = req.body;
+        
+        // Trouver la pré-commande à mettre à jour
+        const precommande = await Precommande.findByPk(precommandeId);
+        
+        if (!precommande) {
+            return res.status(404).json({
+                success: false,
+                message: 'Pré-commande non trouvée'
+            });
+        }
+        
+        // Vérifier l'accès par point de vente si nécessaire
+        const userPointVente = req.session.user.pointVente;
+        if (userPointVente !== 'tous' && precommande.pointVente !== userPointVente) {
+            return res.status(403).json({
+                success: false,
+                message: 'Accès non autorisé pour ce point de vente'
+            });
+        }
+        
+        // Préparer les données mises à jour
+        const dataToUpdate = {
+            mois: updatedPrecommande.mois || precommande.mois,
+            dateEnregistrement: updatedPrecommande.dateEnregistrement ? 
+                standardiserDateFormat(updatedPrecommande.dateEnregistrement) : precommande.dateEnregistrement,
+            dateReception: updatedPrecommande.dateReception ? 
+                standardiserDateFormat(updatedPrecommande.dateReception) : precommande.dateReception,
+            semaine: updatedPrecommande.semaine || precommande.semaine,
+            pointVente: updatedPrecommande.pointVente || precommande.pointVente,
+            preparation: updatedPrecommande.preparation || precommande.preparation,
+            categorie: updatedPrecommande.categorie || precommande.categorie,
+            produit: updatedPrecommande.produit || precommande.produit,
+            prixUnit: updatedPrecommande.prixUnit !== undefined ? 
+                parseFloat(updatedPrecommande.prixUnit) : precommande.prixUnit,
+            nombre: updatedPrecommande.nombre !== undefined ? 
+                parseFloat(updatedPrecommande.nombre) : precommande.nombre,
+            montant: updatedPrecommande.montant !== undefined ? 
+                parseFloat(updatedPrecommande.montant) : precommande.montant,
+            nomClient: updatedPrecommande.nomClient !== undefined ? 
+                updatedPrecommande.nomClient : precommande.nomClient,
+            numeroClient: updatedPrecommande.numeroClient !== undefined ? 
+                updatedPrecommande.numeroClient : precommande.numeroClient,
+            adresseClient: updatedPrecommande.adresseClient !== undefined ? 
+                updatedPrecommande.adresseClient : precommande.adresseClient,
+            commentaire: updatedPrecommande.commentaire !== undefined ? 
+                updatedPrecommande.commentaire : precommande.commentaire,
+            label: updatedPrecommande.label !== undefined ? 
+                updatedPrecommande.label : precommande.label
+        };
+        
+        // Mettre à jour la pré-commande
+        await precommande.update(dataToUpdate);
+        
+        console.log(`Pré-commande ${precommandeId} mise à jour avec succès`);
+        
+            res.json({ 
+                success: true, 
+            message: 'Pré-commande mise à jour avec succès',
+            precommande: {
+                id: precommande.id,
+                Mois: precommande.mois,
+                'Date Enregistrement': precommande.dateEnregistrement,
+                'Date Réception': precommande.dateReception,
+                Semaine: precommande.semaine,
+                'Point de Vente': precommande.pointVente,
+                Preparation: precommande.preparation,
+                Catégorie: precommande.categorie,
+                Produit: precommande.produit,
+                PU: precommande.prixUnit,
+                Nombre: precommande.nombre,
+                Montant: precommande.montant,
+                nomClient: precommande.nomClient,
+                numeroClient: precommande.numeroClient,
+                adresseClient: precommande.adresseClient,
+                commentaire: precommande.commentaire,
+                label: precommande.label
+            }
+        });
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour de la pré-commande:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erreur lors de la mise à jour de la pré-commande',
+            error: error.message
+        });
+    }
+});
 
 // Routes pour la réconciliation
 app.post('/api/reconciliation/save', checkAuth, checkWriteAccess, async (req, res) => {

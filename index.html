@@ -59,6 +59,7 @@
         /* Section-specific fixes */
         #reconciliation-section .card-body,
         #saisie-section .card-body,
+        #precommande-section .card-body,
         #visualisation-section .card-body,
         #import-section .card-body,
         #stock-inventaire-section .card-body,
@@ -99,6 +100,16 @@
             padding: 25px 10px 10px;
             position: relative;
             margin-bottom: 10px;
+        }
+        
+        /* Styles pour les ventes provenant de pré-commandes */
+        .vente-precommande {
+            background-color: #e3f2fd !important;
+            border-left: 4px solid #2196f3 !important;
+        }
+        
+        .vente-precommande:hover {
+            background-color: #bbdefb !important;
         }
         
         .performance-slider-track {
@@ -215,6 +226,11 @@
                         <li class="nav-item" id="estimation-item">
                             <a class="nav-link" href="#" id="estimation-tab">
                                 <i class="bi bi-graph-up"></i> Estimation
+                            </a>
+                        </li>
+                        <li class="nav-item" id="precommande-item">
+                            <a class="nav-link" href="#" id="precommande-tab">
+                                <i class="bi bi-cart-plus"></i> Pré-commande clients
                             </a>
                         </li>
                     </ul>
@@ -367,6 +383,194 @@
                                     <tbody></tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section de pré-commandes -->
+            <div id="precommande-section" class="content-section" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Saisie des pré-commandes clients</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="precommande-form">
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <label for="precommande-date-enregistrement" class="form-label">Date d'enregistrement *</label>
+                                    <input type="text" class="form-control" id="precommande-date-enregistrement" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="precommande-date-reception" class="form-label">Date de réception *</label>
+                                    <input type="text" class="form-control" id="precommande-date-reception" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="precommande-point-vente" class="form-label">Point de Vente *</label>
+                                    <select class="form-select" id="precommande-point-vente" required>
+                                        <option value="">Sélectionner un point de vente</option>
+                                    </select>
+                                </div>
+                                                        <div class="col-md-3">
+                            <label for="precommande-label" class="form-label">Label/Tag</label>
+                            <input type="text" class="form-control" id="precommande-label" placeholder="Entrez un label (optionnel)">
+                        </div>
+                            </div>
+                            
+                            <!-- Informations Client -->
+                            <div class="row mb-3">
+                                <div class="col-12 mb-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-info-circle"></i> 
+                                        Les informations client sont optionnelles. Si renseignées, elles seront appliquées à tous les produits de cette pré-commande.
+                                    </small>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="precommande-client-nom" class="form-label">Nom Client</label>
+                                    <input type="text" class="form-control" id="precommande-client-nom" placeholder="Nom du client">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="precommande-client-numero" class="form-label">Numéro Client</label>
+                                    <input type="text" class="form-control" id="precommande-client-numero" placeholder="Ex: 773900000">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="precommande-client-adresse" class="form-label">Adresse Client</label>
+                                    <input type="text" class="form-control" id="precommande-client-adresse" placeholder="Adresse du client">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="precommande-commentaire" class="form-label">Commentaire</label>
+                                    <input type="text" class="form-control" id="precommande-commentaire" placeholder="Notes supplémentaires...">
+                                </div>
+                            </div>
+
+                            <div id="precommande-produits-container">
+                                <div class="precommande-produit-entry mb-3">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Catégorie *</label>
+                                            <select class="form-select precommande-categorie-select" required>
+                                                <option value="">Sélectionner une catégorie</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Produit *</label>
+                                            <select class="form-select precommande-produit-select" required>
+                                                <option value="">Sélectionner un produit</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Prix Unit. *</label>
+                                            <input type="number" class="form-control precommande-prix-unit" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Quantité *</label>
+                                            <input type="number" class="form-control precommande-quantite" step="0.001" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Total</label>
+                                            <input type="number" class="form-control precommande-total" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="button" class="btn btn-secondary mb-3" id="ajouter-produit-precommande">
+                                Ajouter un produit
+                            </button>
+
+                            <div class="small text-muted mb-3">
+                                * Champs obligatoires
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6>Total Général</h6>
+                                            <h3 id="precommande-total-general">0 FCFA</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <button type="submit" class="btn btn-primary w-100">Enregistrer Pré-commande</button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <!-- Filtres et contrôles -->
+                        <div class="mt-4">
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <label for="filter-precommande-date-debut" class="form-label">Date début</label>
+                                    <input type="date" class="form-control" id="filter-precommande-date-debut">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="filter-precommande-date-fin" class="form-label">Date fin</label>
+                                    <input type="date" class="form-control" id="filter-precommande-date-fin">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="filter-precommande-point-vente" class="form-label">Point de vente</label>
+                                    <select class="form-select" id="filter-precommande-point-vente">
+                                        <option value="tous">Tous les points de vente</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="filter-precommande-label" class="form-label">Label/Tag</label>
+                                    <select class="form-select" id="filter-precommande-label">
+                                        <option value="">Tous les labels</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <button type="button" class="btn btn-outline-primary" id="filtrer-precommandes">
+                                        <i class="bi bi-funnel"></i> Filtrer
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="reset-filtres-precommandes">
+                                        <i class="bi bi-arrow-clockwise"></i> Réinitialiser
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tableau des pré-commandes -->
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5>Pré-commandes enregistrées</h5>
+                                <div class="text-muted">
+                                    <span id="total-precommandes"></span>
+                                    <span id="derniere-mise-a-jour-precommandes" class="ms-3"></span>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table id="precommandes-table" class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Mois</th>
+                                            <th>Date Enregistrement</th>
+                                            <th>Date Réception</th>
+                                            <th>Semaine</th>
+                                            <th>Point de Vente</th>
+                                            <th>Préparation</th>
+                                            <th>Catégorie</th>
+                                            <th>Produit</th>
+                                            <th>Prix Unitaire</th>
+                                            <th>Nombre</th>
+                                            <th>Montant</th>
+                                            <th>Nom Client</th>
+                                            <th>Numéro Client</th>
+                                            <th>Adresse Client</th>
+                                            <th>Commentaire</th>
+                                            <th>Label</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- Pagination des pré-commandes -->
+                            <div id="precommandes-pagination" class="mt-3"></div>
                         </div>
                     </div>
                 </div>
@@ -2083,6 +2287,78 @@
                     </button>
                     <button type="button" class="btn btn-primary" id="save-weight-params-btn">
                         <i class="bi bi-check-circle"></i> Sauvegarder
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de conversion pré-commande vers vente -->
+    <div class="modal fade" id="conversionModal" tabindex="-1" aria-labelledby="conversionModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="conversionModalLabel">
+                        <i class="bi bi-arrow-right-circle"></i> Convertir en vente réelle
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        Cette action va convertir la pré-commande en vente réelle. La pré-commande sera supprimée et une nouvelle vente sera créée.
+                    </div>
+                    
+                    <form id="conversion-form">
+                        <div class="mb-3">
+                            <label for="conversion-date-vente" class="form-label">Date de la vente *</label>
+                            <input type="text" class="form-control" id="conversion-date-vente" required>
+                            <div class="form-text">Date à laquelle la vente a été réellement effectuée</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="conversion-point-vente" class="form-label">Point de vente de destination *</label>
+                            <select class="form-select" id="conversion-point-vente" required>
+                                <option value="">Sélectionner un point de vente</option>
+                            </select>
+                            <div class="form-text">Point de vente où la vente a été réellement effectuée</div>
+                        </div>
+                        
+                        <!-- Informations de la pré-commande à convertir -->
+                        <div class="card bg-light mt-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">Informations de la pré-commande</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <strong>Client:</strong> <span id="conversion-info-client"></span>
+                                    </div>
+                                    <div class="col-6">
+                                        <strong>Montant:</strong> <span id="conversion-info-montant"></span>
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-6">
+                                        <strong>Produit:</strong> <span id="conversion-info-produit"></span>
+                                    </div>
+                                    <div class="col-6">
+                                        <strong>Quantité:</strong> <span id="conversion-info-quantite"></span>
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-12">
+                                        <strong>Commentaire:</strong> <span id="conversion-info-commentaire"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-success" id="confirmer-conversion">
+                        <i class="bi bi-check-circle"></i> Confirmer la conversion
                     </button>
                 </div>
             </div>

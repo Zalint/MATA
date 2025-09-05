@@ -1,4 +1,4 @@
-// Démarrage du script
+﻿// Démarrage du script
 document.addEventListener('DOMContentLoaded', function() {
     // Vérifier si le gestionnaire de réconciliation est disponible
     if (typeof ReconciliationManager === 'undefined') {
@@ -204,6 +204,7 @@ function updateViderBaseButtonVisibility() {
 // Fonction pour cacher toutes les sections
 function hideAllSections() {
     document.getElementById('saisie-section').style.display = 'none';
+    document.getElementById('precommande-section').style.display = 'none';
     document.getElementById('visualisation-section').style.display = 'none';
     document.getElementById('import-section').style.display = 'none';
     document.getElementById('stock-inventaire-section').style.display = 'none';
@@ -699,6 +700,7 @@ async function checkAuth() {
         const cashPaymentItem = document.getElementById('cash-payment-item');
         const estimationItem = document.getElementById('estimation-item');
         const suiviAchatBoeufItem = document.getElementById('suivi-achat-boeuf-item');
+        const precommandeItem = document.getElementById('precommande-item');
         
         // Masquer les onglets selon les permissions de l'utilisateur
         
@@ -742,6 +744,13 @@ async function checkAuth() {
             if (estimationItem) estimationItem.style.display = 'block';
         } else {
             if (estimationItem) estimationItem.style.display = 'none';
+        }
+        
+        // Onglet Pré-commande - mêmes permissions que Saisie (utilisateurs avec droits d'écriture)
+        if (currentUser.canWrite) {
+            if (precommandeItem) precommandeItem.style.display = 'block';
+        } else {
+            if (precommandeItem) precommandeItem.style.display = 'none';
         }
         
         // Vérifier l'accès au chat Relevance AI
@@ -822,6 +831,27 @@ flatpickr("#date", {
     }
 });
 
+// Configuration des dates pour les pré-commandes - exactement comme Saisie
+flatpickr("#precommande-date-enregistrement", {
+    locale: "fr",
+    dateFormat: "d/m/Y",
+    defaultDate: "today",
+    onChange: function(selectedDates, dateStr) {
+        // Mettre à jour l'état du bouton Enregistrer selon la date sélectionnée
+        updateSubmitButtonState();
+    }
+});
+
+flatpickr("#precommande-date-reception", {
+    locale: "fr",
+    dateFormat: "d/m/Y",
+    defaultDate: "today",
+    onChange: function(selectedDates, dateStr) {
+        // Mettre à jour l'état du bouton Enregistrer selon la date sélectionnée
+        updateSubmitButtonState();
+    }
+});
+
 // Configuration des dates pour la visualisation
 const dateDebutPicker = flatpickr("#date-debut", {
     locale: "fr",
@@ -843,6 +873,26 @@ const dateFinPicker = flatpickr("#date-fin", {
         // Recharger immédiatement à chaque changement
         chargerVentes();
     }
+});
+
+// Configuration des dates pour les filtres des pré-commandes - exactement comme visualisation
+const precommandeFilterDateDebutPicker = flatpickr("#filter-precommande-date-debut", {
+    locale: "fr",
+    dateFormat: "Y-m-d", // Format ISO pour les inputs de type date
+    defaultDate: null
+});
+
+const precommandeFilterDateFinPicker = flatpickr("#filter-precommande-date-fin", {
+    locale: "fr",
+    dateFormat: "Y-m-d", // Format ISO pour les inputs de type date
+    defaultDate: null
+});
+
+// Configuration de la date pour la modal de conversion - exactement comme Saisie
+const conversionDatePicker = flatpickr("#conversion-date-vente", {
+    locale: "fr",
+    dateFormat: "d/m/Y",
+    defaultDate: "today"
 });
 
 // Fonction pour mettre à jour les dates en fonction de la période sélectionnée
@@ -1813,6 +1863,10 @@ function afficherDernieresVentes(ventes) {
 
     ventes.forEach(vente => {
         const row = tbody.insertRow();
+        
+        // Distinction visuelle pour les ventes provenant de pré-commandes (en bleu)
+        appliquerDistinctionVisuellePrecommande(row, vente);
+        
         // Formater la date pour l'affichage en DD-MM-YYYY
         let displayDate = vente.Date;
         const dateObj = standardiserDate(vente.Date); // Uses standardiserDate
@@ -3035,6 +3089,10 @@ function afficherPageVentes(page) {
     
     ventesPage.forEach(vente => {
         const tr = document.createElement('tr');
+        
+        // Distinction visuelle pour les ventes provenant de pré-commandes (en bleu)
+        appliquerDistinctionVisuellePrecommande(tr, vente);
+        
         tr.innerHTML = `
             <td>${vente.Mois || vente.mois || ''}</td>
             <td>${vente.Date || vente.date || ''}</td>
@@ -6933,7 +6991,12 @@ function initTabListeners() {
             if (tabId === 'estimation-tab') {
                 e.preventDefault();
                 showSection('estimation-section');
-                // initEstimation(); // Function is automatically called by estimation.js
+                // Ensure loadLatestEstimation is called when tab becomes active
+                setTimeout(() => {
+                    if (typeof loadLatestEstimation === 'function') {
+                        loadLatestEstimation();
+                    }
+                }, 100);
             }
         });
     });
@@ -6949,6 +7012,13 @@ document.addEventListener('DOMContentLoaded', function() {
 document.getElementById('saisie-tab').addEventListener('click', function(e) {
     e.preventDefault();
     showSection('saisie-section');
+});
+
+document.getElementById('precommande-tab').addEventListener('click', function(e) {
+    e.preventDefault();
+    showSection('precommande-section');
+    // Initialiser les dropdowns spécifiquement pour les pré-commandes
+    initPrecommandeDropdowns();
 });
 
 document.getElementById('visualisation-tab').addEventListener('click', function(e) {
@@ -6990,10 +7060,6 @@ document.getElementById('cash-payment-tab').addEventListener('click', function(e
     checkCashPaymentAdminPermissions();
 });
 
-document.getElementById('estimation-tab').addEventListener('click', function(e) {
-    e.preventDefault();
-    showSection('estimation-section');
-});
 
 // Fonction pour initialiser la section de réconciliation mensuelle
 function initReconciliationMensuelle() {
@@ -8610,4 +8676,943 @@ async function exportReconciliationMoisToExcel() {
         
         alert('Erreur lors de l\'export Excel : ' + error.message);
     }
+}
+
+// ================================
+// UTILITAIRES POUR DISTINCTION VISUELLE
+// ================================
+
+// Fonction utilitaire pour appliquer la distinction visuelle aux ventes provenant de pré-commandes
+function appliquerDistinctionVisuellePrecommande(row, vente) {
+    if (vente.adresseClient && vente.adresseClient.includes('Provenant de pré-commande')) {
+        row.style.backgroundColor = '#e3f2fd'; // Bleu clair
+        row.style.borderLeft = '4px solid #2196f3'; // Bordure bleue
+        row.title = 'Cette vente provient d\'une pré-commande convertie'; // Tooltip
+        
+        // Ajouter une classe CSS pour un style plus cohérent
+        row.classList.add('vente-precommande');
+    }
+}
+
+// ================================
+// GESTION DES PRÉ-COMMANDES CLIENTS
+// ================================
+
+// Variables globales pour les pré-commandes
+let currentPrecommandes = [];
+let currentPrecommandePage = 1;
+let precommandesPerPage = 20; // Nombre de pré-commandes par page
+
+// Initialisation des dropdowns pour les pré-commandes
+async function initPrecommandeDropdowns() {
+    console.log('Initialisation des dropdowns pré-commandes');
+    
+    // Populer les points de vente
+    await populatePrecommandePointVenteDropdown();
+    
+    // Populer les catégories
+    populatePrecommandeCategoriesForEntry();
+    
+            // Charger les labels existants pour l'autocomplétion
+        await loadPrecommandeLabelsForAutocomplete();
+        
+        // Charger les labels pour le filtre
+        await populatePrecommandeFilterLabelsDropdown();
+    
+    // Charger les pré-commandes existantes
+    await chargerPrecommandes();
+}
+
+// Populer les points de vente pour les pré-commandes (identique à Saisie)
+async function populatePrecommandePointVenteDropdown() {
+    try {
+        const response = await fetch('/api/points-vente');
+        const pointsVente = await response.json();
+        
+        const pointVenteSelect = document.getElementById('precommande-point-vente');
+        const filterPointVenteSelect = document.getElementById('filter-precommande-point-vente');
+        
+        if (pointVenteSelect) {
+            pointVenteSelect.innerHTML = '<option value="">Sélectionner un point de vente</option>';
+            pointsVente.forEach(pointVente => {
+                const option = document.createElement('option');
+                option.value = pointVente;
+                option.textContent = pointVente;
+                pointVenteSelect.appendChild(option);
+            });
+        }
+        
+        if (filterPointVenteSelect) {
+            // Garder l'option "tous"
+            filterPointVenteSelect.innerHTML = '<option value="tous">Tous les points de vente</option>';
+            pointsVente.forEach(pointVente => {
+                const option = document.createElement('option');
+                option.value = pointVente;
+                option.textContent = pointVente;
+                filterPointVenteSelect.appendChild(option);
+            });
+        }
+        
+        // Appliquer les restrictions selon l'utilisateur (comme pour Saisie)
+        const userPointsVente = getUserAuthorizedPointsVente();
+        if (!userPointsVente.includes("tous") && userPointsVente.length === 1) {
+            if (pointVenteSelect) {
+                pointVenteSelect.value = userPointsVente[0];
+                pointVenteSelect.disabled = true;
+            }
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des points de vente pour pré-commandes:', error);
+    }
+}
+
+// Charger les labels existants pour l'autocomplétion des pré-commandes
+async function loadPrecommandeLabelsForAutocomplete() {
+    console.log('=== DÉBUT loadPrecommandeLabelsForAutocomplete ===');
+    try {
+        const response = await fetch('/api/precommandes');
+        const data = await response.json();
+        
+        console.log('Réponse API pré-commandes:', data);
+        
+        if (data.success && data.precommandes) {
+            console.log('Nombre de pré-commandes reçues:', data.precommandes.length);
+            console.log('Contenu des pré-commandes:', data.precommandes);
+            
+            // Extraire tous les labels uniques
+            const labels = [...new Set(data.precommandes
+                .map(p => p.label)
+                .filter(label => label && label.trim() !== '')
+            )].sort();
+            
+            console.log('Labels uniques trouvés:', labels);
+            
+            // Configurer l'autocomplétion sur l'input
+            const labelInput = document.getElementById('precommande-label');
+            console.log('Élément precommande-label trouvé:', labelInput);
+            
+            if (labelInput && labels.length > 0) {
+                console.log('Type de l\'élément:', labelInput.tagName);
+                console.log('Configuration de l\'autocomplétion avec', labels.length, 'labels');
+                
+                // Créer la datalist pour l'autocomplétion
+                let datalist = document.getElementById('precommande-labels-datalist');
+                if (!datalist) {
+                    datalist = document.createElement('datalist');
+                    datalist.id = 'precommande-labels-datalist';
+                    labelInput.setAttribute('list', 'precommande-labels-datalist');
+                    document.body.appendChild(datalist);
+                }
+                
+                // Vider et peupler la datalist
+                datalist.innerHTML = '';
+                labels.forEach(label => {
+                    const option = document.createElement('option');
+                    option.value = label;
+                    datalist.appendChild(option);
+                    console.log('Label ajouté à la datalist:', label);
+                });
+                
+                console.log('Autocomplétion configurée avec', datalist.children.length, 'options');
+            } else if (labelInput) {
+                console.log('Aucun label trouvé, pas d\'autocomplétion configurée');
+            } else {
+                console.error('Élément precommande-label non trouvé dans le DOM');
+            }
+        } else {
+            console.log('Pas de pré-commandes ou erreur dans la réponse');
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des labels pour pré-commandes:', error);
+    }
+    console.log('=== FIN loadPrecommandeLabelsForAutocomplete ===');
+}
+
+// Populer le dropdown de filtre des labels pour les pré-commandes
+async function populatePrecommandeFilterLabelsDropdown() {
+    console.log('=== DÉBUT populatePrecommandeFilterLabelsDropdown ===');
+    try {
+        const response = await fetch('/api/precommandes');
+        const data = await response.json();
+        
+        if (data.success && data.precommandes) {
+            // Extraire tous les labels uniques
+            const labels = [...new Set(data.precommandes
+                .map(p => p.label)
+                .filter(label => label && label.trim() !== '')
+            )].sort();
+            
+            console.log('Labels uniques pour le filtre:', labels);
+            
+            // Populer le dropdown de filtre
+            const filterLabelSelect = document.getElementById('filter-precommande-label');
+            console.log('Élément filter-precommande-label trouvé:', filterLabelSelect);
+            
+            if (filterLabelSelect) {
+                console.log('Type de l\'élément:', filterLabelSelect.tagName);
+                
+                // Garder l'option par défaut
+                filterLabelSelect.innerHTML = '<option value="">Tous les labels</option>';
+                console.log('Option par défaut ajoutée');
+                
+                // Ajouter les labels existants
+                labels.forEach(label => {
+                    const option = document.createElement('option');
+                    option.value = label;
+                    option.textContent = label;
+                    filterLabelSelect.appendChild(option);
+                    console.log('Label ajouté au filtre:', label);
+                });
+                
+                console.log('Dropdown de filtre configuré avec', filterLabelSelect.options.length, 'options');
+            } else {
+                console.error('Élément filter-precommande-label non trouvé dans le DOM');
+            }
+        } else {
+            console.log('Pas de pré-commandes ou erreur dans la réponse');
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des labels pour le filtre:', error);
+    }
+    console.log('=== FIN populatePrecommandeFilterLabelsDropdown ===');
+}
+
+// Populer les catégories pour les pré-commandes (identique à Saisie)
+function populatePrecommandeCategoriesForEntry() {
+    const categoriesSelects = document.querySelectorAll('.precommande-categorie-select');
+    
+    categoriesSelects.forEach(select => {
+        select.innerHTML = '<option value="">Sélectionner une catégorie</option>';
+        
+        if (produits && typeof produits === 'object') {
+            Object.keys(produits).forEach(categorie => {
+                const option = document.createElement('option');
+                option.value = categorie;
+                option.textContent = categorie;
+                select.appendChild(option);
+            });
+        }
+    });
+}
+
+// Populer les catégories pour une ligne spécifique (pour éviter de réinitialiser toutes les lignes)
+function populatePrecommandeCategoriesForSpecificEntry(categorieSelect) {
+    categorieSelect.innerHTML = '<option value="">Sélectionner une catégorie</option>';
+    
+    if (produits && typeof produits === 'object') {
+        Object.keys(produits).forEach(categorie => {
+            const option = document.createElement('option');
+            option.value = categorie;
+            option.textContent = categorie;
+            categorieSelect.appendChild(option);
+        });
+    }
+}
+
+// Populer les produits pour une catégorie donnée (identique à Saisie)
+function populatePrecommandeProduitsForEntry(categorieSelect, produitSelect) {
+    const categorie = categorieSelect.value;
+    produitSelect.innerHTML = '<option value="">Sélectionner un produit</option>';
+    
+    if (categorie && produits[categorie]) {
+        Object.keys(produits[categorie]).forEach(produit => {
+            const option = document.createElement('option');
+            option.value = produit;
+            option.textContent = produit;
+            produitSelect.appendChild(option);
+        });
+    }
+}
+
+// Créer une nouvelle entrée de produit pour pré-commande (basé sur creerNouvelleEntree)
+function creerNouvelleEntreePrecommande() {
+    const container = document.getElementById('precommande-produits-container');
+    const template = document.querySelector('.precommande-produit-entry');
+    const div = template.cloneNode(true);
+    
+    // Nettoyer les valeurs
+    div.querySelectorAll('select, input').forEach(field => {
+        if (field.type !== 'readonly') {
+            field.value = '';
+        }
+    });
+    
+    // Ajouter le bouton de suppression
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.className = 'col-12 d-flex justify-content-end mt-2';
+    buttonsDiv.innerHTML = '<button type="button" class="btn btn-danger btn-sm supprimer-produit-precommande">Supprimer</button>';
+    div.querySelector('.row').appendChild(buttonsDiv);
+    
+    container.appendChild(div);
+    
+    // Configurer les événements
+    setupPrecommandeEntryEvents(div);
+    
+    return div;
+}
+
+// Configurer les événements pour une entrée de pré-commande
+function setupPrecommandeEntryEvents(div) {
+    const categorieSelect = div.querySelector('.precommande-categorie-select');
+    const produitSelect = div.querySelector('.precommande-produit-select');
+    const prixUnitInput = div.querySelector('.precommande-prix-unit');
+    const quantiteInput = div.querySelector('.precommande-quantite');
+    const deleteButton = div.querySelector('.supprimer-produit-precommande');
+    
+    // Populer les catégories pour cette ligne uniquement
+    populatePrecommandeCategoriesForSpecificEntry(categorieSelect);
+    
+    // Événement changement de catégorie
+    categorieSelect.addEventListener('change', function() {
+        populatePrecommandeProduitsForEntry(categorieSelect, produitSelect);
+        prixUnitInput.value = '';
+        calculerTotalPrecommande(div);
+    });
+    
+    // Événement changement de produit (mise à jour prix automatique)
+    produitSelect.addEventListener('change', function() {
+        const selectedProduit = this.value;
+        const categorie = categorieSelect.value;
+        const pointVente = document.getElementById('precommande-point-vente').value;
+        
+        if (categorie && selectedProduit && produits[categorie] && produits[categorie][selectedProduit]) {
+            prixUnitInput.value = produits.getPrixDefaut(categorie, selectedProduit, pointVente) || '';
+        } else {
+            prixUnitInput.value = '';
+        }
+        
+        calculerTotalPrecommande(div);
+    });
+    
+    // Calcul automatique du total
+    prixUnitInput.addEventListener('input', () => calculerTotalPrecommande(div));
+    quantiteInput.addEventListener('input', () => calculerTotalPrecommande(div));
+    
+    // Suppression d'entrée
+    if (deleteButton) {
+        deleteButton.addEventListener('click', function() {
+            div.remove();
+            calculerTotalGeneralPrecommande();
+        });
+    }
+}
+
+// Calculer le total d'une ligne de pré-commande (identique à calculerTotal)
+function calculerTotalPrecommande(div) {
+    const prixUnit = parseFloat(div.querySelector('.precommande-prix-unit').value) || 0;
+    const quantite = parseFloat(div.querySelector('.precommande-quantite').value) || 0;
+    const total = prixUnit * quantite;
+    
+    div.querySelector('.precommande-total').value = total.toFixed(2);
+    calculerTotalGeneralPrecommande();
+}
+
+// Calculer le total général des pré-commandes (identique à calculerTotalGeneral)
+function calculerTotalGeneralPrecommande() {
+    let totalGeneral = 0;
+    const entriesProduits = document.querySelectorAll('.precommande-produit-entry');
+    
+    entriesProduits.forEach(entry => {
+        const total = parseFloat(entry.querySelector('.precommande-total').value) || 0;
+        totalGeneral += total;
+    });
+    
+    const totalElement = document.getElementById('precommande-total-general');
+    if (totalElement) {
+        totalElement.textContent = `${totalGeneral.toFixed(2)} FCFA`;
+    }
+}
+
+// Charger les pré-commandes existantes
+async function chargerPrecommandes() {
+    try {
+        const response = await fetch('/api/precommandes', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentPrecommandes = data.precommandes || [];
+            afficherPrecommandes(currentPrecommandes);
+            
+            // Mettre à jour le compteur
+            const totalElement = document.getElementById('total-precommandes');
+            if (totalElement) {
+                totalElement.textContent = `${currentPrecommandes.length} pré-commande(s)`;
+            }
+            
+            // Mettre à jour la dernière mise à jour
+            const updateElement = document.getElementById('derniere-mise-a-jour-precommandes');
+            if (updateElement) {
+                updateElement.textContent = `Dernière maj: ${new Date().toLocaleString()}`;
+            }
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des pré-commandes:', error);
+    }
+}
+
+// Afficher les pré-commandes dans le tableau avec pagination
+function afficherPrecommandes(precommandes) {
+    const tbody = document.querySelector("#precommandes-table tbody");
+    if (!tbody) {
+        console.error('Tableau des pré-commandes non trouvé');
+        return;
+    }
+    
+    tbody.innerHTML = '';
+    
+    if (!precommandes || precommandes.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="17" class="text-center">Aucune pré-commande trouvée</td>';
+        tbody.appendChild(tr);
+        afficherPaginationPrecommandes(0);
+        return;
+    }
+    
+    // Calculer la pagination
+    const totalPages = Math.ceil(precommandes.length / precommandesPerPage);
+    const startIndex = (currentPrecommandePage - 1) * precommandesPerPage;
+    const endIndex = startIndex + precommandesPerPage;
+    const precommandesPage = precommandes.slice(startIndex, endIndex);
+    
+    precommandesPage.forEach(precommande => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${precommande.Mois || ''}</td>
+            <td>${precommande['Date Enregistrement'] || ''}</td>
+            <td>${precommande['Date Réception'] || ''}</td>
+            <td>${precommande.Semaine || ''}</td>
+            <td>${precommande['Point de Vente'] || ''}</td>
+            <td>${precommande.Preparation || ''}</td>
+            <td>${precommande.Catégorie || ''}</td>
+            <td>${precommande.Produit || ''}</td>
+            <td>${precommande.PU || ''}</td>
+            <td>${precommande.Nombre || ''}</td>
+            <td>${precommande.Montant || ''}</td>
+            <td>${precommande.nomClient || ''}</td>
+            <td>${precommande.numeroClient || ''}</td>
+            <td>${precommande.adresseClient || ''}</td>
+            <td>${precommande.commentaire || ''}</td>
+            <td>${precommande.label || ''}</td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-success btn-sm convertir-precommande" data-id="${precommande.id}">
+                        <i class="bi bi-arrow-right-circle"></i> Convertir
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm supprimer-precommande" data-id="${precommande.id}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    // Ajouter les événements pour les boutons d'action
+    setupPrecommandeTableEvents();
+    
+    // Afficher la pagination
+    afficherPaginationPrecommandes(precommandes.length);
+}
+
+// Afficher la pagination pour les pré-commandes
+function afficherPaginationPrecommandes(totalPrecommandes) {
+    console.log('=== DÉBUT afficherPaginationPrecommandes ===');
+    console.log('Total pré-commandes:', totalPrecommandes);
+    console.log('Page actuelle:', currentPrecommandePage);
+    console.log('Pré-commandes par page:', precommandesPerPage);
+    
+    const paginationContainer = document.getElementById('precommandes-pagination');
+    console.log('Container de pagination trouvé:', paginationContainer);
+    
+    if (!paginationContainer) {
+        console.error('Container de pagination des pré-commandes non trouvé');
+        return;
+    }
+    
+    const totalPages = Math.ceil(totalPrecommandes / precommandesPerPage);
+    console.log('Nombre total de pages:', totalPages);
+    
+    if (totalPages <= 1) {
+        console.log('Une seule page ou moins, pas de pagination nécessaire');
+        paginationContainer.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '<nav aria-label="Pagination des pré-commandes"><ul class="pagination justify-content-center">';
+    
+    // Bouton Précédent
+    if (currentPrecommandePage > 1) {
+        paginationHTML += `<li class="page-item">
+            <a class="page-link" href="#" data-page="${currentPrecommandePage - 1}">Précédent</a>
+        </li>`;
+    } else {
+        paginationHTML += '<li class="page-item disabled"><span class="page-link">Précédent</span></li>';
+    }
+    
+    // Numéros de pages
+    const startPage = Math.max(1, currentPrecommandePage - 2);
+    const endPage = Math.min(totalPages, currentPrecommandePage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        if (i === currentPrecommandePage) {
+            paginationHTML += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+        } else {
+            paginationHTML += `<li class="page-item"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+        }
+    }
+    
+    // Bouton Suivant
+    if (currentPrecommandePage < totalPages) {
+        paginationHTML += `<li class="page-item">
+            <a class="page-link" href="#" data-page="${currentPrecommandePage + 1}">Suivant</a>
+        </li>`;
+    } else {
+        paginationHTML += '<li class="page-item disabled"><span class="page-link">Suivant</span></li>';
+    }
+    
+    paginationHTML += '</ul></nav>';
+    
+    // Informations de pagination
+    const startIndex = (currentPrecommandePage - 1) * precommandesPerPage + 1;
+    const endIndex = Math.min(currentPrecommandePage * precommandesPerPage, totalPrecommandes);
+    paginationHTML += `<div class="text-center mt-2">
+        <small class="text-muted">Affichage ${startIndex}-${endIndex} sur ${totalPrecommandes} pré-commandes</small>
+    </div>`;
+    
+    paginationContainer.innerHTML = paginationHTML;
+    
+    // Ajouter les événements de pagination
+    paginationContainer.querySelectorAll('a[data-page]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.getAttribute('data-page'));
+            if (page !== currentPrecommandePage) {
+                currentPrecommandePage = page;
+                afficherPrecommandes(currentPrecommandes);
+            }
+        });
+    });
+    
+    console.log('=== FIN afficherPaginationPrecommandes ===');
+}
+
+// Configurer les événements des boutons dans le tableau
+function setupPrecommandeTableEvents() {
+    // Boutons de conversion
+    document.querySelectorAll('.convertir-precommande').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const precommandeId = this.getAttribute('data-id');
+            ouvrirModalConversion(precommandeId);
+        });
+    });
+    
+    // Boutons de suppression
+    document.querySelectorAll('.supprimer-precommande').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const precommandeId = this.getAttribute('data-id');
+            supprimerPrecommande(precommandeId);
+        });
+    });
+}
+
+// Variables globales pour la conversion
+let precommandeEnCoursDeConversion = null;
+
+// Ouvrir la modal de conversion
+async function ouvrirModalConversion(precommandeId) {
+    try {
+        // Récupérer les détails de la pré-commande
+        const precommande = currentPrecommandes.find(p => p.id == precommandeId);
+        if (!precommande) {
+            alert('Pré-commande non trouvée');
+            return;
+        }
+        
+        precommandeEnCoursDeConversion = precommande;
+        
+        // Remplir les informations de la pré-commande dans la modal
+        document.getElementById('conversion-info-client').textContent = 
+            precommande.nomClient || 'Non renseigné';
+        document.getElementById('conversion-info-montant').textContent = 
+            `${precommande.Montant} FCFA`;
+        document.getElementById('conversion-info-produit').textContent = 
+            `${precommande.Catégorie} - ${precommande.Produit}`;
+        document.getElementById('conversion-info-quantite').textContent = 
+            precommande.Nombre;
+        document.getElementById('conversion-info-commentaire').textContent = 
+            precommande.commentaire || 'Aucun commentaire';
+        
+        // Populer les points de vente pour la conversion
+        await populateConversionPointsVente();
+        
+        // Réinitialiser les champs de saisie
+        const conversionDateInput = document.getElementById('conversion-date-vente');
+        if (conversionDateInput && conversionDateInput._flatpickr) {
+            conversionDateInput._flatpickr.setDate(new Date());
+        } else {
+            // Si Flatpickr n'est pas encore initialisé, initialiser la date manuellement
+            conversionDateInput.value = new Date().toLocaleDateString('fr-FR');
+        }
+        document.getElementById('conversion-point-vente').value = '';
+        
+        // Ouvrir la modal
+        const modal = new bootstrap.Modal(document.getElementById('conversionModal'));
+        modal.show();
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'ouverture de la modal de conversion:', error);
+        alert('Erreur lors de l\'ouverture de la modal de conversion');
+    }
+}
+
+// Populer les points de vente pour la conversion
+async function populateConversionPointsVente() {
+    try {
+        const response = await fetch('/api/points-vente');
+        const pointsVente = await response.json();
+        
+        const select = document.getElementById('conversion-point-vente');
+        select.innerHTML = '<option value="">Sélectionner un point de vente</option>';
+        
+        pointsVente.forEach(pointVente => {
+            const option = document.createElement('option');
+            option.value = pointVente;
+            option.textContent = pointVente;
+            select.appendChild(option);
+        });
+        
+        // Appliquer les restrictions selon l'utilisateur (comme pour Saisie)
+        const userPointsVente = getUserAuthorizedPointsVente();
+        if (!userPointsVente.includes("tous") && userPointsVente.length === 1) {
+            select.value = userPointsVente[0];
+            select.disabled = true;
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des points de vente pour conversion:', error);
+    }
+}
+
+// Confirmer la conversion
+async function confirmerConversion() {
+    const dateVente = document.getElementById('conversion-date-vente').value;
+    const pointVenteDestination = document.getElementById('conversion-point-vente').value;
+    
+    if (!dateVente || !pointVenteDestination) {
+        alert('Veuillez remplir tous les champs obligatoires');
+        return;
+    }
+    
+    if (!precommandeEnCoursDeConversion) {
+        alert('Aucune pré-commande sélectionnée');
+        return;
+    }
+    
+    if (!confirm('Êtes-vous sûr de vouloir convertir cette pré-commande en vente réelle ?')) {
+        return;
+    }
+    
+    try {
+        showLoadingSpinner();
+        
+        const response = await fetch(`/api/precommandes/${precommandeEnCoursDeConversion.id}/convert`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                dateVente: dateVente,
+                pointVenteDestination: pointVenteDestination
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Pré-commande convertie en vente réelle avec succès !');
+            
+            // Fermer la modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('conversionModal'));
+            modal.hide();
+            
+            // Recharger les pré-commandes
+            await chargerPrecommandes();
+            
+            // Réinitialiser la variable globale
+            precommandeEnCoursDeConversion = null;
+            
+        } else {
+            alert('Erreur lors de la conversion: ' + data.message);
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors de la conversion:', error);
+        alert('Erreur lors de la conversion de la pré-commande');
+    } finally {
+        hideLoadingSpinner();
+    }
+}
+
+// Supprimer une pré-commande
+async function supprimerPrecommande(precommandeId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette pré-commande ?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/precommandes/${precommandeId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Pré-commande supprimée avec succès');
+            await chargerPrecommandes(); // Recharger la liste
+        } else {
+            alert('Erreur lors de la suppression: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Erreur lors de la suppression:', error);
+        alert('Erreur lors de la suppression de la pré-commande');
+    }
+}
+
+// Initialisation des événements pour le formulaire de pré-commande
+document.addEventListener('DOMContentLoaded', function() {
+    // Bouton ajouter produit
+    const ajouterProduitBtn = document.getElementById('ajouter-produit-precommande');
+    if (ajouterProduitBtn) {
+        ajouterProduitBtn.addEventListener('click', creerNouvelleEntreePrecommande);
+    }
+    
+    // Formulaire de soumission
+    const precommandeForm = document.getElementById('precommande-form');
+    if (precommandeForm) {
+        precommandeForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await soumettrePrecommande();
+        });
+    }
+    
+    // Boutons de filtrage
+    const filtrerBtn = document.getElementById('filtrer-precommandes');
+    if (filtrerBtn) {
+        filtrerBtn.addEventListener('click', filtrerPrecommandes);
+    }
+    
+    const resetBtn = document.getElementById('reset-filtres-precommandes');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetFiltresPrecommandes);
+    }
+    
+    // Initialiser la première entrée de produit
+    const premiereProduitEntry = document.querySelector('.precommande-produit-entry');
+    if (premiereProduitEntry) {
+        setupPrecommandeEntryEvents(premiereProduitEntry);
+    }
+    
+    // Bouton de confirmation de conversion
+    const confirmerConversionBtn = document.getElementById('confirmer-conversion');
+    if (confirmerConversionBtn) {
+        confirmerConversionBtn.addEventListener('click', confirmerConversion);
+    }
+});
+
+// Soumettre une pré-commande (basé sur la logique de soumission des ventes)
+async function soumettrePrecommande() {
+    const dateEnregistrement = document.getElementById('precommande-date-enregistrement').value;
+    const dateReception = document.getElementById('precommande-date-reception').value;
+    const pointVente = document.getElementById('precommande-point-vente').value;
+    const label = document.getElementById('precommande-label').value;
+    const clientNom = document.getElementById('precommande-client-nom').value;
+    const clientNumero = document.getElementById('precommande-client-numero').value;
+    const clientAdresse = document.getElementById('precommande-client-adresse').value;
+    const commentaire = document.getElementById('precommande-commentaire').value;
+    
+    if (!dateEnregistrement || !dateReception || !pointVente) {
+        alert('Veuillez remplir tous les champs obligatoires');
+        return;
+    }
+    
+    const entriesToProcess = document.querySelectorAll('.precommande-produit-entry');
+    const entries = [];
+    
+    entriesToProcess.forEach(entry => {
+        const categorie = entry.querySelector('.precommande-categorie-select').value;
+        const produit = entry.querySelector('.precommande-produit-select').value;
+        const quantite = entry.querySelector('.precommande-quantite').value;
+        const prixUnit = entry.querySelector('.precommande-prix-unit').value;
+        const total = entry.querySelector('.precommande-total').value;
+        
+        if (categorie && produit && quantite && prixUnit) {
+            const mois = new Date(dateEnregistrement.split('/').reverse().join('-')).toLocaleString('fr-FR', { month: 'long' });
+            const semaine = `S${Math.ceil(new Date(dateEnregistrement.split('/').reverse().join('-')).getDate() / 7)}`;
+            
+            entries.push({
+                mois,
+                dateEnregistrement,
+                dateReception,
+                semaine,
+                pointVente,
+                categorie,
+                produit,
+                prixUnit,
+                quantite,
+                total,
+                nomClient: clientNom,
+                numeroClient: clientNumero,
+                adresseClient: clientAdresse,
+                commentaire,
+                label
+            });
+        }
+    });
+    
+    if (entries.length === 0) {
+        alert('Veuillez ajouter au moins un produit');
+        return;
+    }
+    
+    showLoadingSpinner();
+    
+    try {
+        const response = await fetch('/api/precommandes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(entries)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Pré-commande enregistrée avec succès !');
+            
+            // Réinitialiser le formulaire
+            resetFormulairePrecommande();
+            
+            // Recharger les pré-commandes
+            await chargerPrecommandes();
+        } else {
+            alert('Erreur lors de l\'enregistrement: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'enregistrement:', error);
+        alert('Erreur lors de l\'enregistrement de la pré-commande');
+    } finally {
+        hideLoadingSpinner();
+    }
+}
+
+// Réinitialiser le formulaire de pré-commande
+function resetFormulairePrecommande() {
+    // Réinitialiser les champs principaux
+    document.getElementById('precommande-date-enregistrement')._flatpickr.setDate(new Date());
+    document.getElementById('precommande-date-reception')._flatpickr.setDate(new Date());
+    document.getElementById('precommande-label').value = '';
+    document.getElementById('precommande-client-nom').value = '';
+    document.getElementById('precommande-client-numero').value = '';
+    document.getElementById('precommande-client-adresse').value = '';
+    document.getElementById('precommande-commentaire').value = '';
+    
+    // Garder le point de vente selon les droits de l'utilisateur
+    const userPointsVente = getUserAuthorizedPointsVente();
+    const pointVenteSelect = document.getElementById('precommande-point-vente');
+    if (!userPointsVente.includes("tous") && userPointsVente.length === 1) {
+        pointVenteSelect.value = userPointsVente[0];
+        pointVenteSelect.disabled = true;
+    } else {
+        pointVenteSelect.value = '';
+    }
+    
+    // Réinitialiser les entrées de produits
+    const container = document.getElementById('precommande-produits-container');
+    const entries = container.querySelectorAll('.precommande-produit-entry');
+    
+    // Garder seulement la première entrée et la réinitialiser
+    entries.forEach((entry, index) => {
+        if (index === 0) {
+            entry.querySelectorAll('select, input').forEach(field => {
+                if (field.type !== 'readonly') {
+                    field.value = '';
+                }
+            });
+        } else {
+            entry.remove();
+        }
+    });
+    
+    calculerTotalGeneralPrecommande();
+}
+
+// Filtrer les pré-commandes
+async function filtrerPrecommandes() {
+    // Réinitialiser la page à 1 lors du filtrage
+    currentPrecommandePage = 1;
+    
+    const dateDebut = document.getElementById('filter-precommande-date-debut').value;
+    const dateFin = document.getElementById('filter-precommande-date-fin').value;
+    const pointVente = document.getElementById('filter-precommande-point-vente').value;
+    const label = document.getElementById('filter-precommande-label').value;
+    
+    let url = '/api/precommandes?';
+    const params = [];
+    
+    if (dateDebut) params.push(`dateDebut=${dateDebut}`);
+    if (dateFin) params.push(`dateFin=${dateFin}`);
+    if (pointVente && pointVente !== 'tous') params.push(`pointVente=${pointVente}`);
+    if (label) params.push(`label=${encodeURIComponent(label)}`);
+    
+    url += params.join('&');
+    
+    try {
+        showLoadingSpinner();
+        
+        const response = await fetch(url, {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentPrecommandes = data.precommandes || [];
+            afficherPrecommandes(currentPrecommandes);
+            
+            const totalElement = document.getElementById('total-precommandes');
+            if (totalElement) {
+                totalElement.textContent = `${currentPrecommandes.length} pré-commande(s) trouvée(s)`;
+            }
+        } else {
+            alert('Erreur lors du filtrage: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Erreur lors du filtrage:', error);
+        alert('Erreur lors du filtrage des pré-commandes');
+    } finally {
+        hideLoadingSpinner();
+    }
+}
+
+// Réinitialiser les filtres
+function resetFiltresPrecommandes() {
+    document.getElementById('filter-precommande-date-debut').value = '';
+    document.getElementById('filter-precommande-date-fin').value = '';
+    document.getElementById('filter-precommande-point-vente').value = 'tous';
+    document.getElementById('filter-precommande-label').value = '';
+    
+    // Recharger toutes les pré-commandes
+    chargerPrecommandes();
 }

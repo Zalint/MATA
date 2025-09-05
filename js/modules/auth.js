@@ -119,6 +119,12 @@ function afficherOngletsSuivantDroits(userData) {
             saisieTab.style.display = 'none';
         }
         
+        // Masquer l'onglet de pré-commande (écriture)
+        const precommandeTab = document.getElementById('precommande-tab');
+        if (precommandeTab) {
+            precommandeTab.style.display = 'none';
+        }
+        
         // Masquer l'onglet cash payment (écriture)
         const cashPaymentTab = document.getElementById('cash-payment-tab');
         if (cashPaymentTab) {
