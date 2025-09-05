@@ -153,6 +153,13 @@ function chargerTableauProduits() {
                         </select>
                     </div>
                 </td>
+                <td class="text-center">
+                    <input type="text" 
+                           class="form-control form-control-sm commentaire-input" 
+                           data-produit="${produit}"
+                           placeholder="Commentaire optionnel..."
+                           maxlength="255">
+                </td>
             `;
             tbody.appendChild(row);
             
@@ -818,6 +825,7 @@ async function afficherPopupValidation() {
             <td class="fw-medium">${produit.produit}</td>
             <td class="text-center">${previsionDisplay}</td>
             <td class="text-center">${precommandeDisplay}</td>
+            <td class="text-center">${produit.commentaire || '-'}</td>
         `;
         validationTbody.appendChild(row);
     });
@@ -841,9 +849,11 @@ function collecterDonneesProduits() {
     const produits = [];
     const precommandeInputs = document.querySelectorAll('.precommande-input');
     const previsionInputs = document.querySelectorAll('.prevision-input');
+    const commentaireInputs = document.querySelectorAll('.commentaire-input');
     
     precommandeInputs.forEach((precommandeInput, index) => {
         const previsionInput = previsionInputs[index];
+        const commentaireInput = commentaireInputs[index];
         const produit = precommandeInput.dataset.produit;
         
         // Récupérer les valeurs et unités
@@ -851,17 +861,19 @@ function collecterDonneesProduits() {
         const precommandeUnit = document.querySelector(`.precommande-unit-select[data-produit="${produit}"]`).value;
         const previsionValue = parseFloat(previsionInput.value) || 0;
         const previsionUnit = document.querySelector(`.prevision-unit-select[data-produit="${produit}"]`).value;
+        const commentaire = commentaireInput ? commentaireInput.value.trim() : '';
         
         // Convertir en kg
         const precommandeKg = convertToKg(produit, precommandeValue, precommandeUnit);
         const previsionKg = convertToKg(produit, previsionValue, previsionUnit);
         
-        // Seulement inclure les produits avec des valeurs > 0
-        if (precommandeKg > 0 || previsionKg > 0) {
+        // Inclure les produits avec des valeurs > 0 OU avec un commentaire
+        if (precommandeKg > 0 || previsionKg > 0 || commentaire) {
             produits.push({
                 produit: produit,
                 precommande: precommandeKg,
                 prevision: previsionKg,
+                commentaire: commentaire,
                 precommandeOriginal: {
                     value: precommandeValue,
                     unit: precommandeUnit
@@ -1100,7 +1112,7 @@ function afficherEstimations(estimations) {
     
     if (!estimations || estimations.length === 0) {
         const emptyRow = document.createElement('tr');
-        emptyRow.innerHTML = `<td colspan="14" class="text-center">Aucune donnée disponible</td>`;
+        emptyRow.innerHTML = `<td colspan="15" class="text-center">Aucune donnée disponible</td>`;
         tbody.appendChild(emptyRow);
         console.log('No estimations to display');
         return;
@@ -1230,6 +1242,7 @@ function afficherEstimations(estimations) {
             <td class="text-center" style="color: ${differenceColor};">${differenceFormatted}</td>
             <td class="text-center" style="color: ${differencePercentageColor};">${differencePercentageFormatted}</td>
             <td class="text-center">${statusIndicator}</td>
+            <td class="text-center">${formatCommentaire(estimation.commentaire)}</td>
             <td class="text-center">
                 <button class="btn btn-sm btn-outline-primary me-1" onclick="recalculerVentesTheo(${estimation.id})" title="Recalculer les ventes théoriques">
                     <i class="bi bi-arrow-clockwise"></i>
@@ -1245,11 +1258,34 @@ function afficherEstimations(estimations) {
     
     console.log('=== DISPLAY ESTIMATIONS END ===');
     
+    // Initialize Bootstrap tooltips for comment truncation
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
     // Initialize table filters after the table is populated
     populateFilterOptions();
     
     // Apply any existing filters
     applyFilters();
+}
+
+// Helper function to format comments with truncation and tooltip
+function formatCommentaire(commentaire) {
+    if (!commentaire || commentaire.trim() === '') {
+        return '<span class="text-muted">-</span>';
+    }
+    
+    const maxLength = 30;
+    const text = commentaire.trim();
+    
+    if (text.length <= maxLength) {
+        return text;
+    }
+    
+    const truncated = text.substring(0, maxLength) + '...';
+    return `<span title="${text.replace(/"/g, '&quot;')}" data-bs-toggle="tooltip" data-bs-placement="top" style="cursor: pointer; text-decoration: underline dotted;">${truncated}</span>`;
 }
 
 // Helper function to format dates
@@ -2127,7 +2163,8 @@ async function exportEstimationsToExcel() {
                 'Prévision (kg)': parseFloat(estimation.previsionVentes || 0),
                 'Différence (kg)': parseFloat(difference),
                 'Différence (%)': differencePercentage === 'N.A' ? 'N.A' : parseFloat(differencePercentage),
-                'Status': statusText
+                'Status': statusText,
+                'Commentaire': estimation.commentaire || ''
             };
         });
 

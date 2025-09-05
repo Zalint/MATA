@@ -87,6 +87,11 @@ const Estimation = sequelize.define('Estimation', {
     allowNull: true,
     defaultValue: null,
     field: 'ventes_theoriques'
+  },
+  commentaire: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: null
   }
 }, {
   tableName: 'estimations',

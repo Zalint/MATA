@@ -3658,6 +3658,7 @@ app.post('/api/estimations/bulk', checkAuth, checkWriteAccess, async (req, res) 
             produit: produit.produit,
             preCommandeDemain: produit.precommande,
             previsionVentes: produit.prevision,
+            commentaire: produit.commentaire || null,
             stockMatin: 0,
             transfert: 0,
             stockSoir: 0,
