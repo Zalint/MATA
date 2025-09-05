@@ -4758,11 +4758,42 @@ if (typeof produitsInventaire !== 'undefined' && typeof produitsInventaire.getTo
         PRIX_DEFAUT_INVENTAIRE[produit] = produitsInventaire.getPrixDefaut(produit);
     });
 } else {
-    // Fallback: liste hardcodée des produits principaux
-    const produitsBasiques = ['Boeuf', 'Veau', 'Poulet', 'Tete De Mouton', 'Tablette', 'Foie', 'Yell', 'Agneau', 'Déchet 400', 'Autres', 'Mergez', 'Déchet 2000', 'Abats', 'Boeuf sur pieds', 'Veau sur pieds', 'Mouton sur pieds', 'Chevre sur pieds'];
-    produitsBasiques.forEach(produit => {
+    // Tentative de chargement différé de produitsInventaire
+    console.warn('produitsInventaire non disponible au chargement initial, tentative de rechargement...');
+    
+    // Réessayer après un délai
+    setTimeout(() => {
+        if (typeof produitsInventaire !== 'undefined' && typeof produitsInventaire.getTousLesProduits === 'function') {
+            console.log('produitsInventaire chargé avec succès après délai');
+            const produitsList = produitsInventaire.getTousLesProduits();
+            PRODUITS_INVENTAIRE.length = 0; // Vider le tableau
+            Object.keys(PRIX_DEFAUT_INVENTAIRE).forEach(key => delete PRIX_DEFAUT_INVENTAIRE[key]); // Vider l'objet prix
+            
+            produitsList.forEach(produit => {
+                PRODUITS_INVENTAIRE.push(produit);
+                PRIX_DEFAUT_INVENTAIRE[produit] = produitsInventaire.getPrixDefaut(produit);
+            });
+            
+            // Recharger les catégories d'estimation si la page est l'estimation
+            if (typeof chargerProduits === 'function') {
+                chargerProduits();
+            }
+        } else {
+            console.error('Échec du chargement de produitsInventaire - fallback sur une liste minimale');
+            // Fallback minimal uniquement si vraiment nécessaire
+            const produitsMinimaux = ['Boeuf', 'Veau', 'Poulet'];
+            produitsMinimaux.forEach(produit => {
+                PRODUITS_INVENTAIRE.push(produit);
+                PRIX_DEFAUT_INVENTAIRE[produit] = 0;
+            });
+        }
+    }, 1000);
+    
+    // Pour l'instant, utiliser une liste minimale
+    const produitsMinimaux = ['Boeuf', 'Veau', 'Poulet'];
+    produitsMinimaux.forEach(produit => {
         PRODUITS_INVENTAIRE.push(produit);
-        PRIX_DEFAUT_INVENTAIRE[produit] = 0; // Prix par défaut de 0
+        PRIX_DEFAUT_INVENTAIRE[produit] = 0;
     });
 }
 

@@ -69,7 +69,23 @@ async function chargerCategories() {
             });
         } else {
             console.error('produitsInventaire non disponible ou fonction getTousLesProduits manquante');
-            alert('Erreur lors du chargement des catégories: produitsInventaire non disponible');
+            
+            // Tentative de rechargement différé
+            let tentatives = 0;
+            const maxTentatives = 3;
+            const intervalleVerification = setInterval(() => {
+                tentatives++;
+                
+                if (window.produitsInventaire && typeof window.produitsInventaire.getTousLesProduits === 'function') {
+                    console.log('produitsInventaire chargé avec succès après', tentatives, 'tentative(s)');
+                    chargerCategories();
+                    clearInterval(intervalleVerification);
+                } else if (tentatives >= maxTentatives) {
+                    console.error('produitsInventaire toujours non disponible après', maxTentatives, 'tentatives');
+                    alert('Erreur: Impossible de charger la liste des produits. Veuillez recharger la page ou contacter l\'administrateur.');
+                    clearInterval(intervalleVerification);
+                }
+            }, 1000);
         }
     } catch (error) {
         console.error('Erreur lors du chargement des catégories:', error);

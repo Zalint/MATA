@@ -4,9 +4,9 @@
     "typeStock": "matin",
     "Point de Vente": "Mbao",
     "Produit": "Boeuf",
-    "Nombre": "100",
-    "PU": "3700",
-    "Montant": "370000",
+    "Nombre": "81",
+    "PU": "3553.21",
+    "Montant": "287810.01",
     "Commentaire": ""
   },
   "Mbao-Veau": {
@@ -14,9 +14,199 @@
     "typeStock": "matin",
     "Point de Vente": "Mbao",
     "Produit": "Veau",
-    "Nombre": "60",
+    "Nombre": "6",
     "PU": "3900",
-    "Montant": "234000",
+    "Montant": "23400",
+    "Commentaire": ""
+  },
+  "Mbao-Poulet": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Poulet",
+    "Nombre": "20",
+    "PU": "3000",
+    "Montant": "60000",
+    "Commentaire": ""
+  },
+  "Mbao-Tablette": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Tablette",
+    "Nombre": "2",
+    "PU": "2500",
+    "Montant": "5000",
+    "Commentaire": ""
+  },
+  "Mbao-Foie": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Foie",
+    "Nombre": "5",
+    "PU": "3000",
+    "Montant": "15000",
+    "Commentaire": ""
+  },
+  "Mbao-Agneau": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Agneau",
+    "Nombre": "4.5",
+    "PU": "4500",
+    "Montant": "20250",
+    "Commentaire": ""
+  },
+  "O.Foire-Boeuf": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Boeuf",
+    "Nombre": "16.1",
+    "PU": "3563.89",
+    "Montant": "57378.629",
+    "Commentaire": ""
+  },
+  "O.Foire-Veau": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Veau",
+    "Nombre": "81.3",
+    "PU": "3761.11",
+    "Montant": "305778.243",
+    "Commentaire": ""
+  },
+  "O.Foire-Poulet": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Poulet",
+    "Nombre": "54",
+    "PU": "3500",
+    "Montant": "189000",
+    "Commentaire": ""
+  },
+  "O.Foire-Tablette": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Tablette",
+    "Nombre": "1",
+    "PU": "2500",
+    "Montant": "2500",
+    "Commentaire": ""
+  },
+  "O.Foire-Foie": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Foie",
+    "Nombre": "11.5",
+    "PU": "1000",
+    "Montant": "11500",
+    "Commentaire": ""
+  },
+  "Linguere-Poulet": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Linguere",
+    "Produit": "Poulet",
+    "Nombre": "37",
+    "PU": "3100",
+    "Montant": "114700",
+    "Commentaire": ""
+  },
+  "Dahra-Poulet": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Dahra",
+    "Produit": "Poulet",
+    "Nombre": "52",
+    "PU": "3400",
+    "Montant": "176800",
+    "Commentaire": ""
+  },
+  "Keur Massar-Boeuf": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Boeuf",
+    "Nombre": "70.5",
+    "PU": "3548.2",
+    "Montant": "250148.09999999998",
+    "Commentaire": ""
+  },
+  "Keur Massar-Poulet": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Poulet",
+    "Nombre": "24",
+    "PU": "3400",
+    "Montant": "81600",
+    "Commentaire": ""
+  },
+  "Keur Massar-Tablette": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Tablette",
+    "Nombre": "2",
+    "PU": "2500",
+    "Montant": "5000",
+    "Commentaire": ""
+  },
+  "Keur Massar-Foie": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Foie",
+    "Nombre": "8.8",
+    "PU": "3000",
+    "Montant": "26400.000000000004",
+    "Commentaire": ""
+  },
+  "Keur Massar-Yell": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Yell",
+    "Nombre": "3",
+    "PU": "2000",
+    "Montant": "6000",
+    "Commentaire": ""
+  },
+  "Keur Massar-Agneau": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Agneau",
+    "Nombre": "0.53",
+    "PU": "4500",
+    "Montant": "2385",
+    "Commentaire": ""
+  },
+  "Keur Massar-Déchet 2000": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Déchet 2000",
+    "Nombre": "5",
+    "PU": "2000",
+    "Montant": "10000",
+    "Commentaire": ""
+  },
+  "Abattage-Boeuf": {
+    "date": "27/06/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Abattage",
+    "Produit": "Boeuf",
+    "Nombre": "154",
+    "PU": "3700",
+    "Montant": "569800",
     "Commentaire": ""
   }
 }

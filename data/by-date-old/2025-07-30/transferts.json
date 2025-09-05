@@ -1,0 +1,12 @@
+[
+  {
+    "date": "30/07/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 950,
+    "prixUnitaire": 3700,
+    "total": -3515000,
+    "commentaire": ""
+  }
+]

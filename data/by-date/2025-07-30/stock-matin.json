@@ -1,12 +1,212 @@
 {
+  "Mbao-Boeuf": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Boeuf",
+    "Nombre": "27.7",
+    "PU": "3639.12",
+    "Montant": "100803.624",
+    "Commentaire": ""
+  },
+  "Mbao-Poulet": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Poulet",
+    "Nombre": "45",
+    "PU": "3400",
+    "Montant": "153000",
+    "Commentaire": ""
+  },
+  "Mbao-Foie": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Foie",
+    "Nombre": "0.9",
+    "PU": "3000",
+    "Montant": "2700",
+    "Commentaire": ""
+  },
+  "Mbao-Yell": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Yell",
+    "Nombre": "2",
+    "PU": "2000",
+    "Montant": "4000",
+    "Commentaire": ""
+  },
+  "Mbao-Agneau": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Mbao",
+    "Produit": "Agneau",
+    "Nombre": "2.5",
+    "PU": "4500",
+    "Montant": "11250",
+    "Commentaire": ""
+  },
+  "O.Foire-Poulet": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Poulet",
+    "Nombre": "9",
+    "PU": "3400",
+    "Montant": "30600",
+    "Commentaire": ""
+  },
+  "O.Foire-Foie": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "O.Foire",
+    "Produit": "Foie",
+    "Nombre": "1",
+    "PU": "3000",
+    "Montant": "3000",
+    "Commentaire": ""
+  },
+  "Keur Massar-Boeuf": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Boeuf",
+    "Nombre": "18.7",
+    "PU": "3610.51",
+    "Montant": "67516.537",
+    "Commentaire": ""
+  },
+  "Keur Massar-Poulet": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Poulet",
+    "Nombre": "9",
+    "PU": "3000",
+    "Montant": "27000",
+    "Commentaire": ""
+  },
+  "Keur Massar-Tablette": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Tablette",
+    "Nombre": "4",
+    "PU": "2500",
+    "Montant": "10000",
+    "Commentaire": ""
+  },
+  "Keur Massar-Foie": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Foie",
+    "Nombre": "4.2",
+    "PU": "3000",
+    "Montant": "12600",
+    "Commentaire": ""
+  },
+  "Keur Massar-Yell": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Yell",
+    "Nombre": "4",
+    "PU": "2000",
+    "Montant": "8000",
+    "Commentaire": ""
+  },
+  "Keur Massar-Agneau": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Agneau",
+    "Nombre": "2.5",
+    "PU": "4500",
+    "Montant": "11250",
+    "Commentaire": ""
+  },
+  "Linguere-Tablette": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Linguere",
+    "Produit": "Tablette",
+    "Nombre": "90",
+    "PU": "2500",
+    "Montant": "225000",
+    "Commentaire": ""
+  },
   "Abattage-Boeuf": {
     "date": "30/07/2025",
     "typeStock": "matin",
     "Point de Vente": "Abattage",
     "Produit": "Boeuf",
-    "Nombre": "1000",
+    "Nombre": "553",
     "PU": "3700",
-    "Montant": "3700000",
+    "Montant": "2046100",
+    "Commentaire": ""
+  },
+  "Abattage-Agneau": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Abattage",
+    "Produit": "Agneau",
+    "Nombre": "57",
+    "PU": "4500",
+    "Montant": "256500",
+    "Commentaire": ""
+  },
+  "Sacre Coeur-Boeuf": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Sacre Coeur",
+    "Produit": "Boeuf",
+    "Nombre": "7.55",
+    "PU": "3900",
+    "Montant": "29445",
+    "Commentaire": ""
+  },
+  "Sacre Coeur-Poulet": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Sacre Coeur",
+    "Produit": "Poulet",
+    "Nombre": "49",
+    "PU": "3400",
+    "Montant": "166600",
+    "Commentaire": ""
+  },
+  "Sacre Coeur-Foie": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Sacre Coeur",
+    "Produit": "Foie",
+    "Nombre": "2.85",
+    "PU": "3000",
+    "Montant": "8550",
+    "Commentaire": ""
+  },
+  "Sacre Coeur-Yell": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Sacre Coeur",
+    "Produit": "Yell",
+    "Nombre": "5",
+    "PU": "3000",
+    "Montant": "15000",
+    "Commentaire": ""
+  },
+  "Sacre Coeur-Agneau": {
+    "date": "30/07/2025",
+    "typeStock": "matin",
+    "Point de Vente": "Sacre Coeur",
+    "Produit": "Agneau",
+    "Nombre": "5.1",
+    "PU": "4900",
+    "Montant": "24990",
     "Commentaire": ""
   }
 }

@@ -1,0 +1,42 @@
+[
+  {
+    "date": "26/08/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 200,
+    "prixUnitaire": 3700,
+    "total": 740000,
+    "commentaire": ""
+  },
+  {
+    "date": "26/08/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 100,
+    "prixUnitaire": 3700,
+    "total": -370000,
+    "commentaire": ""
+  },
+  {
+    "date": "26/08/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 198,
+    "prixUnitaire": 3700,
+    "total": -732600,
+    "commentaire": ""
+  },
+  {
+    "date": "26/08/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 3,
+    "prixUnitaire": 3700,
+    "total": 11100,
+    "commentaire": ""
+  }
+]
