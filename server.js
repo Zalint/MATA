@@ -115,6 +115,19 @@ console.log('Estimation.create:', typeof Estimation.create === 'function' ? 'fun
     console.log('Running database schema updates...');
     await updateSchema();
     await updateVenteSchema();
+    
+    // Add commentaire column if it doesn't exist
+    try {
+        console.log('Checking and adding commentaire column...');
+        await sequelize.query(`
+            ALTER TABLE estimations 
+            ADD COLUMN IF NOT EXISTS commentaire TEXT DEFAULT NULL;
+        `);
+        console.log('Commentaire column ensured');
+    } catch (error) {
+        console.log('Note: commentaire column may already exist:', error.message);
+    }
+    
     console.log('Database schema updates completed successfully');
   } catch (error) {
     console.error('Error during schema updates:', error);
@@ -3651,20 +3664,33 @@ app.post('/api/estimations/bulk', checkAuth, checkWriteAccess, async (req, res) 
         });
         
         // Créer les nouvelles estimations
-        const estimationsToCreate = produits.map(produit => ({
-            date: standardizedDate,
-            pointVente: pointVente,
-            categorie: produit.produit, // Utiliser le nom du produit comme catégorie
-            produit: produit.produit,
-            preCommandeDemain: produit.precommande,
-            previsionVentes: produit.prevision,
-            commentaire: produit.commentaire || null,
-            stockMatin: 0,
-            transfert: 0,
-            stockSoir: 0,
-            difference: 0 - produit.precommande - produit.prevision,
-            stockModified: false
-        }));
+        console.log('🔍 DEBUG - Produits reçus:', JSON.stringify(produits, null, 2));
+        
+        const estimationsToCreate = produits.map((produit, index) => {
+            console.log(`🔍 DEBUG - Produit ${index + 1}:`, {
+                produit: produit.produit,
+                precommande: produit.precommande,
+                prevision: produit.prevision,
+                commentaire: produit.commentaire,
+                commentaireType: typeof produit.commentaire,
+                hasCommentaire: !!produit.commentaire
+            });
+            
+            return {
+                date: standardizedDate,
+                pointVente: pointVente,
+                categorie: produit.produit, // Utiliser le nom du produit comme catégorie
+                produit: produit.produit,
+                preCommandeDemain: produit.precommande,
+                previsionVentes: produit.prevision,
+                commentaire: produit.commentaire || null,
+                stockMatin: 0,
+                transfert: 0,
+                stockSoir: 0,
+                difference: 0 - produit.precommande - produit.prevision,
+                stockModified: false
+            };
+        });
         
         const createdEstimations = await Estimation.bulkCreate(estimationsToCreate);
         
@@ -3690,6 +3716,57 @@ app.post('/api/estimations/bulk', checkAuth, checkWriteAccess, async (req, res) 
         res.status(500).json({
             success: false,
             message: 'Erreur lors de la création des estimations'
+        });
+    }
+});
+
+// Route pour mettre à jour manuellement les ventes théoriques
+app.put('/api/estimations/:id/ventes-theoriques', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const estimationId = req.params.id;
+        const { ventesTheoriques } = req.body;
+        
+        console.log(`🔍 DEBUG - Update ventes théoriques pour estimation ${estimationId}:`, ventesTheoriques);
+        
+        if (typeof ventesTheoriques !== 'number' || ventesTheoriques < 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Valeur des ventes théoriques invalide'
+            });
+        }
+        
+        // Trouver l'estimation
+        const estimation = await Estimation.findByPk(estimationId);
+        if (!estimation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Estimation non trouvée'
+            });
+        }
+        
+        // Calculer la nouvelle différence
+        const nouvelleDifference = ventesTheoriques - (estimation.previsionVentes || 0);
+        
+        // Mettre à jour l'estimation
+        await estimation.update({
+            ventesTheoriques: ventesTheoriques,
+            difference: nouvelleDifference
+        });
+        
+        console.log(`✅ Ventes théoriques mises à jour: ${ventesTheoriques}, nouvelle différence: ${nouvelleDifference}`);
+        
+        res.json({
+            success: true,
+            message: 'Ventes théoriques mises à jour avec succès',
+            ventesTheoriques: ventesTheoriques,
+            difference: nouvelleDifference
+        });
+        
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour des ventes théoriques:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de la mise à jour'
         });
     }
 });

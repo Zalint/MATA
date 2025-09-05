@@ -91,7 +91,8 @@ const Estimation = sequelize.define('Estimation', {
   commentaire: {
     type: DataTypes.TEXT,
     allowNull: true,
-    defaultValue: null
+    defaultValue: null,
+    field: 'commentaire'
   }
 }, {
   tableName: 'estimations',

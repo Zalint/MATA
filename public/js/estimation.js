@@ -903,6 +903,24 @@ async function sauvegarderEstimations(produitsEstimation, date, pointVente) {
     window.saveEstimationInProgress = true;
     
     try {
+        // Debug des données avant envoi
+        console.log('🔍 DEBUG Frontend - Données à envoyer:', {
+            date: date,
+            pointVente: pointVente,
+            produits: produitsEstimation
+        });
+        
+        produitsEstimation.forEach((produit, index) => {
+            console.log(`🔍 DEBUG Frontend - Produit ${index + 1}:`, {
+                produit: produit.produit,
+                precommande: produit.precommande,
+                prevision: produit.prevision,
+                commentaire: produit.commentaire,
+                commentaireType: typeof produit.commentaire,
+                hasCommentaire: !!produit.commentaire
+            });
+        });
+        
         // Envoyer les données au backend
         const response = await fetch('/api/estimations/bulk', {
             method: 'POST',
@@ -1036,8 +1054,68 @@ function toggleProductsDisplay() {
     console.log('=== TOGGLE PRODUCTS DISPLAY END ===');
 }
 
+// Function to enable editing of ventes theoriques
+function editVentesTheo(estimationId, spanElement) {
+    const row = spanElement.closest('tr');
+    const input = row.querySelector('.ventes-theo-input');
+    const span = row.querySelector('.ventes-theo-display');
+    
+    span.classList.add('d-none');
+    input.classList.remove('d-none');
+    input.focus();
+    input.select();
+}
+
+// Function to save edited ventes theoriques
+async function saveVentesTheo(estimationId, inputElement) {
+    const newValue = parseFloat(inputElement.value) || 0;
+    const row = inputElement.closest('tr');
+    const span = row.querySelector('.ventes-theo-display');
+    
+    try {
+        // Save to backend
+        const response = await fetch(`/api/estimations/${estimationId}/ventes-theoriques`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ventesTheoriques: newValue
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update display
+            const formattedValue = newValue === 0 ? 
+                `<i>${newValue.toFixed(3)}</i>` : 
+                `<strong>${newValue.toFixed(3)}</strong>`;
+            span.innerHTML = formattedValue;
+            
+            // Hide input, show span
+            inputElement.classList.add('d-none');
+            span.classList.remove('d-none');
+            
+            // Reload estimations to update calculations
+            await chargerEstimations();
+        } else {
+            alert('Erreur lors de la sauvegarde: ' + (data.message || 'Erreur inconnue'));
+            // Reset input value
+            inputElement.value = inputElement.dataset.originalValue || 0;
+        }
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde des ventes théoriques:', error);
+        alert('Erreur lors de la sauvegarde');
+        // Reset input value
+        inputElement.value = inputElement.dataset.originalValue || 0;
+    }
+}
+
 // Rendre les fonctions accessibles globalement
 window.toggleProductsDisplay = toggleProductsDisplay;
+window.editVentesTheo = editVentesTheo;
+window.saveVentesTheo = saveVentesTheo;
 
 // Function to load estimations from the server
 async function chargerEstimations() {
@@ -1238,7 +1316,18 @@ function afficherEstimations(estimations) {
             <td class="text-center stock-column" style="display: none;">${stockSoirDisplay}</td>
             <td class="text-center">${previsionFormatted}</td>
             <td class="text-center">${precommandeFormatted}</td>
-            <td class="text-center">${ventesTheoFormatted}</td>
+            <td class="text-center">
+                <div class="d-flex align-items-center justify-content-center">
+                    <span class="ventes-theo-display" onclick="editVentesTheo(${estimation.id}, this)" 
+                          style="cursor: pointer; border-bottom: 1px dashed #007bff;" 
+                          title="Cliquez pour éditer">${ventesTheoFormatted}</span>
+                    <input type="number" class="form-control form-control-sm ventes-theo-input d-none" 
+                           style="width: 80px;" step="0.001" min="0"
+                           value="${ventesTheo}" 
+                           onblur="saveVentesTheo(${estimation.id}, this)"
+                           onkeypress="if(event.key==='Enter') saveVentesTheo(${estimation.id}, this)">
+                </div>
+            </td>
             <td class="text-center" style="color: ${differenceColor};">${differenceFormatted}</td>
             <td class="text-center" style="color: ${differencePercentageColor};">${differencePercentageFormatted}</td>
             <td class="text-center">${statusIndicator}</td>
