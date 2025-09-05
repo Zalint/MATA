@@ -3539,7 +3539,11 @@ function parseEstimationDate(dateStr) {
 async function fetchVentesTheoriquesFromAPI(estimation) {
     try {
         const externalApiKey = process.env.EXTERNAL_API_KEY || 'b326e72b67a9b508c88270b9954c5ca1';
-        const externalResponse = await fetch(`http://localhost:3000/api/external/reconciliation?date=${encodeURIComponent(estimation.date)}`, {
+        // Use the correct base URL for the environment
+        const baseUrl = process.env.NODE_ENV === 'production' 
+            ? (process.env.BASE_URL || 'https://mata-lgzy.onrender.com')
+            : 'http://localhost:3000';
+        const externalResponse = await fetch(`${baseUrl}/api/external/reconciliation?date=${encodeURIComponent(estimation.date)}`, {
             method: 'GET',
             headers: {
                 'X-API-Key': externalApiKey
