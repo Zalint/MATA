@@ -24,7 +24,7 @@ envContent.split('\n').forEach(line => {
   }
 });
 
-console.log('Parsed environment variables:', envVars);
+// Environment variables parsed successfully (sensitive data not logged for security)
 
 const commonOptions = {
   dialect: 'postgres',
@@ -75,13 +75,8 @@ async function testConnection() {
     console.log('Database connection established successfully.');
     return true;
   } catch (error) {
-    console.error('Unable to connect to the database:', error);
-    console.error('Failed configuration details:');
-    console.error(`  Host: ${envVars.DB_HOST}`);
-    console.error(`  Port: ${envVars.DB_PORT || 5432}`);
-    console.error(`  User: ${envVars.DB_USER}`);
-    console.error(`  Database: ${envVars.DB_NAME}`);
-    console.error(`  SSL Used: ${envVars.DB_SSL === 'true'}`);
+    console.error('Unable to connect to the database:', error.message);
+    console.error('Please verify database configuration and connectivity');
     return false;
   }
 }
