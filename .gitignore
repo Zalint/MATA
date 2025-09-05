@@ -11,11 +11,9 @@ config.json
 *.csv
 *.xlsx
 *.xls
-data/by-date/
-# Mais permettre les fichiers de configuration essentiels
-!data/by-date/produits.js
-!data/by-date/produitsInventaire.js
-!data/by-date/paymentRefMapping.js
+data/
+# Mais permettre les fichiers de configuration essentiels si nécessaire
+# !data/specific-config-file.js
 
 # Fichiers système
 .DS_Store
