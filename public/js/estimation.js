@@ -1207,8 +1207,11 @@ function afficherEstimations(estimations) {
             `<i>${ventesTheo.toFixed(3)}</i>` : 
             `<strong>${ventesTheo.toFixed(3)}</strong>`;
         
-        // Get status indicator based on threshold
-        const statusIndicator = getStatusIndicator(differencePercentage, thresholdValue);
+        // Get status indicator based on threshold (only if we have real theoretical sales)
+        const hasRealVentesTheo = estimation.ventesTheoriques !== null && estimation.ventesTheoriques !== undefined && estimation.ventesTheoriques > 0;
+        const statusIndicator = hasRealVentesTheo 
+            ? getStatusIndicator(differencePercentage, thresholdValue)
+            : `<i class="bi bi-clock text-muted" title="En attente des ventes théoriques"></i>`;
         
         // Build the row HTML - update to include new columns with checkbox and recalculate button
         row.innerHTML = `
@@ -2100,7 +2103,11 @@ async function exportEstimationsToExcel() {
             
             // Determine status text based on the indicator
             let statusText = 'Normal';
-            if (differencePercentage === 'N.A') {
+            const hasRealVentesTheo = estimation.ventesTheoriques !== null && estimation.ventesTheoriques !== undefined && estimation.ventesTheoriques > 0;
+            
+            if (!hasRealVentesTheo) {
+                statusText = 'En attente';
+            } else if (differencePercentage === 'N.A') {
                 statusText = 'N.A';
             } else if (statusIndicator.includes('text-danger')) {
                 statusText = 'Erreur';
