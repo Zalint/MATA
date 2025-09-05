@@ -15,6 +15,10 @@ data/
 # Mais permettre les fichiers de configuration essentiels si nécessaire
 # !data/specific-config-file.js
 
+# Scripts SQL temporaires et modèles de développement
+create-weight-params-table.sql
+db/models/PointVente.js
+
 # Fichiers système
 .DS_Store
 Thumbs.db
