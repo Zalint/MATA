@@ -3518,6 +3518,52 @@ app.post('/api/estimations', checkAuth, checkWriteAccess, async (req, res) => {
 });
 
 // Route pour récupérer les estimations
+// Helper function to parse estimation date (DD-MM-YYYY)
+function parseEstimationDate(dateStr) {
+    try {
+        if (!dateStr) return null;
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            const day = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1; // Mois de 0 à 11
+            const year = parseInt(parts[2]);
+            return new Date(year, month, day);
+        }
+        return null;
+    } catch (error) {
+        return null;
+    }
+}
+
+// Helper function to fetch theoretical sales from external API
+async function fetchVentesTheoriquesFromAPI(estimation) {
+    try {
+        const externalApiKey = process.env.EXTERNAL_API_KEY || 'b326e72b67a9b508c88270b9954c5ca1';
+        const externalResponse = await fetch(`http://localhost:3000/api/external/reconciliation?date=${encodeURIComponent(estimation.date)}`, {
+            method: 'GET',
+            headers: {
+                'X-API-Key': externalApiKey
+            }
+        });
+        
+        if (externalResponse.ok) {
+            const externalData = await externalResponse.json();
+            // Chercher dans data.details[pointVente][categorie].ventesTheoriquesNombre
+            if (externalData.data && externalData.data.details && 
+                externalData.data.details[estimation.pointVente] && 
+                externalData.data.details[estimation.pointVente][estimation.categorie || estimation.produit] &&
+                externalData.data.details[estimation.pointVente][estimation.categorie || estimation.produit].ventesTheoriquesNombre !== undefined) {
+                
+                const ventesTheo = parseFloat(externalData.data.details[estimation.pointVente][estimation.categorie || estimation.produit].ventesTheoriquesNombre);
+                return ventesTheo;
+            }
+        }
+    } catch (error) {
+        console.log(`Impossible de récupérer les ventes théoriques pour ${estimation.pointVente}/${estimation.categorie || estimation.produit}:`, error.message);
+    }
+    return null;
+}
+
 app.get('/api/estimations', checkAuth, checkEstimationAccess, async (req, res) => {
     try {
         const estimations = await Estimation.findAll();
@@ -3617,6 +3663,18 @@ app.post('/api/estimations/bulk', checkAuth, checkWriteAccess, async (req, res) 
         
         const createdEstimations = await Estimation.bulkCreate(estimationsToCreate);
         
+        // Ne pas essayer de récupérer les ventes théoriques lors de la création
+        // (elles ne seront disponibles que le jour suivant)
+        const updatedEstimations = await Promise.all(createdEstimations.map(async (estimation) => {
+            // Mettre 0 par défaut lors de la création (les vraies valeurs viendront plus tard)
+            await estimation.update({ 
+                ventesTheoriques: 0,
+                difference: 0 - (estimation.previsionVentes || 0) // Différence avec 0 ventes théo
+            });
+            console.log(`Estimation créée pour ${estimation.pointVente}/${estimation.categorie} - Ventes théoriques: 0 kg (à récupérer ultérieurement)`);
+            return estimation;
+        }));
+        
         res.json({
             success: true,
             message: 'Estimations créées avec succès',
@@ -3645,16 +3703,18 @@ app.post('/api/estimations/:id/recalculate', checkAuth, checkWriteAccess, async 
             });
         }
         
-        // Recalculer les ventes théoriques : Stock Matin + Transfert - Stock Soir
-        const ventesTheo = (estimation.stockMatin || 0) + (estimation.transfert || 0) - (estimation.stockSoir || 0);
+        // Récupérer les ventes théoriques depuis l'API externe, sinon 0
+        const ventesTheoFromAPI = await fetchVentesTheoriquesFromAPI(estimation);
+        const ventesTheo = ventesTheoFromAPI !== null ? ventesTheoFromAPI : 0;
         
-        // Mettre à jour l'estimation avec les nouvelles ventes théoriques
-        // Note: Les ventes théoriques ne sont pas stockées directement, elles sont calculées
-        // Mais on peut recalculer la différence si nécessaire
-        const nouvelleDifference = ventesTheo - (estimation.previsionVentes || 0) - (estimation.preCommandeDemain || 0);
+        console.log(`Recalcul des ventes théoriques pour ${estimation.pointVente}/${estimation.categorie || estimation.produit}: ${ventesTheo} kg ${ventesTheoFromAPI === null ? '(API indisponible, valeur par défaut)' : '(récupéré de l\'API)'}`);
+        
+        // Recalculer la différence avec la nouvelle formule (sans pré-commande)
+        const nouvelleDifference = ventesTheo - (estimation.previsionVentes || 0);
         
         await estimation.update({
-            difference: nouvelleDifference
+            difference: nouvelleDifference,
+            ventesTheoriques: ventesTheo
         });
         
         res.json({

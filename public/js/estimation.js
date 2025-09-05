@@ -567,8 +567,8 @@ function updateDifference() {
     const precommandeKg = parseFloat(document.getElementById('precommande-kg').value) || 0;
     const differenceInput = document.getElementById('difference');
     
-    // Formula: stock matin + transfert - stock soir - prévision (kg) - pré-commande (kg)
-    const difference = stockMatin + transfert - stockSoir - previsionKg - precommandeKg;
+    // Formula: stock matin + transfert - stock soir - estimation (prévision seulement, pré-commande incluse)
+    const difference = stockMatin + transfert - stockSoir - previsionKg;
     
     differenceInput.value = difference.toFixed(3);
     console.log('Difference calculated:', difference);
@@ -1050,6 +1050,11 @@ async function chargerEstimations() {
 
 // Function to determine status based on difference percentage and threshold
 function getStatusIndicator(differencePercentage, threshold) {
+    // Handle N.A case
+    if (differencePercentage === 'N.A') {
+        return `<i class="bi bi-question-circle-fill text-muted"></i>`;
+    }
+    
     // Use absolute value for comparison
     const absPercentage = Math.abs(differencePercentage);
     const thresholdValue = parseFloat(threshold);
@@ -1164,7 +1169,7 @@ function afficherEstimations(estimations) {
             const stockMatin = estimation.stockMatin || 0;
             const transfert = estimation.transfert || 0;
             const preCommandeDemain = estimation.preCommandeDemain || 0;
-            difference = stockMatin + transfert - estimation.stockSoir - estimation.previsionVentes - preCommandeDemain;
+            difference = stockMatin + transfert - estimation.stockSoir - estimation.previsionVentes;
         }
         
         // Format difference with color
@@ -1176,19 +1181,28 @@ function afficherEstimations(estimations) {
             differenceColor = 'green';
         }
         
+        // Use saved theoretical sales for percentage calculation if available
+        const ventesTheoForPercentage = estimation.ventesTheoriques !== null && estimation.ventesTheoriques !== undefined 
+            ? estimation.ventesTheoriques 
+            : stockMatinValue + transfertValue - estimation.stockSoir;
+        
         // Calculate difference percentage (better logic: based on theoretical sales)
         let differencePercentage = 0;
-        const ventesTheoForPercentage = stockMatinValue + transfertValue - estimation.stockSoir;
-        if (ventesTheoForPercentage > 0) {
-            differencePercentage = (difference / ventesTheoForPercentage) * 100;
-        }
-        
-        // Format difference percentage with color
-        let differencePercentageFormatted = differencePercentage.toFixed(2) + '%';
+        let differencePercentageFormatted;
         let differencePercentageColor = differenceColor; // Use same color as difference
         
-        // Calculate theoretical sales (ventes théoriques) = stockMatin + transfert - stockSoir
-        const ventesTheo = stockMatinValue + transfertValue - estimation.stockSoir;
+        if (ventesTheoForPercentage === 0) {
+            differencePercentageFormatted = 'N.A';
+            differencePercentageColor = 'gray';
+        } else {
+            differencePercentage = (difference / ventesTheoForPercentage) * 100;
+            differencePercentageFormatted = differencePercentage.toFixed(2) + '%';
+        }
+        
+        // Use saved theoretical sales if available, otherwise calculate manually
+        const ventesTheo = estimation.ventesTheoriques !== null && estimation.ventesTheoriques !== undefined 
+            ? estimation.ventesTheoriques 
+            : stockMatinValue + transfertValue - estimation.stockSoir;
         const ventesTheoFormatted = ventesTheo === 0 ? 
             `<i>${ventesTheo.toFixed(3)}</i>` : 
             `<strong>${ventesTheo.toFixed(3)}</strong>`;
@@ -1207,9 +1221,9 @@ function afficherEstimations(estimations) {
             <td class="text-center stock-column" style="display: none;">${stockMatinDisplay}</td>
             <td class="text-center stock-column" style="display: none;">${transfertDisplay}</td>
             <td class="text-center stock-column" style="display: none;">${stockSoirDisplay}</td>
-            <td class="text-center">${ventesTheoFormatted}</td>
             <td class="text-center">${previsionFormatted}</td>
             <td class="text-center">${precommandeFormatted}</td>
+            <td class="text-center">${ventesTheoFormatted}</td>
             <td class="text-center" style="color: ${differenceColor};">${differenceFormatted}</td>
             <td class="text-center" style="color: ${differencePercentageColor};">${differencePercentageFormatted}</td>
             <td class="text-center">${statusIndicator}</td>
@@ -2070,21 +2084,25 @@ async function exportEstimationsToExcel() {
             const preCommandeDemain = estimation.preCommandeDemain || 0;
             const previsionVentes = estimation.previsionVentes || 0;
             
-            // Calculate theoretical sales (same as in table)
-            const ventesTheo = stockMatin + transfert - stockSoir;
+            // Use saved theoretical sales if available, otherwise calculate manually  
+            const ventesTheo = estimation.ventesTheoriques !== null && estimation.ventesTheoriques !== undefined
+                ? estimation.ventesTheoriques 
+                : stockMatin + transfert - stockSoir;
             
-            // Calculate difference (same as in table)
-            const difference = stockMatin + transfert - stockSoir - previsionVentes - preCommandeDemain;
+            // Calculate difference (ventes théo - estimation seulement, pré-commande incluse dans estimation)
+            const difference = ventesTheo - previsionVentes;
             
             // Calculate difference percentage (better logic: based on theoretical sales)
-            const differencePercentage = ventesTheo > 0 ? (difference / ventesTheo) * 100 : 0;
+            const differencePercentage = ventesTheo === 0 ? 'N.A' : (difference / ventesTheo) * 100;
             
             // Get status indicator
             const statusIndicator = getStatusIndicator(differencePercentage, thresholdValue);
             
             // Determine status text based on the indicator
             let statusText = 'Normal';
-            if (statusIndicator.includes('text-danger')) {
+            if (differencePercentage === 'N.A') {
+                statusText = 'N.A';
+            } else if (statusIndicator.includes('text-danger')) {
                 statusText = 'Erreur';
             } else if (statusIndicator.includes('text-warning')) {
                 statusText = 'Attention';
@@ -2101,7 +2119,7 @@ async function exportEstimationsToExcel() {
                 'Pré-commande (kg)': parseFloat(estimation.preCommandeDemain || 0),
                 'Prévision (kg)': parseFloat(estimation.previsionVentes || 0),
                 'Différence (kg)': parseFloat(difference),
-                'Différence (%)': parseFloat(differencePercentage),
+                'Différence (%)': differencePercentage === 'N.A' ? 'N.A' : parseFloat(differencePercentage),
                 'Status': statusText
             };
         });

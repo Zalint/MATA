@@ -81,6 +81,12 @@ const Estimation = sequelize.define('Estimation', {
     allowNull: true,
     defaultValue: false,
     field: 'stock_modified'
+  },
+  ventesTheoriques: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
+    defaultValue: null,
+    field: 'ventes_theoriques'
   }
 }, {
   tableName: 'estimations',
