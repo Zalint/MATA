@@ -4,6 +4,7 @@ const Transfert = require('./Transfert');
 const Reconciliation = require('./Reconciliation');
 const CashPayment = require('./CashPayment');
 const AchatBoeuf = require('./AchatBoeuf');
+const WeightParams = require('./WeightParams');
 const { sequelize } = require('../index');
 
 // Définir les relations entre les modèles si nécessaire
@@ -27,5 +28,6 @@ module.exports = {
   Reconciliation,
   CashPayment,
   AchatBoeuf,
+  WeightParams,
   syncDatabase
 }; 

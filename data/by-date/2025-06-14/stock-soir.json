@@ -1,12 +1,182 @@
 {
-  "O.Foire-Boeuf": {
+  "Mbao-Boeuf": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Mbao",
+    "Produit": "Boeuf",
+    "Nombre": "27.2",
+    "PU": "3700",
+    "Montant": "100640",
+    "Commentaire": ""
+  },
+  "Mbao-Veau": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Mbao",
+    "Produit": "Veau",
+    "Nombre": "6",
+    "PU": "3900",
+    "Montant": "23400",
+    "Commentaire": ""
+  },
+  "Mbao-Poulet": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Mbao",
+    "Produit": "Poulet",
+    "Nombre": "8",
+    "PU": "3500",
+    "Montant": "28000",
+    "Commentaire": ""
+  },
+  "Mbao-Foie": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Mbao",
+    "Produit": "Foie",
+    "Nombre": "5",
+    "PU": "3000",
+    "Montant": "15000",
+    "Commentaire": ""
+  },
+  "Mbao-Agneau": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Mbao",
+    "Produit": "Agneau",
+    "Nombre": "4.5",
+    "PU": "4500",
+    "Montant": "20250",
+    "Commentaire": ""
+  },
+  "O.Foire-Poulet": {
     "date": "14/06/2025",
     "typeStock": "soir",
     "Point de Vente": "O.Foire",
+    "Produit": "Poulet",
+    "Nombre": "21",
+    "PU": "3000",
+    "Montant": "63000",
+    "Commentaire": ""
+  },
+  "O.Foire-Tablette": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "O.Foire",
+    "Produit": "Tablette",
+    "Nombre": "6",
+    "PU": "2500",
+    "Montant": "15000",
+    "Commentaire": ""
+  },
+  "O.Foire-Yell": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "O.Foire",
+    "Produit": "Yell",
+    "Nombre": "4",
+    "PU": "2000",
+    "Montant": "8000",
+    "Commentaire": ""
+  },
+  "Linguere-Poulet": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Linguere",
+    "Produit": "Poulet",
+    "Nombre": "35",
+    "PU": "3400",
+    "Montant": "119000",
+    "Commentaire": ""
+  },
+  "Dahra-Poulet": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Dahra",
+    "Produit": "Poulet",
+    "Nombre": "19",
+    "PU": "3400",
+    "Montant": "64600",
+    "Commentaire": ""
+  },
+  "Keur Massar-Boeuf": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Keur Massar",
     "Produit": "Boeuf",
-    "Nombre": "10",
-    "PU": "3533.33",
-    "Montant": "35333.3",
+    "Nombre": "4.3",
+    "PU": "3700",
+    "Montant": "15910",
+    "Commentaire": ""
+  },
+  "Keur Massar-Poulet": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Poulet",
+    "Nombre": "4",
+    "PU": "3400",
+    "Montant": "13600",
+    "Commentaire": ""
+  },
+  "Keur Massar-Foie": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Foie",
+    "Nombre": "7.2",
+    "PU": "3000",
+    "Montant": "21600",
+    "Commentaire": ""
+  },
+  "Keur Massar-Yell": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Yell",
+    "Nombre": "5",
+    "PU": "2000",
+    "Montant": "10000",
+    "Commentaire": ""
+  },
+  "Keur Massar-Agneau": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Agneau",
+    "Nombre": "0.53",
+    "PU": "4500",
+    "Montant": "2385",
+    "Commentaire": ""
+  },
+  "Keur Massar-Déchet 400": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Déchet 400",
+    "Nombre": "0.5",
+    "PU": "400",
+    "Montant": "200",
+    "Commentaire": ""
+  },
+  "Keur Massar-Autres": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Autres",
+    "Nombre": "0.75",
+    "PU": "5000",
+    "Montant": "3750",
+    "Commentaire": ""
+  },
+  "Keur Massar-Déchet 2000": {
+    "date": "14/06/2025",
+    "typeStock": "soir",
+    "Point de Vente": "Keur Massar",
+    "Produit": "Déchet 2000",
+    "Nombre": "6",
+    "PU": "2000",
+    "Montant": "12000",
     "Commentaire": ""
   }
 }

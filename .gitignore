@@ -40,4 +40,13 @@ build/
 # Fichiers SSH
 mata
 mata.pub
-sal.txt 
+sal.txt
+
+# Scripts de base de données (contiennent des credentials de production)
+copy-prod-db*.ps1
+copy-prod-db*.sh
+copy-prod-db*.js
+update-preprod-db.bat
+DATABASE_COPY_README.md
+db_backups/
+temp_db_dumps/ 

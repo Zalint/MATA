@@ -1,12 +1,12 @@
 [
   {
     "date": "29/06/2025",
-    "pointVente": "Keur Massar",
-    "produit": "Boeuf",
+    "pointVente": "Dahra",
+    "produit": "Tablette",
     "impact": 1,
-    "quantite": 5,
-    "prixUnitaire": 3521.43,
-    "total": 17607.149999999998,
+    "quantite": 214,
+    "prixUnitaire": 2500,
+    "total": 535000,
     "commentaire": ""
   }
 ]

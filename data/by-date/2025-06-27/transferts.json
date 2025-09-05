@@ -1,12 +1,82 @@
 [
   {
     "date": "27/06/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 153,
+    "prixUnitaire": 3556.03,
+    "total": -544072.5900000001,
+    "commentaire": ""
+  },
+  {
+    "date": "27/06/2025",
+    "pointVente": "O.Foire",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 153,
+    "prixUnitaire": 3556.03,
+    "total": 544072.5900000001,
+    "commentaire": ""
+  },
+  {
+    "date": "27/06/2025",
+    "pointVente": "O.Foire",
+    "produit": "Yell",
+    "impact": 1,
+    "quantite": 4,
+    "prixUnitaire": 2500,
+    "total": 10000,
+    "commentaire": ""
+  },
+  {
+    "date": "27/06/2025",
+    "pointVente": "O.Foire",
+    "produit": "Foie",
+    "impact": 1,
+    "quantite": 3.9,
+    "prixUnitaire": 3000,
+    "total": 11700,
+    "commentaire": ""
+  },
+  {
+    "date": "27/06/2025",
+    "pointVente": "O.Foire",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 20,
+    "prixUnitaire": 3556.03,
+    "total": -71120.6,
+    "commentaire": ""
+  },
+  {
+    "date": "27/06/2025",
     "pointVente": "Mbao",
     "produit": "Boeuf",
     "impact": 1,
-    "quantite": 3,
-    "prixUnitaire": 3700,
-    "total": 11100,
+    "quantite": 20,
+    "prixUnitaire": 3556.03,
+    "total": 71120.6,
+    "commentaire": ""
+  },
+  {
+    "date": "27/06/2025",
+    "pointVente": "O.Foire",
+    "produit": "Tablette",
+    "impact": 1,
+    "quantite": 50,
+    "prixUnitaire": 2500,
+    "total": 125000,
+    "commentaire": ""
+  },
+  {
+    "date": "27/06/2025",
+    "pointVente": "Mbao",
+    "produit": "Tablette",
+    "impact": 1,
+    "quantite": 10,
+    "prixUnitaire": 2500,
+    "total": 25000,
     "commentaire": ""
   }
 ]

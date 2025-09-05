@@ -71,6 +71,12 @@ const produits = {
             ],
             "Sacre Coeur": 5500
         },
+        "Viande Hachée": {
+            "default": 5000,
+            "alternatives": [
+                5000
+            ]
+        },
         "Veau en détail": {
             "default": 3900,
             "alternatives": [
@@ -112,12 +118,6 @@ const produits = {
                 2000
             ]
         },
-        "Viande hachée": {
-            "default": 5000,
-            "alternatives": [
-                5000
-            ]
-        },
         "Peaux": {
             "default": 6000,
             "alternatives": [
@@ -127,7 +127,7 @@ const produits = {
     },
     "Ovin": {
         "Agneau": {
-            "default": 4500,
+            "default": 4000,
             "alternatives": [
                 4500
             ],

@@ -90,7 +90,7 @@ let produits = require('./data/by-date/produits');
 let produitsInventaire = require('./data/by-date/produitsInventaire');
 const bcrypt = require('bcrypt');
 const fsPromises = require('fs').promises;
-const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf, Depense } = require('./db/models');
+const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf, Depense, WeightParams } = require('./db/models');
 const { testConnection, sequelize } = require('./db');
 const { Op, fn, col, literal } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
@@ -3475,8 +3475,32 @@ app.post('/api/estimations', checkAuth, checkWriteAccess, async (req, res) => {
         await Estimation.create(estimation);
         
         // Récupérer toutes les estimations pour mise à jour de l'affichage
-        const estimations = await Estimation.findAll({
-            order: [['date', 'DESC']]
+        const estimations = await Estimation.findAll();
+        
+        // Trier les estimations par timestamp de création décroissant (derniers ajouts en premier)
+        estimations.sort((a, b) => {
+            // Tri principal par timestamp de création (plus récent en premier)
+            const timestampA = new Date(a.createdAt).getTime();
+            const timestampB = new Date(b.createdAt).getTime();
+            
+            if (timestampB !== timestampA) {
+                return timestampB - timestampA; // Tri par timestamp décroissant
+            }
+            
+            // Tri secondaire par date si même timestamp (peu probable mais sûr)
+            const convertDate = (dateStr) => {
+                if (!dateStr) return '';
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    return `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+                }
+                return dateStr;
+            };
+            
+            const dateA = convertDate(a.date);
+            const dateB = convertDate(b.date);
+            
+            return dateB.localeCompare(dateA); // Tri décroissant
         });
         
         res.json({ 
@@ -3496,8 +3520,32 @@ app.post('/api/estimations', checkAuth, checkWriteAccess, async (req, res) => {
 // Route pour récupérer les estimations
 app.get('/api/estimations', checkAuth, checkEstimationAccess, async (req, res) => {
     try {
-        const estimations = await Estimation.findAll({
-            order: [['date', 'DESC']]
+        const estimations = await Estimation.findAll();
+        
+        // Trier les estimations par timestamp de création décroissant (derniers ajouts en premier)
+        estimations.sort((a, b) => {
+            // Tri principal par timestamp de création (plus récent en premier)
+            const timestampA = new Date(a.createdAt).getTime();
+            const timestampB = new Date(b.createdAt).getTime();
+            
+            if (timestampB !== timestampA) {
+                return timestampB - timestampA; // Tri par timestamp décroissant
+            }
+            
+            // Tri secondaire par date si même timestamp (peu probable mais sûr)
+            const convertDate = (dateStr) => {
+                if (!dateStr) return '';
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    return `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+                }
+                return dateStr;
+            };
+            
+            const dateA = convertDate(a.date);
+            const dateB = convertDate(b.date);
+            
+            return dateB.localeCompare(dateA); // Tri décroissant
         });
         
         res.json({ success: true, estimations });
@@ -3525,6 +3573,198 @@ app.delete('/api/estimations/:id', checkAuth, checkWriteAccess, async (req, res)
         res.status(500).json({ 
             success: false, 
             message: 'Erreur lors de la suppression de l\'estimation' 
+        });
+    }
+});
+
+// Route pour sauvegarder plusieurs estimations (bulk save)
+app.post('/api/estimations/bulk', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const { date, pointVente, produits } = req.body;
+        
+        if (!date || !pointVente || !produits || !Array.isArray(produits)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Date, point de vente et liste de produits requis'
+            });
+        }
+        
+        // Standardiser la date
+        const standardizedDate = standardiserDateFormat(date);
+        
+        // Supprimer les estimations existantes pour cette date et ce point de vente
+        await Estimation.destroy({
+            where: {
+                date: standardizedDate,
+                pointVente: pointVente
+            }
+        });
+        
+        // Créer les nouvelles estimations
+        const estimationsToCreate = produits.map(produit => ({
+            date: standardizedDate,
+            pointVente: pointVente,
+            categorie: produit.produit, // Utiliser le nom du produit comme catégorie
+            produit: produit.produit,
+            preCommandeDemain: produit.precommande,
+            previsionVentes: produit.prevision,
+            stockMatin: 0,
+            transfert: 0,
+            stockSoir: 0,
+            difference: 0 - produit.precommande - produit.prevision,
+            stockModified: false
+        }));
+        
+        const createdEstimations = await Estimation.bulkCreate(estimationsToCreate);
+        
+        res.json({
+            success: true,
+            message: 'Estimations créées avec succès',
+            savedCount: createdEstimations.length
+        });
+    } catch (error) {
+        console.error('Erreur lors de la création des estimations en bulk:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la création des estimations'
+        });
+    }
+});
+
+// Route pour recalculer les ventes théoriques d'une estimation
+app.post('/api/estimations/:id/recalculate', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const id = req.params.id;
+        
+        // Récupérer l'estimation
+        const estimation = await Estimation.findByPk(id);
+        if (!estimation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Estimation non trouvée'
+            });
+        }
+        
+        // Recalculer les ventes théoriques : Stock Matin + Transfert - Stock Soir
+        const ventesTheo = (estimation.stockMatin || 0) + (estimation.transfert || 0) - (estimation.stockSoir || 0);
+        
+        // Mettre à jour l'estimation avec les nouvelles ventes théoriques
+        // Note: Les ventes théoriques ne sont pas stockées directement, elles sont calculées
+        // Mais on peut recalculer la différence si nécessaire
+        const nouvelleDifference = ventesTheo - (estimation.previsionVentes || 0) - (estimation.preCommandeDemain || 0);
+        
+        await estimation.update({
+            difference: nouvelleDifference
+        });
+        
+        res.json({
+            success: true,
+            message: 'Ventes théoriques recalculées avec succès',
+            ventesTheo: ventesTheo,
+            difference: nouvelleDifference
+        });
+    } catch (error) {
+        console.error('Erreur lors du recalcul des ventes théoriques:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors du recalcul des ventes théoriques'
+        });
+    }
+});
+
+// Routes pour les paramètres de poids
+app.get('/api/weight-params/:date', checkAuth, checkEstimationAccess, async (req, res) => {
+    try {
+        const { date } = req.params;
+        
+        // Standardiser la date
+        const standardizedDate = standardiserDateFormat(date);
+        
+        // Chercher les paramètres pour cette date
+        const weightParams = await WeightParams.findOne({
+            where: { date: standardizedDate }
+        });
+        
+        if (weightParams) {
+            // Convertir en format attendu par le frontend
+            const params = {
+                'Boeuf': weightParams.boeuf,
+                'Veau': weightParams.veau,
+                'Agneau': weightParams.agneau,
+                'Poulet': weightParams.poulet,
+                'default': weightParams.defaultWeight
+            };
+            
+            res.json({
+                success: true,
+                params: params,
+                date: standardizedDate
+            });
+        } else {
+            // Retourner les paramètres par défaut
+            res.json({
+                success: true,
+                params: {
+                    'Boeuf': 150,
+                    'Veau': 110,
+                    'Agneau': 10,
+                    'Poulet': 1.5,
+                    'default': 1
+                },
+                date: standardizedDate,
+                isDefault: true
+            });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la récupération des paramètres de poids:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la récupération des paramètres de poids'
+        });
+    }
+});
+
+app.post('/api/weight-params', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const { date, params } = req.body;
+        
+        if (!date || !params) {
+            return res.status(400).json({
+                success: false,
+                message: 'Date et paramètres requis'
+            });
+        }
+        
+        // Standardiser la date
+        const standardizedDate = standardiserDateFormat(date);
+        
+        // Créer ou mettre à jour les paramètres
+        const [weightParams, created] = await WeightParams.upsert({
+            date: standardizedDate,
+            boeuf: params['Boeuf'] || 150,
+            veau: params['Veau'] || 110,
+            agneau: params['Agneau'] || 10,
+            poulet: params['Poulet'] || 1.5,
+            defaultWeight: params['default'] || 1
+        });
+        
+        res.json({
+            success: true,
+            message: created ? 'Paramètres créés avec succès' : 'Paramètres mis à jour avec succès',
+            params: {
+                'Boeuf': weightParams.boeuf,
+                'Veau': weightParams.veau,
+                'Agneau': weightParams.agneau,
+                'Poulet': weightParams.poulet,
+                'default': weightParams.defaultWeight
+            },
+            date: standardizedDate
+        });
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde des paramètres de poids:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la sauvegarde des paramètres de poids'
         });
     }
 });

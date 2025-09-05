@@ -46,7 +46,7 @@
     "password": "$2b$10$3lnpwyz.WNC3Ac3LDIIHfOWnQUuglBDHlk4sHB4nB/VV6ZD9fLLZ.",
     "role": "user",
     "pointVente": "Touba",
-    "active": false
+    "active": true
   },
   {
     "username": "NADOU",
@@ -71,7 +71,7 @@
   },
   {
     "username": "SALIOU",
-    "password": "$2b$10$EvaSr3NscXupLlR94lqE.OWFtXjFs4iqrKDelj/4h3zY56dfcDeIq",
+    "password": "$2b$10$XM0wQV5kI0lJqld3aMwlmuNSmTivlFAEKXDwZEg0ePIcG6o9/jVmu",
     "role": "superviseur",
     "pointVente": "tous",
     "active": true
@@ -84,27 +84,24 @@
     "active": true
   },
   {
-    "username": "Emilie",
-    "password": "$2b$10$yrKK6utzhJEU5YFtfd5l3.1kx62EqgV5m2jzk/1RrH6RzdovLjFs.",
-    "role": "lecteur",
-    "pointVente": "tous",
-    "active": true
-  },
-  {
     "username": "MDN",
-    "password": "$2b$10$zOjBpJFTRcZfY668yuYzrOyRnwSninMMgDY9.efBHduU08/CMo.b6",
+    "password": "$2b$10$O9goeVevxJq7MNY6nt9KROU6MBE9jTBgAUSMaRJUZQvyS8xlZ9RKq",
     "role": "lecteur",
     "pointVente": "tous",
     "active": true
   },
   {
-    "username": "COURA",
-    "password": "$2b$10$F.DMePhLw6QwXznfO/V.8eEoWvUTvvEJyWuHr5/71kxOK..q3R/Oi",
+    "username": "SEB",
+    "password": "$2b$10$FCV46MpvlII2UXN8V8WzkugWIuOTP780NwBAzEtTIBz3MwfvtYJwG",
     "role": "user",
-    "pointVente": [
-      "Mbao",
-      "O.Foire"
-    ],
+    "pointVente": "tous",
+    "active": true
+  },
+  {
+    "username": "LECTEUR",
+    "password": "$2b$10$etekay5uj9zmr1YfNpCk7e22fdtCZEw4.wTl2OV20xLe/VDUZa.o.",
+    "role": "lecteur",
+    "pointVente": "tous",
     "active": true
   }
 ]

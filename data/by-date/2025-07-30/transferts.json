@@ -4,9 +4,219 @@
     "pointVente": "Abattage",
     "produit": "Boeuf",
     "impact": -1,
-    "quantite": 950,
-    "prixUnitaire": 3700,
-    "total": -3515000,
+    "quantite": 194.5,
+    "prixUnitaire": 3670.22,
+    "total": -713857.7899999999,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "O.Foire",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 194.5,
+    "prixUnitaire": 3670.22,
+    "total": 713857.7899999999,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Abattage",
+    "produit": "Agneau",
+    "impact": -1,
+    "quantite": 32,
+    "prixUnitaire": 4500,
+    "total": -144000,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "O.Foire",
+    "produit": "Agneau",
+    "impact": 1,
+    "quantite": 32,
+    "prixUnitaire": 4500,
+    "total": 144000,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "O.Foire",
+    "produit": "Foie",
+    "impact": 1,
+    "quantite": 3.5,
+    "prixUnitaire": 3000,
+    "total": 10500,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "O.Foire",
+    "produit": "Yell",
+    "impact": 1,
+    "quantite": 8,
+    "prixUnitaire": 2500,
+    "total": 20000,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "O.Foire",
+    "produit": "Poulet",
+    "impact": 1,
+    "quantite": 44,
+    "prixUnitaire": 3400,
+    "total": 149600,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Sacre Coeur",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 10,
+    "prixUnitaire": 3900,
+    "total": -39000,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "O.Foire",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 10,
+    "prixUnitaire": 3670.22,
+    "total": 36702.2,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 209.9,
+    "prixUnitaire": 3670.22,
+    "total": -770379.178,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Sacre Coeur",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 209.9,
+    "prixUnitaire": 3900,
+    "total": 818610,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Abattage",
+    "produit": "Agneau",
+    "impact": -1,
+    "quantite": 25,
+    "prixUnitaire": 4500,
+    "total": -112500,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Sacre Coeur",
+    "produit": "Agneau",
+    "impact": 1,
+    "quantite": 25,
+    "prixUnitaire": 4900,
+    "total": 122500,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Sacre Coeur",
+    "produit": "Foie",
+    "impact": 1,
+    "quantite": 3.75,
+    "prixUnitaire": 3000,
+    "total": 11250,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Abattage",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 152,
+    "prixUnitaire": 3670.22,
+    "total": -557873.44,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Mbao",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 152,
+    "prixUnitaire": 3670.22,
+    "total": 557873.44,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Mbao",
+    "produit": "Foie",
+    "impact": 1,
+    "quantite": 4,
+    "prixUnitaire": 3000,
+    "total": 12000,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Mbao",
+    "produit": "Yell",
+    "impact": 1,
+    "quantite": 4,
+    "prixUnitaire": 2000,
+    "total": 8000,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Mbao",
+    "produit": "Boeuf",
+    "impact": -1,
+    "quantite": 50,
+    "prixUnitaire": 3670.22,
+    "total": -183511,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Keur Massar",
+    "produit": "Boeuf",
+    "impact": 1,
+    "quantite": 50,
+    "prixUnitaire": 3670.22,
+    "total": 183511,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Mbao",
+    "produit": "Poulet",
+    "impact": -1,
+    "quantite": 15,
+    "prixUnitaire": 3400,
+    "total": -51000,
+    "commentaire": ""
+  },
+  {
+    "date": "30/07/2025",
+    "pointVente": "Keur Massar",
+    "produit": "Poulet",
+    "impact": 1,
+    "quantite": 15,
+    "prixUnitaire": 3000,
+    "total": 45000,
     "commentaire": ""
   }
 ]
