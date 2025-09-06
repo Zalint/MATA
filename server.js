@@ -4510,7 +4510,7 @@ app.get('/api/weight-params/:date', checkAuth, checkEstimationAccess, async (req
                     'Boeuf': 150,
                     'Veau': 110,
                     'Agneau': 10,
-                    'Poulet': 1.5,
+                    'Poulet': 1,
                     'default': 1
                 },
                 date: standardizedDate,

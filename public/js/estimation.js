@@ -110,7 +110,7 @@ function chargerTableauProduits() {
         const allProduits = window.produitsInventaire.getTousLesProduits();
         
         // Produits par défaut à afficher
-        const produitsParDefaut = ['Boeuf', 'Veau', 'Agneau', 'Foie', 'Yell'];
+        const produitsParDefaut = ['Boeuf', 'Veau', 'Agneau', 'Foie', 'Yell', 'Poulet'];
         
         // Vérifier l'état du bouton "Afficher Tous"
         const showAllBtn = document.getElementById('show-all-products-btn');
@@ -616,7 +616,7 @@ let currentWeightParams = {
     'Boeuf': 150,
     'Veau': 110,
     'Agneau': 10,
-    'Poulet': 1.5,
+    'Poulet': 1,
     'default': 1
 };
 
@@ -722,7 +722,7 @@ function afficherModalParametresPoids() {
     document.getElementById('weight-boeuf').value = currentWeightParams['Boeuf'] || 150;
     document.getElementById('weight-veau').value = currentWeightParams['Veau'] || 110;
     document.getElementById('weight-agneau').value = currentWeightParams['Agneau'] || 10;
-    document.getElementById('weight-poulet').value = currentWeightParams['Poulet'] || 1.5;
+    document.getElementById('weight-poulet').value = currentWeightParams['Poulet'] || 1;
     document.getElementById('weight-default').value = currentWeightParams['default'] || 1;
     
     // Afficher le modal
@@ -739,7 +739,7 @@ async function sauvegarderParametresPoids() {
             'Boeuf': parseFloat(document.getElementById('weight-boeuf').value) || 150,
             'Veau': parseFloat(document.getElementById('weight-veau').value) || 110,
             'Agneau': parseFloat(document.getElementById('weight-agneau').value) || 10,
-            'Poulet': parseFloat(document.getElementById('weight-poulet').value) || 1.5,
+            'Poulet': parseFloat(document.getElementById('weight-poulet').value) || 1,
             'default': parseFloat(document.getElementById('weight-default').value) || 1
         };
         
