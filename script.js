@@ -9226,7 +9226,7 @@ function afficherPrecommandes(precommandes) {
         tr.innerHTML = `
             <td>${precommande.Mois || ''}</td>
             <td>${precommande['Date Enregistrement'] || ''}</td>
-            <td class="${dateReceptionClass}">${precommande['Date Réception'] || ''}</td>
+            <td class="${dateReceptionClass}">${getDateReceptionContent(precommande['Date Réception'], precommande.statut || 'ouvert')}</td>
             <td>${precommande.Semaine || ''}</td>
             <td>${precommande['Point de Vente'] || ''}</td>
             <td>${precommande.Preparation || ''}</td>
@@ -9390,6 +9390,85 @@ function getDateReceptionClass(dateReception, statut) {
     return ''; // Date normale
 }
 
+// Fonction pour générer le contenu de la cellule date de réception avec badges
+function getDateReceptionContent(dateReception, statut) {
+    if (!dateReception || statut !== 'ouvert') {
+        return dateReception || '';
+    }
+    
+    const today = new Date();
+    let receptionDate;
+    
+    // Debug: Afficher les valeurs pour comprendre le problème
+    console.log('=== DEBUG DATE RÉCEPTION ===');
+    console.log('Date réception reçue:', dateReception);
+    console.log('Type:', typeof dateReception);
+    console.log('Date aujourd\'hui:', today.toISOString().split('T')[0]);
+    
+    // Gérer différents formats de date
+    if (typeof dateReception === 'string') {
+        if (dateReception.includes('-') || dateReception.includes('/')) {
+            const parts = dateReception.replace(/\//g, '-').split('-');
+            if (parts.length === 3) {
+                // Détecter le format : YYYY-MM-DD ou DD-MM-YYYY
+                if (parts[0].length === 4) {
+                    // Format YYYY-MM-DD (déjà correct pour new Date())
+                    receptionDate = new Date(dateReception);
+                    console.log('Date parsée (YYYY-MM-DD):', receptionDate.toISOString().split('T')[0]);
+                } else {
+                    // Format DD-MM-YYYY -> YYYY-MM-DD pour new Date()
+                    receptionDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                    console.log('Date parsée (DD-MM-YYYY):', receptionDate.toISOString().split('T')[0]);
+                }
+            } else {
+                receptionDate = new Date(dateReception);
+                console.log('Date parsée (autre format):', receptionDate.toISOString().split('T')[0]);
+            }
+        } else {
+            receptionDate = new Date(dateReception);
+            console.log('Date parsée (format simple):', receptionDate.toISOString().split('T')[0]);
+        }
+    } else {
+        receptionDate = new Date(dateReception);
+        console.log('Date parsée (objet Date):', receptionDate.toISOString().split('T')[0]);
+    }
+    
+    // Vérifier si la date est valide
+    if (isNaN(receptionDate.getTime())) {
+        console.log('Date invalide, retour de la date originale');
+        return dateReception; // Retourner la date originale si invalide
+    }
+    
+    // Normaliser les dates (ignorer l'heure)
+    today.setHours(0, 0, 0, 0);
+    receptionDate.setHours(0, 0, 0, 0);
+    
+    const diffTime = receptionDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    console.log('Différence en jours:', diffDays);
+    console.log('Date réception normalisée:', receptionDate.toISOString().split('T')[0]);
+    console.log('Date aujourd\'hui normalisée:', today.toISOString().split('T')[0]);
+    
+    let badge = '';
+    if (diffDays < 0) {
+        badge = '<span class="badge bg-danger ms-2">DÉLAI DÉPASSÉ</span>';
+        console.log('Badge: DÉLAI DÉPASSÉ');
+    } else if (diffDays === 0) {
+        badge = '<span class="badge bg-warning ms-2">URGENT</span>';
+        console.log('Badge: URGENT');
+    } else if (diffDays === 1) {
+        badge = '<span class="badge bg-info ms-2">PROCHE</span>';
+        console.log('Badge: PROCHE');
+    } else {
+        console.log('Badge: Aucun');
+    }
+    
+    console.log('=== FIN DEBUG ===');
+    
+    return `${dateReception}${badge}`;
+}
+
 // Fonction pour obtenir les actions disponibles selon le statut
 function getActionsDisponibles(statut, precommandeId) {
     const currentUser = window.currentUser;
@@ -9397,6 +9476,9 @@ function getActionsDisponibles(statut, precommandeId) {
     
     if (statut === 'ouvert') {
         return `
+            <button class="btn btn-sm btn-primary modifier-precommande" data-id="${precommandeId}" title="Modifier">
+                <i class="bi bi-pencil"></i>
+            </button>
             <button class="btn btn-sm btn-success convertir-precommande" data-id="${precommandeId}" title="Convertir en vente">
                 <i class="bi bi-arrow-right-circle"></i>
             </button>
@@ -9424,6 +9506,14 @@ function getActionsDisponibles(statut, precommandeId) {
 
 // Configurer les événements des boutons dans le tableau
 function setupPrecommandeTableEvents() {
+    // Boutons de modification
+    document.querySelectorAll('.modifier-precommande').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const precommandeId = this.getAttribute('data-id');
+            ouvrirModalModification(precommandeId);
+        });
+    });
+    
     // Boutons de conversion
     document.querySelectorAll('.convertir-precommande').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -9700,6 +9790,198 @@ function ouvrirModalArchivage(precommandeId) {
     modal.show();
 }
 
+// Variable globale pour stocker la pré-commande en cours de modification
+let precommandeEnCoursDeModification = null;
+
+// Ouvrir la modal de modification
+function ouvrirModalModification(precommandeId) {
+    const precommande = currentPrecommandes.find(p => p.id == precommandeId);
+    if (!precommande) {
+        alert('Pré-commande non trouvée');
+        return;
+    }
+    
+    // Vérifier que la pré-commande est ouverte
+    if (precommande.statut !== 'ouvert') {
+        alert('Seules les pré-commandes ouvertes peuvent être modifiées');
+        return;
+    }
+    
+    precommandeEnCoursDeModification = precommande;
+    
+    // Debug: Afficher les données de la pré-commande
+    console.log('Données de la pré-commande à modifier:', precommande);
+    console.log('Date Enregistrement:', precommande['Date Enregistrement']);
+    console.log('Date Réception:', precommande['Date Réception']);
+    console.log('Point de Vente:', precommande['Point de Vente']);
+    console.log('Preparation:', precommande['Preparation']);
+    
+    // Fonction utilitaire pour récupérer une valeur avec plusieurs noms possibles
+    const getValue = (obj, ...keys) => {
+        for (const key of keys) {
+            if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
+                return obj[key];
+            }
+        }
+        return '';
+    };
+    
+    // Fonction pour récupérer une valeur en gérant les propriétés avec espaces
+    const getValueWithSpaces = (obj, ...keys) => {
+        for (const key of keys) {
+            // Essayer avec le nom exact
+            if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
+                return obj[key];
+            }
+            // Essayer avec des variations (espaces, underscores, camelCase)
+            const variations = [
+                key.replace(/\s+/g, ''),
+                key.replace(/\s+/g, '_'),
+                key.replace(/\s+/g, '').replace(/^[a-z]/, c => c.toUpperCase()),
+                key.toLowerCase().replace(/\s+/g, '_')
+            ];
+            
+            for (const variation of variations) {
+                if (obj[variation] !== undefined && obj[variation] !== null && obj[variation] !== '') {
+                    return obj[variation];
+                }
+            }
+        }
+        return '';
+    };
+    
+    // Fonction pour convertir le format de date DD-MM-YYYY vers YYYY-MM-DD
+    const convertDateFormat = (dateStr) => {
+        if (!dateStr) return '';
+        // Si c'est déjà au format YYYY-MM-DD, le retourner tel quel
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            return dateStr;
+        }
+        // Si c'est au format DD-MM-YYYY, le convertir
+        if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+            const [day, month, year] = dateStr.split('-');
+            return `${year}-${month}-${day}`;
+        }
+        return dateStr;
+    };
+    
+    // Pré-remplir le formulaire avec les données de la pré-commande
+    const moisValue = getValueWithSpaces(precommande, 'Mois', 'mois');
+    const semaineValue = getValueWithSpaces(precommande, 'Semaine', 'semaine');
+    const dateEnregistrementValue = getValueWithSpaces(precommande, 'Date Enregistrement', 'dateEnregistrement', 'date_enregistrement');
+    const dateReceptionValue = getValueWithSpaces(precommande, 'Date Réception', 'dateReception', 'date_reception');
+    const preparationValue = getValueWithSpaces(precommande, 'Preparation', 'preparation');
+    
+    console.log('Valeurs récupérées:');
+    console.log('Mois:', moisValue);
+    console.log('Semaine:', semaineValue);
+    console.log('Date Enregistrement:', dateEnregistrementValue);
+    console.log('Date Réception:', dateReceptionValue);
+    console.log('Preparation:', preparationValue);
+    
+    document.getElementById('edit-mois').value = moisValue;
+    document.getElementById('edit-semaine').value = semaineValue;
+    document.getElementById('edit-date-enregistrement').value = convertDateFormat(dateEnregistrementValue);
+    document.getElementById('edit-date-reception').value = convertDateFormat(dateReceptionValue);
+    document.getElementById('edit-preparation').value = preparationValue;
+    document.getElementById('edit-prix-unit').value = getValueWithSpaces(precommande, 'PU', 'prixUnit', 'prix_unit', 'prixUnitaire');
+    document.getElementById('edit-nombre').value = getValueWithSpaces(precommande, 'Nombre', 'nombre');
+    document.getElementById('edit-montant').value = getValueWithSpaces(precommande, 'Montant', 'montant');
+    document.getElementById('edit-nom-client').value = getValueWithSpaces(precommande, 'nomClient', 'nom_client');
+    document.getElementById('edit-numero-client').value = getValueWithSpaces(precommande, 'numeroClient', 'numero_client');
+    document.getElementById('edit-adresse-client').value = getValueWithSpaces(precommande, 'adresseClient', 'adresse_client');
+    document.getElementById('edit-commentaire').value = getValueWithSpaces(precommande, 'commentaire');
+    document.getElementById('edit-label').value = getValueWithSpaces(precommande, 'label');
+    
+    // Peupler les dropdowns
+    populateEditDropdowns();
+    
+    // Attendre un peu pour que les dropdowns soient peuplés
+    setTimeout(() => {
+        // Définir les valeurs des dropdowns
+        const pointVenteValue = getValueWithSpaces(precommande, 'Point de Vente', 'pointVente', 'point_vente');
+        const categorieValue = getValueWithSpaces(precommande, 'Catégorie', 'categorie');
+        
+        console.log('Point de Vente:', pointVenteValue);
+        console.log('Catégorie:', categorieValue);
+        
+        document.getElementById('edit-point-vente').value = pointVenteValue;
+        document.getElementById('edit-categorie').value = categorieValue;
+        
+        // Vérifier si la valeur a été définie
+        console.log('Valeur définie pour Point de Vente:', document.getElementById('edit-point-vente').value);
+        console.log('Valeur définie pour Catégorie:', document.getElementById('edit-categorie').value);
+        
+        // Peupler les produits selon la catégorie sélectionnée
+        const categorie = getValueWithSpaces(precommande, 'Catégorie', 'categorie');
+        if (categorie) {
+            populateEditProduits(categorie);
+            // Attendre un peu pour que les produits soient peuplés
+            setTimeout(() => {
+                document.getElementById('edit-produit').value = getValueWithSpaces(precommande, 'Produit', 'produit');
+                console.log('Valeur définie pour Produit:', document.getElementById('edit-produit').value);
+            }, 50);
+        }
+    }, 100);
+    
+    const modal = new bootstrap.Modal(document.getElementById('editPrecommandeModal'));
+    modal.show();
+}
+
+// Peupler les dropdowns du modal d'édition
+function populateEditDropdowns() {
+    // Peupler les points de vente
+    const pointVenteSelect = document.getElementById('edit-point-vente');
+    pointVenteSelect.innerHTML = '<option value="">Sélectionner...</option>';
+    
+    console.log('POINTS_VENTE_PHYSIQUES disponibles:', POINTS_VENTE_PHYSIQUES);
+    
+    if (POINTS_VENTE_PHYSIQUES && Array.isArray(POINTS_VENTE_PHYSIQUES)) {
+        POINTS_VENTE_PHYSIQUES.forEach(point => {
+            const option = document.createElement('option');
+            option.value = point;
+            option.textContent = point;
+            pointVenteSelect.appendChild(option);
+        });
+        console.log('Points de vente ajoutés au dropdown:', POINTS_VENTE_PHYSIQUES);
+    } else {
+        console.log('POINTS_VENTE_PHYSIQUES non disponible ou pas un array');
+    }
+    
+    // Peupler les catégories
+    const categorieSelect = document.getElementById('edit-categorie');
+    categorieSelect.innerHTML = '<option value="">Sélectionner...</option>';
+    
+    if (produits && typeof produits === 'object') {
+        Object.keys(produits).forEach(categorie => {
+            if (typeof produits[categorie] === 'object' && produits[categorie] !== null) {
+                // Ignorer les fonctions
+                if (typeof produits[categorie] === 'function') return;
+                
+                const option = document.createElement('option');
+                option.value = categorie;
+                option.textContent = categorie;
+                categorieSelect.appendChild(option);
+            }
+        });
+    }
+}
+
+// Peupler les produits selon la catégorie sélectionnée
+function populateEditProduits(categorie) {
+    const produitSelect = document.getElementById('edit-produit');
+    produitSelect.innerHTML = '<option value="">Sélectionner...</option>';
+    
+    if (categorie && produits[categorie]) {
+        Object.keys(produits[categorie]).forEach(produit => {
+            const option = document.createElement('option');
+            option.value = produit;
+            option.textContent = produit;
+            produitSelect.appendChild(option);
+        });
+    }
+}
+
 // Confirmer l'archivage
 async function confirmerArchivage() {
     if (!precommandeEnCoursDArchivage) {
@@ -9747,6 +10029,83 @@ async function confirmerArchivage() {
     } catch (error) {
         console.error('Erreur lors de l\'archivage:', error);
         alert('Erreur lors de l\'archivage de la pré-commande');
+    } finally {
+        hideLoadingSpinner();
+    }
+}
+
+// Confirmer la modification
+async function confirmerModification() {
+    if (!precommandeEnCoursDeModification) {
+        alert('Aucune pré-commande sélectionnée');
+        return;
+    }
+    
+    // Récupérer les données du formulaire
+    const formData = {
+        mois: document.getElementById('edit-mois').value,
+        semaine: document.getElementById('edit-semaine').value,
+        dateEnregistrement: document.getElementById('edit-date-enregistrement').value,
+        dateReception: document.getElementById('edit-date-reception').value,
+        pointVente: document.getElementById('edit-point-vente').value,
+        preparation: document.getElementById('edit-preparation').value,
+        categorie: document.getElementById('edit-categorie').value,
+        produit: document.getElementById('edit-produit').value,
+        prixUnit: parseFloat(document.getElementById('edit-prix-unit').value) || 0,
+        nombre: parseFloat(document.getElementById('edit-nombre').value) || 0,
+        montant: parseFloat(document.getElementById('edit-montant').value) || 0,
+        nomClient: document.getElementById('edit-nom-client').value,
+        numeroClient: document.getElementById('edit-numero-client').value,
+        adresseClient: document.getElementById('edit-adresse-client').value,
+        commentaire: document.getElementById('edit-commentaire').value,
+        label: document.getElementById('edit-label').value
+    };
+    
+    // Validation des champs obligatoires
+    if (!formData.mois || !formData.semaine || !formData.dateEnregistrement || 
+        !formData.dateReception || !formData.pointVente || !formData.preparation ||
+        !formData.categorie || !formData.produit || !formData.prixUnit || 
+        !formData.nombre || !formData.montant) {
+        alert('Veuillez remplir tous les champs obligatoires');
+        return;
+    }
+    
+    showLoadingSpinner();
+    
+    try {
+        const response = await fetch(`/api/precommandes/${precommandeEnCoursDeModification.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Pré-commande modifiée avec succès !');
+            
+            // Fermer la modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editPrecommandeModal'));
+            modal.hide();
+            
+            // Recharger la liste des pré-commandes pour voir les changements
+            console.log('Rechargement des pré-commandes après modification...');
+            await chargerPrecommandes();
+            console.log('Pré-commandes rechargées avec succès');
+            
+            // Réinitialiser la variable globale
+            precommandeEnCoursDeModification = null;
+            
+        } else {
+            alert('Erreur lors de la modification: ' + data.message);
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors de la modification:', error);
+        alert('Erreur lors de la modification de la pré-commande');
     } finally {
         hideLoadingSpinner();
     }
@@ -9838,6 +10197,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmerArchiveBtn = document.getElementById('confirmer-archive');
     if (confirmerArchiveBtn) {
         confirmerArchiveBtn.addEventListener('click', confirmerArchivage);
+    }
+    
+    // Bouton de confirmation de modification
+    const confirmerModificationBtn = document.getElementById('confirmer-modification');
+    if (confirmerModificationBtn) {
+        confirmerModificationBtn.addEventListener('click', confirmerModification);
+    }
+    
+    // Événements pour le modal d'édition
+    const editCategorieSelect = document.getElementById('edit-categorie');
+    if (editCategorieSelect) {
+        editCategorieSelect.addEventListener('change', function() {
+            const categorie = this.value;
+            populateEditProduits(categorie);
+        });
+    }
+    
+    // Calcul automatique du montant dans le modal d'édition
+    const editPrixUnit = document.getElementById('edit-prix-unit');
+    const editNombre = document.getElementById('edit-nombre');
+    const editMontant = document.getElementById('edit-montant');
+    
+    if (editPrixUnit && editNombre && editMontant) {
+        const calculerMontantEdit = () => {
+            const prix = parseFloat(editPrixUnit.value) || 0;
+            const nombre = parseFloat(editNombre.value) || 0;
+            editMontant.value = (prix * nombre).toFixed(2);
+        };
+        
+        editPrixUnit.addEventListener('input', calculerMontantEdit);
+        editNombre.addEventListener('input', calculerMontantEdit);
     }
 });
 

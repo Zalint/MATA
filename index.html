@@ -151,6 +151,28 @@
             position: relative;
         }
         
+        /* Styles pour les badges de date de réception */
+        .badge.bg-warning {
+            background-color: #dc3545 !important; /* Rouge pour URGENT */
+            color: #fff !important;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+        
+        .badge.bg-danger {
+            background-color: #8b0000 !important; /* Rouge foncé pour DÉLAI DÉPASSÉ */
+            color: #fff !important;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+        
+        .badge.bg-info {
+            background-color: #17a2b8 !important; /* Bleu pour PROCHE */
+            color: #fff !important;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+        
         .date-reception-depassee::after {
             content: "⚠️ URGENT";
             position: absolute;
@@ -2533,6 +2555,152 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="button" class="btn btn-secondary" id="confirmer-archive">
                         <i class="bi bi-archive"></i> Confirmer l'archivage
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de modification pré-commande -->
+    <div class="modal fade" id="editPrecommandeModal" tabindex="-1" aria-labelledby="editPrecommandeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="editPrecommandeModalLabel">
+                        <i class="bi bi-pencil"></i> Modifier Pré-commande
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editPrecommandeForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-mois" class="form-label">Mois *</label>
+                                    <input type="text" class="form-control" id="edit-mois" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-semaine" class="form-label">Semaine *</label>
+                                    <input type="text" class="form-control" id="edit-semaine" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-date-enregistrement" class="form-label">Date Enregistrement *</label>
+                                    <input type="date" class="form-control" id="edit-date-enregistrement" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-date-reception" class="form-label">Date Réception *</label>
+                                    <input type="date" class="form-control" id="edit-date-reception" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-point-vente" class="form-label">Point de Vente *</label>
+                                    <select class="form-select" id="edit-point-vente" required>
+                                        <option value="">Sélectionner...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-preparation" class="form-label">Préparation *</label>
+                                    <input type="text" class="form-control" id="edit-preparation" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-categorie" class="form-label">Catégorie *</label>
+                                    <select class="form-select" id="edit-categorie" required>
+                                        <option value="">Sélectionner...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-produit" class="form-label">Produit *</label>
+                                    <select class="form-select" id="edit-produit" required>
+                                        <option value="">Sélectionner...</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="edit-prix-unit" class="form-label">Prix Unitaire *</label>
+                                    <input type="number" class="form-control" id="edit-prix-unit" step="0.01" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="edit-nombre" class="form-label">Quantité *</label>
+                                    <input type="number" class="form-control" id="edit-nombre" step="0.001" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="edit-montant" class="form-label">Montant *</label>
+                                    <input type="number" class="form-control" id="edit-montant" step="0.01" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="edit-nom-client" class="form-label">Nom Client</label>
+                                    <input type="text" class="form-control" id="edit-nom-client">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="edit-numero-client" class="form-label">Numéro Client</label>
+                                    <input type="text" class="form-control" id="edit-numero-client">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="edit-adresse-client" class="form-label">Adresse Client</label>
+                                    <input type="text" class="form-control" id="edit-adresse-client">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-commentaire" class="form-label">Commentaire</label>
+                                    <textarea class="form-control" id="edit-commentaire" rows="2"></textarea>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit-label" class="form-label">Label</label>
+                                    <input type="text" class="form-control" id="edit-label">
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="confirmer-modification">
+                        <i class="bi bi-check-circle"></i> Confirmer la modification
                     </button>
                 </div>
             </div>
