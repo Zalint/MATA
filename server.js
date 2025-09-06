@@ -2533,9 +2533,9 @@ app.post('/api/precommandes', checkAuth, checkWriteAccess, async (req, res) => {
 // Route pour obtenir les pré-commandes avec filtres
 app.get('/api/precommandes', checkAuth, checkReadAccess, async (req, res) => {
     try {
-        const { dateDebut, dateFin, pointVente, label } = req.query;
+        const { dateDebut, dateFin, pointVente, label, statut, limit, sort, order } = req.query;
         
-        console.log('Paramètres reçus:', { dateDebut, dateFin, pointVente, label });
+        console.log('Paramètres reçus:', { dateDebut, dateFin, pointVente, label, statut, limit, sort, order });
         
         // Préparer les conditions de filtrage
         const whereConditions = {};
@@ -2599,10 +2599,10 @@ app.get('/api/precommandes', checkAuth, checkReadAccess, async (req, res) => {
                     precommande.label && precommande.label.toLowerCase().includes(label.toLowerCase())
                 );
             }
-            
-            // Formater les données pour la réponse
+        
+        // Formater les données pour la réponse
             const formattedPrecommandes = precommandesFiltrees.map(precommande => ({
-                id: precommande.id,
+            id: precommande.id,
                 Mois: precommande.mois,
                 'Date Enregistrement': precommande.dateEnregistrement,
                 'Date Réception': precommande.dateReception,
@@ -2614,11 +2614,13 @@ app.get('/api/precommandes', checkAuth, checkReadAccess, async (req, res) => {
                 PU: precommande.prixUnit,
                 Nombre: precommande.nombre,
                 Montant: precommande.montant,
-                nomClient: precommande.nomClient,
-                numeroClient: precommande.numeroClient,
-                adresseClient: precommande.adresseClient,
-                commentaire: precommande.commentaire,
-                label: precommande.label
+            nomClient: precommande.nomClient,
+            numeroClient: precommande.numeroClient,
+            adresseClient: precommande.adresseClient,
+            commentaire: precommande.commentaire,
+            label: precommande.label,
+                statut: precommande.statut || 'ouvert',
+                commentaireStatut: precommande.commentaireStatut
             }));
             
             res.json({ success: true, precommandes: formattedPrecommandes });
@@ -2644,6 +2646,31 @@ app.get('/api/precommandes', checkAuth, checkReadAccess, async (req, res) => {
                 );
             }
             
+            // Filtrer par statut si spécifié
+            if (statut) {
+                precommandesFiltrees = precommandesFiltrees.filter(precommande => 
+                    precommande.statut === statut
+                );
+            }
+            
+            // Appliquer le tri
+            if (sort && order) {
+                precommandesFiltrees.sort((a, b) => {
+                    const aValue = a[sort];
+                    const bValue = b[sort];
+                    if (order.toUpperCase() === 'DESC') {
+                        return bValue > aValue ? 1 : -1;
+        } else {
+                        return aValue > bValue ? 1 : -1;
+                    }
+                });
+            }
+            
+            // Appliquer la limite
+            if (limit) {
+                precommandesFiltrees = precommandesFiltrees.slice(0, parseInt(limit));
+            }
+            
             const formattedPrecommandes = precommandesFiltrees.map(precommande => ({
                 id: precommande.id,
                 Mois: precommande.mois,
@@ -2661,7 +2688,9 @@ app.get('/api/precommandes', checkAuth, checkReadAccess, async (req, res) => {
                 numeroClient: precommande.numeroClient,
                 adresseClient: precommande.adresseClient,
                 commentaire: precommande.commentaire,
-                label: precommande.label
+                label: precommande.label,
+                statut: precommande.statut || 'ouvert',
+                commentaireStatut: precommande.commentaireStatut
             }));
             
             res.json({ success: true, precommandes: formattedPrecommandes });
@@ -2698,6 +2727,14 @@ app.post('/api/precommandes/:id/convert', checkAuth, checkWriteAccess, async (re
             });
         }
         
+        // Vérifier que la pré-commande est ouverte
+        if (precommande.statut !== 'ouvert') {
+            return res.status(400).json({
+                success: false, 
+                message: 'Seules les pré-commandes ouvertes peuvent être converties'
+            });
+        }
+        
         // Vérifier que le point de vente de destination est actif
         if (!pointsVente[pointVenteDestination]?.active) {
             return res.status(400).json({
@@ -2731,8 +2768,11 @@ app.post('/api/precommandes/:id/convert', checkAuth, checkWriteAccess, async (re
         // Créer la vente dans la base de données
         const venteCreee = await Vente.create(nouvelleVente);
         
-        // Supprimer la pré-commande
-        await precommande.destroy();
+        // Marquer la pré-commande comme convertie au lieu de la supprimer
+        await precommande.update({
+            statut: 'convertie',
+            commentaireStatut: `Convertie en vente le ${new Date().toLocaleDateString('fr-FR')}`
+        });
         
         console.log(`Pré-commande ${precommandeId} convertie en vente ${venteCreee.id}`);
         
@@ -2764,6 +2804,114 @@ app.post('/api/precommandes/:id/convert', checkAuth, checkWriteAccess, async (re
             message: 'Erreur lors de la conversion de la pré-commande',
             error: error.message
         });
+    }
+});
+
+// Endpoint pour modifier une pré-commande (seulement si statut = 'ouvert')
+app.put('/api/precommandes/:id', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const precommande = await Precommande.findByPk(id);
+        
+        if (!precommande) {
+            return res.status(404).json({ success: false, message: 'Pré-commande non trouvée' });
+        }
+        
+        // Vérifier que la pré-commande est ouverte
+        if (precommande.statut !== 'ouvert') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Seules les pré-commandes ouvertes peuvent être modifiées' 
+            });
+        }
+        
+        // Mettre à jour la pré-commande
+        await precommande.update(req.body);
+        
+        res.json({ success: true, message: 'Pré-commande modifiée avec succès', precommande });
+    } catch (error) {
+        console.error('Erreur lors de la modification:', error);
+        res.status(500).json({ success: false, message: 'Erreur lors de la modification' });
+    }
+});
+
+// Endpoint pour annuler une pré-commande
+app.post('/api/precommandes/:id/cancel', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { commentaire } = req.body;
+        
+        if (!commentaire || commentaire.trim() === '') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Un commentaire est requis pour annuler une pré-commande' 
+            });
+        }
+        
+        const precommande = await Precommande.findByPk(id);
+        
+        if (!precommande) {
+            return res.status(404).json({ success: false, message: 'Pré-commande non trouvée' });
+        }
+        
+        // Vérifier que la pré-commande est ouverte
+        if (precommande.statut !== 'ouvert') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Seules les pré-commandes ouvertes peuvent être annulées' 
+            });
+        }
+        
+        // Marquer comme annulée
+        await precommande.update({
+            statut: 'annulee',
+            commentaireStatut: commentaire
+        });
+        
+        res.json({ success: true, message: 'Pré-commande annulée avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de l\'annulation:', error);
+        res.status(500).json({ success: false, message: 'Erreur lors de l\'annulation' });
+    }
+});
+
+// Endpoint pour archiver une pré-commande
+app.post('/api/precommandes/:id/archive', checkAuth, checkWriteAccess, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { commentaire } = req.body;
+        
+        if (!commentaire || commentaire.trim() === '') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Un commentaire est requis pour archiver une pré-commande' 
+            });
+        }
+        
+        const precommande = await Precommande.findByPk(id);
+        
+        if (!precommande) {
+            return res.status(404).json({ success: false, message: 'Pré-commande non trouvée' });
+        }
+        
+        // Vérifier que la pré-commande est ouverte
+        if (precommande.statut !== 'ouvert') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Seules les pré-commandes ouvertes peuvent être archivées' 
+            });
+        }
+        
+        // Marquer comme archivée
+        await precommande.update({
+            statut: 'archivee',
+            commentaireStatut: commentaire
+        });
+        
+        res.json({ success: true, message: 'Pré-commande archivée avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de l\'archivage:', error);
+        res.status(500).json({ success: false, message: 'Erreur lors de l\'archivage' });
     }
 });
 

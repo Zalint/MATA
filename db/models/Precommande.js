@@ -81,6 +81,18 @@ const Precommande = sequelize.define('Precommande', {
     type: DataTypes.STRING,
     allowNull: true,
     comment: 'Label pour filtrer les pré-commandes liées à un événement'
+  },
+  statut: {
+    type: DataTypes.ENUM('ouvert', 'convertie', 'annulee', 'archivee'),
+    allowNull: false,
+    defaultValue: 'ouvert',
+    comment: 'Statut de la pré-commande'
+  },
+  commentaireStatut: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'commentaire_statut',
+    comment: 'Commentaire pour annulation ou archivage'
   }
 }, {
   tableName: 'precommandes',

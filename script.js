@@ -8713,14 +8713,131 @@ async function initPrecommandeDropdowns() {
     // Populer les catégories
     populatePrecommandeCategoriesForEntry();
     
-            // Charger les labels existants pour l'autocomplétion
-        await loadPrecommandeLabelsForAutocomplete();
-        
-        // Charger les labels pour le filtre
-        await populatePrecommandeFilterLabelsDropdown();
+    // Charger les labels existants pour l'autocomplétion
+    await loadPrecommandeLabelsForAutocomplete();
+    
+    // Charger les labels pour le filtre
+    await populatePrecommandeFilterLabelsDropdown();
+    
+    // Attacher les événements pour le filtre de statut collapsible
+    attachStatutFilterEvents();
     
     // Charger les pré-commandes existantes
     await chargerPrecommandes();
+}
+
+// Attacher les événements pour le filtre de statut collapsible
+function attachStatutFilterEvents() {
+    console.log('Attachement des événements pour le filtre de statut');
+    
+    // Événement pour le bouton toggle
+    const statutToggleBtn = document.getElementById('statut-filter-toggle');
+    if (statutToggleBtn) {
+        // Supprimer les anciens événements s'ils existent
+        statutToggleBtn.removeEventListener('click', toggleStatutFilter);
+        statutToggleBtn.addEventListener('click', toggleStatutFilter);
+        console.log('Événement toggle attaché');
+    }
+    
+    // Événements pour les checkboxes
+    const statutCheckboxes = document.querySelectorAll('.statut-checkboxes input[type="checkbox"]');
+    statutCheckboxes.forEach(checkbox => {
+        checkbox.removeEventListener('change', updateStatutFilterLabel);
+        checkbox.addEventListener('change', updateStatutFilterLabel);
+    });
+    console.log('Événements checkboxes attachés:', statutCheckboxes.length);
+    
+    // Événements pour les autres filtres (filtrage automatique)
+    const dateDebutInput = document.getElementById('filter-precommande-date-debut');
+    const dateFinInput = document.getElementById('filter-precommande-date-fin');
+    const pointVenteSelect = document.getElementById('filter-precommande-point-vente');
+    const labelSelect = document.getElementById('filter-precommande-label');
+    
+    if (dateDebutInput) {
+        dateDebutInput.addEventListener('change', filtrerPrecommandes);
+    }
+    if (dateFinInput) {
+        dateFinInput.addEventListener('change', filtrerPrecommandes);
+    }
+    if (pointVenteSelect) {
+        pointVenteSelect.addEventListener('change', filtrerPrecommandes);
+    }
+    if (labelSelect) {
+        labelSelect.addEventListener('change', filtrerPrecommandes);
+    }
+    
+    console.log('Événements de filtrage automatique attachés');
+    
+    // Fermer le dropdown si on clique ailleurs
+    document.removeEventListener('click', handleStatutFilterOutsideClick);
+    document.addEventListener('click', handleStatutFilterOutsideClick);
+}
+
+// Gestionnaire pour fermer le dropdown si on clique ailleurs
+function handleStatutFilterOutsideClick(event) {
+    const statutContainer = document.querySelector('.statut-filter-container');
+    if (statutContainer && !statutContainer.contains(event.target)) {
+        const checkboxes = document.getElementById('statut-checkboxes');
+        const icon = document.getElementById('statut-filter-icon');
+        if (checkboxes && checkboxes.style.display === 'block') {
+            checkboxes.style.display = 'none';
+            checkboxes.classList.remove('show');
+            icon.className = 'bi bi-chevron-down';
+        }
+    }
+}
+
+// Récupérer les statuts sélectionnés
+function getStatutsSelectionnes() {
+    const statuts = [];
+    const checkboxes = document.querySelectorAll('.statut-checkboxes input[type="checkbox"]:checked');
+    checkboxes.forEach(checkbox => {
+        statuts.push(checkbox.value);
+    });
+    return statuts;
+}
+
+// Mettre à jour le label du bouton de statut
+function updateStatutFilterLabel() {
+    const statutsSelectionnes = getStatutsSelectionnes();
+    const label = document.getElementById('statut-filter-label');
+    const count = statutsSelectionnes.length;
+    
+    if (count === 0) {
+        label.textContent = 'Statut (aucun sélectionné)';
+    } else if (count === 1) {
+        label.textContent = 'Statut (1 sélectionné)';
+    } else {
+        label.textContent = `Statut (${count} sélectionnés)`;
+    }
+    
+    // Appliquer automatiquement le filtre
+    console.log('Filtrage automatique déclenché par changement de statut');
+    filtrerPrecommandes();
+}
+
+// Toggle du filtre de statut
+function toggleStatutFilter() {
+    console.log('Toggle du filtre de statut appelé');
+    const checkboxes = document.getElementById('statut-checkboxes');
+    const icon = document.getElementById('statut-filter-icon');
+    
+    if (!checkboxes || !icon) {
+        console.error('Éléments du filtre de statut non trouvés');
+        return;
+    }
+    
+    if (checkboxes.style.display === 'none') {
+        checkboxes.style.display = 'block';
+        checkboxes.classList.add('show');
+        icon.className = 'bi bi-chevron-up';
+        console.log('Filtre de statut ouvert');
+    } else {
+        checkboxes.style.display = 'none';
+        checkboxes.classList.remove('show');
+        icon.className = 'bi bi-chevron-down';
+        console.log('Filtre de statut fermé');
+    }
 }
 
 // Populer les points de vente pour les pré-commandes (identique à Saisie)
@@ -9027,6 +9144,7 @@ function calculerTotalGeneralPrecommande() {
 // Charger les pré-commandes existantes
 async function chargerPrecommandes() {
     try {
+        // Charger toutes les pré-commandes (sans limite) pour permettre le filtrage côté client
         const response = await fetch('/api/precommandes', {
             credentials: 'include'
         });
@@ -9039,12 +9157,12 @@ async function chargerPrecommandes() {
         
         if (data.success) {
             currentPrecommandes = data.precommandes || [];
-            afficherPrecommandes(currentPrecommandes);
+            console.log('Pré-commandes chargées:', currentPrecommandes.length);
             
-            // Mettre à jour le compteur
+            // Mettre à jour le compteur total
             const totalElement = document.getElementById('total-precommandes');
             if (totalElement) {
-                totalElement.textContent = `${currentPrecommandes.length} pré-commande(s)`;
+                totalElement.textContent = `${currentPrecommandes.length} pré-commande(s) au total`;
             }
             
             // Mettre à jour la dernière mise à jour
@@ -9052,6 +9170,10 @@ async function chargerPrecommandes() {
             if (updateElement) {
                 updateElement.textContent = `Dernière maj: ${new Date().toLocaleString()}`;
             }
+            
+            // Appliquer immédiatement le filtre par défaut (seulement "Ouvert")
+            console.log('Application du filtre par défaut après chargement');
+            filtrerPrecommandes();
         }
     } catch (error) {
         console.error('Erreur lors du chargement des pré-commandes:', error);
@@ -9070,7 +9192,7 @@ function afficherPrecommandes(precommandes) {
     
     if (!precommandes || precommandes.length === 0) {
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td colspan="17" class="text-center">Aucune pré-commande trouvée</td>';
+        tr.innerHTML = '<td colspan="18" class="text-center">Aucune pré-commande trouvée</td>';
         tbody.appendChild(tr);
         afficherPaginationPrecommandes(0);
         return;
@@ -9084,10 +9206,17 @@ function afficherPrecommandes(precommandes) {
     
     precommandesPage.forEach(precommande => {
         const tr = document.createElement('tr');
+        
+        // Appliquer les classes CSS selon le statut
+        const statutClass = getStatutClass(precommande.statut || 'ouvert');
+        const dateReceptionClass = getDateReceptionClass(precommande['Date Réception'], precommande.statut || 'ouvert');
+        
+        tr.className = `${statutClass} ${dateReceptionClass}`;
+        
         tr.innerHTML = `
             <td>${precommande.Mois || ''}</td>
             <td>${precommande['Date Enregistrement'] || ''}</td>
-            <td>${precommande['Date Réception'] || ''}</td>
+            <td class="${dateReceptionClass}">${precommande['Date Réception'] || ''}</td>
             <td>${precommande.Semaine || ''}</td>
             <td>${precommande['Point de Vente'] || ''}</td>
             <td>${precommande.Preparation || ''}</td>
@@ -9101,14 +9230,10 @@ function afficherPrecommandes(precommandes) {
             <td>${precommande.adresseClient || ''}</td>
             <td>${precommande.commentaire || ''}</td>
             <td>${precommande.label || ''}</td>
+            <td>${getStatutBadge(precommande.statut || 'ouvert')}</td>
             <td>
                 <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-success btn-sm convertir-precommande" data-id="${precommande.id}">
-                        <i class="bi bi-arrow-right-circle"></i> Convertir
-                    </button>
-                    <button type="button" class="btn btn-danger btn-sm supprimer-precommande" data-id="${precommande.id}">
-                        <i class="bi bi-trash"></i>
-                    </button>
+                    ${getActionsDisponibles(precommande.statut || 'ouvert', precommande.id)}
                 </div>
             </td>
         `;
@@ -9204,6 +9329,79 @@ function afficherPaginationPrecommandes(totalPrecommandes) {
     console.log('=== FIN afficherPaginationPrecommandes ===');
 }
 
+
+// Fonction pour obtenir la classe CSS selon le statut
+function getStatutClass(statut) {
+    switch(statut) {
+        case 'ouvert': return 'statut-ouvert';
+        case 'convertie': return 'statut-convertie';
+        case 'annulee': return 'statut-annulee';
+        case 'archivee': return 'statut-archivee';
+        default: return '';
+    }
+}
+
+// Fonction pour obtenir le badge de statut
+function getStatutBadge(statut) {
+    switch(statut) {
+        case 'ouvert': return '<span class="badge badge-statut badge-ouvert">Ouvert</span>';
+        case 'convertie': return '<span class="badge badge-statut badge-convertie">Convertie</span>';
+        case 'annulee': return '<span class="badge badge-statut badge-annulee">Annulée</span>';
+        case 'archivee': return '<span class="badge badge-statut badge-archivee">Archivée</span>';
+        default: return '';
+    }
+}
+
+// Fonction pour obtenir la classe CSS selon la date de réception
+function getDateReceptionClass(dateReception, statut) {
+    // Si la pré-commande n'est pas ouverte, ne pas appliquer de style de date
+    if (!dateReception || statut !== 'ouvert') {
+        return '';
+    }
+    
+    const today = new Date();
+    const receptionDate = new Date(dateReception);
+    
+    // Normaliser les dates (ignorer l'heure)
+    today.setHours(0, 0, 0, 0);
+    receptionDate.setHours(0, 0, 0, 0);
+    
+    const diffTime = receptionDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+        return 'date-reception-depassee'; // Date dépassée
+    } else if (diffDays === 0) {
+        return 'date-reception-aujourdhui'; // Aujourd'hui
+    } else if (diffDays === 1) {
+        return 'date-reception-demain'; // Demain
+    }
+    
+    return ''; // Date normale
+}
+
+// Fonction pour obtenir les actions disponibles selon le statut
+function getActionsDisponibles(statut, precommandeId) {
+    if (statut === 'ouvert') {
+        return `
+            <button class="btn btn-sm btn-success convertir-precommande" data-id="${precommandeId}" title="Convertir en vente">
+                <i class="bi bi-arrow-right-circle"></i>
+            </button>
+            <button class="btn btn-sm btn-warning annuler-precommande" data-id="${precommandeId}" title="Annuler">
+                <i class="bi bi-x-circle"></i>
+            </button>
+            <button class="btn btn-sm btn-secondary archiver-precommande" data-id="${precommandeId}" title="Archiver">
+                <i class="bi bi-archive"></i>
+            </button>
+            <button class="btn btn-sm btn-danger supprimer-precommande" data-id="${precommandeId}" title="Supprimer">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+    } else {
+        return `<span class="text-muted">Aucune action</span>`;
+    }
+}
+
 // Configurer les événements des boutons dans le tableau
 function setupPrecommandeTableEvents() {
     // Boutons de conversion
@@ -9211,6 +9409,23 @@ function setupPrecommandeTableEvents() {
         btn.addEventListener('click', function() {
             const precommandeId = this.getAttribute('data-id');
             ouvrirModalConversion(precommandeId);
+        });
+    });
+    
+    
+    // Boutons d'annulation
+    document.querySelectorAll('.annuler-precommande').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const precommandeId = this.getAttribute('data-id');
+            ouvrirModalAnnulation(precommandeId);
+        });
+    });
+    
+    // Boutons d'archivage
+    document.querySelectorAll('.archiver-precommande').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const precommandeId = this.getAttribute('data-id');
+            ouvrirModalArchivage(precommandeId);
         });
     });
     
@@ -9223,8 +9438,10 @@ function setupPrecommandeTableEvents() {
     });
 }
 
-// Variables globales pour la conversion
+// Variables globales pour les modals
 let precommandeEnCoursDeConversion = null;
+let precommandeEnCoursDAnnulation = null;
+let precommandeEnCoursDArchivage = null;
 
 // Ouvrir la modal de conversion
 async function ouvrirModalConversion(precommandeId) {
@@ -9362,6 +9579,159 @@ async function confirmerConversion() {
     }
 }
 
+
+// Ouvrir la modal d'annulation
+function ouvrirModalAnnulation(precommandeId) {
+    const precommande = currentPrecommandes.find(p => p.id == precommandeId);
+    if (!precommande) {
+        alert('Pré-commande non trouvée');
+        return;
+    }
+    
+    // Vérifier que la pré-commande est ouverte
+    if (precommande.statut !== 'ouvert') {
+        alert('Seules les pré-commandes ouvertes peuvent être annulées');
+        return;
+    }
+    
+    precommandeEnCoursDAnnulation = precommande;
+    
+    // Vider le champ commentaire
+    document.getElementById('cancel-commentaire').value = '';
+    
+    // Afficher la modal
+    const modal = new bootstrap.Modal(document.getElementById('cancelPrecommandeModal'));
+    modal.show();
+}
+
+// Confirmer l'annulation
+async function confirmerAnnulation() {
+    if (!precommandeEnCoursDAnnulation) {
+        alert('Aucune pré-commande sélectionnée');
+        return;
+    }
+    
+    const commentaire = document.getElementById('cancel-commentaire').value.trim();
+    if (!commentaire) {
+        alert('Veuillez expliquer la raison de l\'annulation');
+        return;
+    }
+    
+    try {
+        showLoadingSpinner();
+        
+        const response = await fetch(`/api/precommandes/${precommandeEnCoursDAnnulation.id}/cancel`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ commentaire })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Pré-commande annulée avec succès !');
+            
+            // Fermer la modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('cancelPrecommandeModal'));
+            modal.hide();
+            
+            // Recharger les pré-commandes
+            await chargerPrecommandes();
+            
+            // Réinitialiser la variable globale
+            precommandeEnCoursDAnnulation = null;
+            
+        } else {
+            alert('Erreur lors de l\'annulation: ' + data.message);
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'annulation:', error);
+        alert('Erreur lors de l\'annulation de la pré-commande');
+    } finally {
+        hideLoadingSpinner();
+    }
+}
+
+// Ouvrir la modal d'archivage
+function ouvrirModalArchivage(precommandeId) {
+    const precommande = currentPrecommandes.find(p => p.id == precommandeId);
+    if (!precommande) {
+        alert('Pré-commande non trouvée');
+        return;
+    }
+    
+    // Vérifier que la pré-commande est ouverte
+    if (precommande.statut !== 'ouvert') {
+        alert('Seules les pré-commandes ouvertes peuvent être archivées');
+        return;
+    }
+    
+    precommandeEnCoursDArchivage = precommande;
+    
+    // Vider le champ commentaire
+    document.getElementById('archive-commentaire').value = '';
+    
+    // Afficher la modal
+    const modal = new bootstrap.Modal(document.getElementById('archivePrecommandeModal'));
+    modal.show();
+}
+
+// Confirmer l'archivage
+async function confirmerArchivage() {
+    if (!precommandeEnCoursDArchivage) {
+        alert('Aucune pré-commande sélectionnée');
+        return;
+    }
+    
+    const commentaire = document.getElementById('archive-commentaire').value.trim();
+    if (!commentaire) {
+        alert('Veuillez expliquer la raison de l\'archivage');
+        return;
+    }
+    
+    try {
+        showLoadingSpinner();
+        
+        const response = await fetch(`/api/precommandes/${precommandeEnCoursDArchivage.id}/archive`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ commentaire })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Pré-commande archivée avec succès !');
+            
+            // Fermer la modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('archivePrecommandeModal'));
+            modal.hide();
+            
+            // Recharger les pré-commandes
+            await chargerPrecommandes();
+            
+            // Réinitialiser la variable globale
+            precommandeEnCoursDArchivage = null;
+            
+        } else {
+            alert('Erreur lors de l\'archivage: ' + data.message);
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'archivage:', error);
+        alert('Erreur lors de l\'archivage de la pré-commande');
+    } finally {
+        hideLoadingSpinner();
+    }
+}
+
 // Supprimer une pré-commande
 async function supprimerPrecommande(precommandeId) {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette pré-commande ?')) {
@@ -9426,6 +9796,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmerConversionBtn = document.getElementById('confirmer-conversion');
     if (confirmerConversionBtn) {
         confirmerConversionBtn.addEventListener('click', confirmerConversion);
+    }
+    
+    
+    // Bouton de confirmation d'annulation
+    const confirmerCancelBtn = document.getElementById('confirmer-cancel');
+    if (confirmerCancelBtn) {
+        confirmerCancelBtn.addEventListener('click', confirmerAnnulation);
+    }
+    
+    // Bouton de confirmation d'archivage
+    const confirmerArchiveBtn = document.getElementById('confirmer-archive');
+    if (confirmerArchiveBtn) {
+        confirmerArchiveBtn.addEventListener('click', confirmerArchivage);
     }
 });
 
@@ -9558,8 +9941,10 @@ function resetFormulairePrecommande() {
     calculerTotalGeneralPrecommande();
 }
 
-// Filtrer les pré-commandes
-async function filtrerPrecommandes() {
+// Filtrer les pré-commandes (filtrage côté client)
+function filtrerPrecommandes() {
+    console.log('=== DÉBUT filtrerPrecommandes ===');
+    
     // Réinitialiser la page à 1 lors du filtrage
     currentPrecommandePage = 1;
     
@@ -9567,43 +9952,62 @@ async function filtrerPrecommandes() {
     const dateFin = document.getElementById('filter-precommande-date-fin').value;
     const pointVente = document.getElementById('filter-precommande-point-vente').value;
     const label = document.getElementById('filter-precommande-label').value;
+    const statutsSelectionnes = getStatutsSelectionnes();
     
-    let url = '/api/precommandes?';
-    const params = [];
+    console.log('Paramètres de filtrage:', { dateDebut, dateFin, pointVente, label, statutsSelectionnes });
     
-    if (dateDebut) params.push(`dateDebut=${dateDebut}`);
-    if (dateFin) params.push(`dateFin=${dateFin}`);
-    if (pointVente && pointVente !== 'tous') params.push(`pointVente=${pointVente}`);
-    if (label) params.push(`label=${encodeURIComponent(label)}`);
+    // Filtrage côté client
+    let precommandesFiltrees = [...currentPrecommandes];
     
-    url += params.join('&');
-    
-    try {
-        showLoadingSpinner();
-        
-        const response = await fetch(url, {
-            credentials: 'include'
+    // Filtrer par date de début
+    if (dateDebut) {
+        precommandesFiltrees = precommandesFiltrees.filter(p => {
+            const datePrecommande = p['Date Enregistrement'];
+            return datePrecommande && datePrecommande >= dateDebut;
         });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            currentPrecommandes = data.precommandes || [];
-            afficherPrecommandes(currentPrecommandes);
-            
-            const totalElement = document.getElementById('total-precommandes');
-            if (totalElement) {
-                totalElement.textContent = `${currentPrecommandes.length} pré-commande(s) trouvée(s)`;
-            }
-        } else {
-            alert('Erreur lors du filtrage: ' + data.message);
-        }
-    } catch (error) {
-        console.error('Erreur lors du filtrage:', error);
-        alert('Erreur lors du filtrage des pré-commandes');
-    } finally {
-        hideLoadingSpinner();
     }
+    
+    // Filtrer par date de fin
+    if (dateFin) {
+        precommandesFiltrees = precommandesFiltrees.filter(p => {
+            const datePrecommande = p['Date Enregistrement'];
+            return datePrecommande && datePrecommande <= dateFin;
+        });
+    }
+    
+    // Filtrer par point de vente
+    if (pointVente && pointVente !== 'tous') {
+        precommandesFiltrees = precommandesFiltrees.filter(p => 
+            p['Point de Vente'] === pointVente
+        );
+    }
+    
+    // Filtrer par label
+    if (label) {
+        precommandesFiltrees = precommandesFiltrees.filter(p => 
+            p.label === label
+        );
+    }
+    
+    // Filtrer par statut
+    if (statutsSelectionnes.length > 0) {
+        precommandesFiltrees = precommandesFiltrees.filter(p => 
+            statutsSelectionnes.includes(p.statut || 'ouvert')
+        );
+    }
+    
+    console.log(`Filtrage terminé: ${precommandesFiltrees.length} pré-commandes sur ${currentPrecommandes.length}`);
+    
+    // Afficher les résultats
+    afficherPrecommandes(precommandesFiltrees);
+    
+    // Mettre à jour le compteur
+    const totalElement = document.getElementById('total-precommandes');
+    if (totalElement) {
+        totalElement.textContent = `${precommandesFiltrees.length} pré-commande(s) trouvée(s)`;
+    }
+    
+    console.log('=== FIN filtrerPrecommandes ===');
 }
 
 // Réinitialiser les filtres
@@ -9613,6 +10017,12 @@ function resetFiltresPrecommandes() {
     document.getElementById('filter-precommande-point-vente').value = 'tous';
     document.getElementById('filter-precommande-label').value = '';
     
-    // Recharger toutes les pré-commandes
-    chargerPrecommandes();
+    // Réinitialiser les checkboxes de statut (seule "Ouvert" cochée)
+    document.getElementById('statut-ouvert').checked = true;
+    document.getElementById('statut-convertie').checked = false;
+    document.getElementById('statut-annulee').checked = false;
+    document.getElementById('statut-archivee').checked = false;
+    
+    // Mettre à jour le label (cela déclenchera automatiquement le filtrage)
+    updateStatutFilterLabel();
 }
