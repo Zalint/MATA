@@ -6105,11 +6105,58 @@ app.get('/api/external/estimation', validateApiKey, async (req, res) => {
         
         console.log(`Found ${estimations.length} estimations for date ${normalizedDate}`);
         
+        // Debug: Let's also check what dates exist in the database
+        const allEstimations = await Estimation.findAll({
+            attributes: ['date'],
+            group: ['date'],
+            order: [['date', 'DESC']]
+        });
+        console.log('Available dates in database:', allEstimations.map(e => e.date));
+        
+        // Debug: Let's see what's in the estimation records
+        if (estimations.length > 0) {
+            console.log('Sample estimation record:', JSON.stringify(estimations[0], null, 2));
+            console.log('Estimation fields available:', Object.keys(estimations[0].dataValues || estimations[0]));
+        }
+        
+        // Continue processing even if no estimations found - we still want theoretical sales data
+        
+        // If no estimations found, we still want to get theoretical sales data from reconciliation
         if (estimations.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'No estimations found for the specified date'
-            });
+            console.log('No estimations found, getting theoretical sales data from reconciliation API');
+            
+            try {
+                const reconciliationData = await fetchData('/api/external/reconciliation', { date: normalizedDate });
+                console.log('Reconciliation data for theoretical sales:', reconciliationData);
+                
+                if (reconciliationData.success && reconciliationData.data) {
+                    // Create result structure with theoretical sales data
+                    for (const [pointVente, data] of Object.entries(reconciliationData.data)) {
+                        if (!result[date][pointVente]) {
+                            result[date][pointVente] = {};
+                        }
+                        
+                        // Get theoretical sales for this point de vente
+                        const ventesTheoriques = data.ventesTheoriques || 0;
+                        
+                        // Create entries for each category that has theoretical sales
+                        // For now, we'll create a general entry, but you might want to break this down by category
+                        if (ventesTheoriques > 0) {
+                            result[date][pointVente]['General'] = {
+                                estimation: 0,
+                                precommande: 0,
+                                ventes_theoriques: ventesTheoriques,
+                                difference: ventesTheoriques,
+                                difference_pct: 0,
+                                status: "OK",
+                                commentaire: "-"
+                            };
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching reconciliation data for theoretical sales:', error.message);
+            }
         }
         
         // Fetch precommandes directly from database
@@ -6170,7 +6217,7 @@ app.get('/api/external/estimation', validateApiKey, async (req, res) => {
             }
             
             // Set estimation value
-            result[date][pointVente][categorie].estimation = parseFloat(estimation.montant) || 0;
+            result[date][pointVente][categorie].estimation = parseFloat(estimation.previsionVentes) || 0;
             
             // Calculate precommande value for this point de vente and category
             const precommandeForCategory = precommandesForDate
