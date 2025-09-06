@@ -2919,19 +2919,20 @@ app.post('/api/precommandes/:id/archive', checkAuth, checkWriteAccess, async (re
 app.delete('/api/precommandes/:id', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         const precommandeId = req.params.id;
+        const user = req.session.user;
         
         // Trouver la pré-commande à supprimer
         const precommande = await Precommande.findByPk(precommandeId);
         
         if (!precommande) {
             return res.status(404).json({
-            success: false, 
+                success: false, 
                 message: 'Pré-commande non trouvée'
             });
         }
         
         // Vérifier l'accès par point de vente si nécessaire
-        const userPointVente = req.session.user.pointVente;
+        const userPointVente = user.pointVente;
         if (userPointVente !== 'tous' && precommande.pointVente !== userPointVente) {
             return res.status(403).json({
                 success: false, 
@@ -2939,10 +2940,32 @@ app.delete('/api/precommandes/:id', checkAuth, checkWriteAccess, async (req, res
             });
         }
         
+        // Vérifier les permissions de suppression selon le statut
+        const isSuperviseur = user.role === 'superviseur' || user.role === 'admin';
+        
+        if (precommande.statut === 'ouvert') {
+            // Tous les utilisateurs avec droits d'écriture peuvent supprimer les pré-commandes ouvertes
+            // Pas de restriction supplémentaire
+        } else if (precommande.statut === 'annulee' || precommande.statut === 'archivee' || precommande.statut === 'convertie') {
+            // Seuls les superviseurs peuvent supprimer les pré-commandes annulées, archivées ou converties
+            if (!isSuperviseur) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Seuls les superviseurs peuvent supprimer les pré-commandes annulées, archivées ou converties'
+                });
+            }
+        } else {
+            // Statut non reconnu ou autre
+            return res.status(400).json({
+                success: false,
+                message: 'Statut de pré-commande non autorisé pour la suppression'
+            });
+        }
+        
         // Supprimer la pré-commande
         await precommande.destroy();
         
-        console.log(`Pré-commande ${precommandeId} supprimée avec succès`);
+        console.log(`Pré-commande ${precommandeId} (statut: ${precommande.statut}) supprimée avec succès par ${user.username} (${user.role})`);
         
         res.json({ 
             success: true, 

@@ -9004,10 +9004,15 @@ function populatePrecommandeCategoriesForEntry() {
         
         if (produits && typeof produits === 'object') {
             Object.keys(produits).forEach(categorie => {
-                const option = document.createElement('option');
-                option.value = categorie;
-                option.textContent = categorie;
-                select.appendChild(option);
+                if (typeof produits[categorie] === 'object' && produits[categorie] !== null) {
+                    // Ignorer les fonctions
+                    if (typeof produits[categorie] === 'function') return;
+                    
+                    const option = document.createElement('option');
+                    option.value = categorie;
+                    option.textContent = categorie;
+                    select.appendChild(option);
+                }
             });
         }
     });
@@ -9019,10 +9024,15 @@ function populatePrecommandeCategoriesForSpecificEntry(categorieSelect) {
     
     if (produits && typeof produits === 'object') {
         Object.keys(produits).forEach(categorie => {
-            const option = document.createElement('option');
-            option.value = categorie;
-            option.textContent = categorie;
-            categorieSelect.appendChild(option);
+            if (typeof produits[categorie] === 'object' && produits[categorie] !== null) {
+                // Ignorer les fonctions
+                if (typeof produits[categorie] === 'function') return;
+                
+                const option = document.createElement('option');
+                option.value = categorie;
+                option.textContent = categorie;
+                categorieSelect.appendChild(option);
+            }
         });
     }
 }
@@ -9382,6 +9392,9 @@ function getDateReceptionClass(dateReception, statut) {
 
 // Fonction pour obtenir les actions disponibles selon le statut
 function getActionsDisponibles(statut, precommandeId) {
+    const currentUser = window.currentUser;
+    const isSuperviseur = currentUser && (currentUser.role === 'superviseur' || currentUser.role === 'admin');
+    
     if (statut === 'ouvert') {
         return `
             <button class="btn btn-sm btn-success convertir-precommande" data-id="${precommandeId}" title="Convertir en vente">
@@ -9394,6 +9407,13 @@ function getActionsDisponibles(statut, precommandeId) {
                 <i class="bi bi-archive"></i>
             </button>
             <button class="btn btn-sm btn-danger supprimer-precommande" data-id="${precommandeId}" title="Supprimer">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+    } else if (isSuperviseur && (statut === 'annulee' || statut === 'archivee' || statut === 'convertie')) {
+        // Les superviseurs peuvent supprimer les pré-commandes annulées, archivées ou converties
+        return `
+            <button class="btn btn-sm btn-danger supprimer-precommande" data-id="${precommandeId}" title="Supprimer (Superviseur)">
                 <i class="bi bi-trash"></i>
             </button>
         `;
@@ -9734,6 +9754,15 @@ async function confirmerArchivage() {
 
 // Supprimer une pré-commande
 async function supprimerPrecommande(precommandeId) {
+    const currentUser = window.currentUser;
+    const isSuperviseur = currentUser && (currentUser.role === 'superviseur' || currentUser.role === 'admin');
+    
+    // Vérifier les permissions côté client
+    if (!isSuperviseur) {
+        alert('Vous n\'avez pas les permissions pour supprimer cette pré-commande.');
+        return;
+    }
+    
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette pré-commande ?')) {
         return;
     }
