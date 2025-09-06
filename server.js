@@ -5911,6 +5911,327 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
     }
 });
 
+// External API for estimation analysis
+// External API endpoint for estimations (no session auth required)
+app.get('/api/external/estimations', validateApiKey, async (req, res) => {
+    try {
+        const { date } = req.query;
+        
+        let estimations;
+        if (date) {
+            // Normalize date format to DD-MM-YYYY for database queries (database stores dates in DD-MM-YYYY format)
+            let normalizedDate;
+            if (date.includes('-')) {
+                const parts = date.split('-');
+                if (parts[0].length === 4) {
+                    // YYYY-MM-DD format, convert to DD-MM-YYYY
+                    normalizedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                } else {
+                    // Already DD-MM-YYYY format
+                    normalizedDate = date;
+                }
+            } else {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Invalid date format. Use dd-mm-yyyy or yyyy-mm-dd' 
+                });
+            }
+            
+            estimations = await Estimation.findAll({
+                where: {
+                    date: normalizedDate
+                }
+            });
+        } else {
+            estimations = await Estimation.findAll();
+        }
+        
+        // Trier les estimations par timestamp de création décroissant (derniers ajouts en premier)
+        estimations.sort((a, b) => {
+            // Tri principal par timestamp de création (plus récent en premier)
+            const timestampA = new Date(a.createdAt).getTime();
+            const timestampB = new Date(b.createdAt).getTime();
+            
+            if (timestampB !== timestampA) {
+                return timestampB - timestampA; // Tri par timestamp décroissant
+            }
+            
+            // Tri secondaire par date si même timestamp (peu probable mais sûr)
+            const convertDate = (dateStr) => {
+                if (!dateStr) return '';
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    return `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+                }
+                return dateStr;
+            };
+            
+            const dateA = convertDate(a.date);
+            const dateB = convertDate(b.date);
+            
+            return dateB.localeCompare(dateA); // Tri décroissant
+        });
+        
+        res.json({
+            success: true,
+            estimations: estimations
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération des estimations:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la récupération des estimations'
+        });
+    }
+});
+
+// External API endpoint for recalculating estimations (no session auth required)
+app.post('/api/external/estimations/:id/recalculate', validateApiKey, async (req, res) => {
+    try {
+        const id = req.params.id;
+        
+        // Récupérer l'estimation
+        const estimation = await Estimation.findByPk(id);
+        if (!estimation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Estimation non trouvée'
+            });
+        }
+        
+        // Récupérer les ventes théoriques depuis l'API externe, sinon 0
+        const ventesTheoFromAPI = await fetchVentesTheoriquesFromAPI(estimation);
+        const ventesTheo = ventesTheoFromAPI !== null ? ventesTheoFromAPI : 0;
+        
+        console.log(`Recalcul des ventes théoriques pour ${estimation.pointVente}/${estimation.categorie || estimation.produit}: ${ventesTheo} kg ${ventesTheoFromAPI === null ? '(API indisponible, valeur par défaut)' : '(récupéré de l\'API)'}`);
+        
+        // Recalculer la différence avec la nouvelle formule (sans pré-commande)
+        const nouvelleDifference = ventesTheo - (estimation.previsionVentes || 0);
+        
+        await estimation.update({
+            difference: nouvelleDifference,
+            ventesTheoriques: ventesTheo
+        });
+        
+        res.json({
+            success: true,
+            message: 'Ventes théoriques recalculées avec succès',
+            ventesTheo: ventesTheo,
+            ventesTheoriques: ventesTheo, // Alias for compatibility
+            difference: nouvelleDifference
+        });
+    } catch (error) {
+        console.error('Erreur lors du recalcul des ventes théoriques:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors du recalcul des ventes théoriques'
+        });
+    }
+});
+
+app.get('/api/external/estimation', validateApiKey, async (req, res) => {
+    try {
+        const { date } = req.query;
+        
+        // Validate input
+        if (!date) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Date parameter is required (format: dd-mm-yyyy or yyyy-mm-dd)' 
+            });
+        }
+        
+        console.log('==== EXTERNAL API - ESTIMATION ====');
+        console.log('Computing estimation analysis for date:', date);
+        
+        // Normalize date format to DD-MM-YYYY for database queries (database stores dates in DD-MM-YYYY format)
+        let normalizedDate;
+        if (date.includes('-')) {
+            const parts = date.split('-');
+            if (parts[0].length === 4) {
+                // YYYY-MM-DD format, convert to DD-MM-YYYY
+                normalizedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            } else {
+                // Already DD-MM-YYYY format
+                normalizedDate = date;
+            }
+        } else {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Invalid date format. Use dd-mm-yyyy or yyyy-mm-dd' 
+            });
+        }
+        
+        console.log('Normalized date:', normalizedDate);
+        
+        // Use axios to make HTTP requests to our own external API endpoints
+        const axiosInstance = require('axios').create({
+            baseURL: `http://localhost:${PORT}`,
+            headers: {
+                'X-API-Key': req.headers['x-api-key']
+            }
+        });
+        
+        // Function to safely make HTTP requests to our own API endpoints
+        const fetchData = async (endpoint, params = {}) => {
+            try {
+                console.log(`Fetching data from ${endpoint} with params:`, params);
+                const response = await axiosInstance.get(endpoint, { params });
+                return response.data;
+            } catch (error) {
+                console.error(`Error fetching ${endpoint}:`, error.message);
+                throw new Error(`Failed to fetch data from ${endpoint}: ${error.message}`);
+            }
+        };
+        
+        // Function to make POST requests
+        const postData = async (endpoint, data = {}) => {
+            try {
+                console.log(`Posting data to ${endpoint}`);
+                const response = await axiosInstance.post(endpoint, data);
+                return response.data;
+            } catch (error) {
+                console.error(`Error posting to ${endpoint}:`, error.message);
+                throw new Error(`Failed to post data to ${endpoint}: ${error.message}`);
+            }
+        };
+        
+        // Fetch estimations directly from database
+        const estimations = await Estimation.findAll({
+            where: {
+                date: normalizedDate
+            }
+        });
+        
+        console.log(`Found ${estimations.length} estimations for date ${normalizedDate}`);
+        
+        if (estimations.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'No estimations found for the specified date'
+            });
+        }
+        
+        // Fetch precommandes directly from database
+        const { Precommande } = require('./db/models');
+        const precommandes = await Precommande.findAll();
+        
+        // Filter precommandes for the specific date
+        const precommandesForDate = precommandes.filter(p => {
+            const precommandeDate = p['Date Réception'] || p.dateReception;
+            if (!precommandeDate) return false;
+            
+            // Handle different date formats
+            let precommandeNormalizedDate;
+            if (precommandeDate.includes('-')) {
+                const parts = precommandeDate.split('-');
+                if (parts[0].length === 4) {
+                    precommandeNormalizedDate = precommandeDate;
+                } else {
+                    precommandeNormalizedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                }
+            } else {
+                return false;
+            }
+            
+            return precommandeNormalizedDate === normalizedDate;
+        });
+        
+        console.log(`Found ${precommandesForDate.length} precommandes for date ${normalizedDate}`);
+        
+        // Structure to hold the results
+        const result = {
+            [date]: {}
+        };
+        
+        // Process each estimation
+        for (const estimation of estimations) {
+            const pointVente = estimation.pointVente || estimation.point_vente;
+            const categorie = estimation.categorie;
+            
+            if (!pointVente || !categorie) continue;
+            
+            // Initialize point de vente if not exists
+            if (!result[date][pointVente]) {
+                result[date][pointVente] = {};
+            }
+            
+            // Initialize category if not exists
+            if (!result[date][pointVente][categorie]) {
+                result[date][pointVente][categorie] = {
+                    estimation: 0,
+                    precommande: 0,
+                    ventes_theoriques: 0,
+                    difference: 0,
+                    difference_pct: 0,
+                    status: "OK",
+                    commentaire: "-"
+                };
+            }
+            
+            // Set estimation value
+            result[date][pointVente][categorie].estimation = parseFloat(estimation.montant) || 0;
+            
+            // Calculate precommande value for this point de vente and category
+            const precommandeForCategory = precommandesForDate
+                .filter(p => p['Point de Vente'] === pointVente && p['Catégorie'] === categorie)
+                .reduce((sum, p) => sum + (parseFloat(p.Montant) || 0), 0);
+            
+            result[date][pointVente][categorie].precommande = precommandeForCategory;
+            
+            // Call external recalculate endpoint to get theoretical sales
+            try {
+                const recalculateResponse = await postData(`/api/external/estimations/${estimation.id}/recalculate`);
+                if (recalculateResponse.success && recalculateResponse.ventesTheoriques) {
+                    result[date][pointVente][categorie].ventes_theoriques = parseFloat(recalculateResponse.ventesTheoriques) || 0;
+                } else {
+                    result[date][pointVente][categorie].ventes_theoriques = 0;
+                }
+            } catch (error) {
+                console.error(`Error recalculating estimation ${estimation.id}:`, error.message);
+                result[date][pointVente][categorie].ventes_theoriques = 0;
+            }
+            
+            // Calculate differences
+            const estimationValue = result[date][pointVente][categorie].estimation;
+            const ventesTheoriques = result[date][pointVente][categorie].ventes_theoriques;
+            
+            result[date][pointVente][categorie].difference = ventesTheoriques - estimationValue;
+            
+            if (estimationValue > 0) {
+                result[date][pointVente][categorie].difference_pct = ((ventesTheoriques - estimationValue) / estimationValue) * 100;
+            } else {
+                result[date][pointVente][categorie].difference_pct = 0;
+            }
+            
+            // Determine status based on difference percentage
+            const diffPct = Math.abs(result[date][pointVente][categorie].difference_pct);
+            if (diffPct > 10) { // More than 10% difference
+                result[date][pointVente][categorie].status = "NOK";
+                result[date][pointVente][categorie].commentaire = `Écart de ${diffPct.toFixed(1)}%`;
+            } else {
+                result[date][pointVente][categorie].status = "OK";
+                result[date][pointVente][categorie].commentaire = "-";
+            }
+        }
+        
+        console.log('Estimation analysis completed successfully');
+        
+        res.json({
+            success: true,
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('Error computing estimation analysis (External API):', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error computing estimation analysis data',
+            error: error.message
+        });
+    }
+});
+
 // External API version for gestionStock
 app.get('/api/external/gestionStock', validateApiKey, async (req, res) => {
     try {
