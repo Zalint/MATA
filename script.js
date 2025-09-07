@@ -3045,6 +3045,9 @@ async function chargerVentes() {
             creerGraphiqueVentesParMois(ventesFormatees);
             creerGraphiqueVentesParProduit(ventesFormatees);
             creerGraphiqueVentesParCategorie(ventesFormatees);
+            
+            // Mettre à jour les analytics
+            afficherAnalyticsVentes(ventesFormatees);
         } else {
             throw new Error(data.message || 'Erreur lors du chargement des ventes');
         }
@@ -10444,4 +10447,182 @@ function resetFiltresPrecommandes() {
     
     // Mettre à jour le label (cela déclenchera automatiquement le filtrage)
     updateStatutFilterLabel();
+}
+
+// ================================
+// FONCTIONS ANALYTICS DES VENTES
+// ================================
+
+// Fonction pour calculer les statistiques analytics par catégorie
+function calculerAnalyticsVentes(ventes) {
+    // Catégories individuelles (comme avant)
+    const categoriesIndividuelles = {
+        'Boeuf en gros': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Boeuf en détail': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Veau en gros': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Veau en détail': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Poulet en gros': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Poulet en détail': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Agneau': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 }
+    };
+
+    // Catégories regroupées (nouvelles)
+    const categoriesRegroupees = {
+        'Boeuf': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Veau': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Poulet': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 }
+    };
+
+    // Parcourir toutes les ventes et calculer les statistiques
+    ventes.forEach(vente => {
+        const produit = vente.Produit || '';
+        const prixUnitaire = parseFloat(vente.PU) || 0;
+        const quantite = parseFloat(vente.Nombre) || 0;
+
+        // Identifier les catégories individuelles
+        let categorieIndividuelle = null;
+        let categorieRegroupee = null;
+        
+        if (produit.toLowerCase().includes('boeuf en gros')) {
+            categorieIndividuelle = 'Boeuf en gros';
+            categorieRegroupee = 'Boeuf';
+        } else if (produit.toLowerCase().includes('boeuf en détail') || produit.toLowerCase().includes('boeuf en detail')) {
+            categorieIndividuelle = 'Boeuf en détail';
+            categorieRegroupee = 'Boeuf';
+        } else if (produit.toLowerCase().includes('veau en gros')) {
+            categorieIndividuelle = 'Veau en gros';
+            categorieRegroupee = 'Veau';
+        } else if (produit.toLowerCase().includes('veau en détail') || produit.toLowerCase().includes('veau en detail')) {
+            categorieIndividuelle = 'Veau en détail';
+            categorieRegroupee = 'Veau';
+        } else if (produit.toLowerCase().includes('poulet en gros')) {
+            categorieIndividuelle = 'Poulet en gros';
+            categorieRegroupee = 'Poulet';
+        } else if (produit.toLowerCase().includes('poulet en détail') || produit.toLowerCase().includes('poulet en detail')) {
+            categorieIndividuelle = 'Poulet en détail';
+            categorieRegroupee = 'Poulet';
+        } else if (produit.toLowerCase().includes('agneau')) {
+            categorieIndividuelle = 'Agneau';
+        }
+
+        // Ajouter aux catégories individuelles
+        if (categorieIndividuelle && categoriesIndividuelles[categorieIndividuelle]) {
+            categoriesIndividuelles[categorieIndividuelle].prixTotal += prixUnitaire;
+            categoriesIndividuelles[categorieIndividuelle].quantiteTotal += quantite;
+            categoriesIndividuelles[categorieIndividuelle].nombreVentes += 1;
+        }
+
+        // Ajouter aux catégories regroupées
+        if (categorieRegroupee && categoriesRegroupees[categorieRegroupee]) {
+            categoriesRegroupees[categorieRegroupee].prixTotal += prixUnitaire;
+            categoriesRegroupees[categorieRegroupee].quantiteTotal += quantite;
+            categoriesRegroupees[categorieRegroupee].nombreVentes += 1;
+        }
+    });
+
+    // Calculer les prix moyens pour les catégories individuelles
+    const resultatsIndividuels = {};
+    Object.keys(categoriesIndividuelles).forEach(categorie => {
+        const data = categoriesIndividuelles[categorie];
+        resultatsIndividuels[categorie] = {
+            prixMoyen: data.nombreVentes > 0 ? data.prixTotal / data.nombreVentes : 0,
+            quantiteTotal: data.quantiteTotal,
+            nombreVentes: data.nombreVentes
+        };
+    });
+
+    // Calculer les prix moyens pour les catégories regroupées
+    const resultatsRegroupes = {};
+    Object.keys(categoriesRegroupees).forEach(categorie => {
+        const data = categoriesRegroupees[categorie];
+        resultatsRegroupes[categorie] = {
+            prixMoyen: data.nombreVentes > 0 ? data.prixTotal / data.nombreVentes : 0,
+            quantiteTotal: data.quantiteTotal,
+            nombreVentes: data.nombreVentes
+        };
+    });
+
+    return {
+        individuelles: resultatsIndividuels,
+        regroupees: resultatsRegroupes
+    };
+}
+
+// Fonction pour afficher les analytics dans l'interface
+function afficherAnalyticsVentes(ventes) {
+    const container = document.getElementById('analytics-container');
+    if (!container) return;
+
+    const analytics = calculerAnalyticsVentes(ventes);
+    
+    // Créer le HTML pour afficher les analytics
+    let html = '';
+    
+    // Section des catégories regroupées (nouvelles)
+    html += '<div class="col-12 mb-4"><h6 class="text-primary mb-3"><i class="fas fa-chart-pie me-2"></i>Vue d\'ensemble par catégorie</h6></div>';
+    Object.keys(analytics.regroupees).forEach(categorie => {
+        const data = analytics.regroupees[categorie];
+        const prixMoyen = data.prixMoyen.toFixed(0);
+        const quantiteTotal = data.quantiteTotal.toFixed(0);
+        
+        html += `
+            <div class="col-md-4 mb-3">
+                <div class="card border-success h-100">
+                    <div class="card-body text-center">
+                        <h6 class="card-title text-success">${categorie}</h6>
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="mb-2">
+                                    <small class="text-muted">Prix Moyen</small>
+                                    <div class="fw-bold text-success">${prixMoyen} FCFA</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="mb-2">
+                                    <small class="text-muted">Quantité Total</small>
+                                    <div class="fw-bold text-info">${quantiteTotal}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted">${data.nombreVentes} vente(s)</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    // Section des catégories individuelles (comme avant)
+    html += '<div class="col-12 mb-4 mt-4"><h6 class="text-primary mb-3"><i class="fas fa-list me-2"></i>Détail par type de vente</h6></div>';
+    Object.keys(analytics.individuelles).forEach(categorie => {
+        const data = analytics.individuelles[categorie];
+        const prixMoyen = data.prixMoyen.toFixed(0);
+        const quantiteTotal = data.quantiteTotal.toFixed(0);
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card border-primary h-100">
+                    <div class="card-body text-center">
+                        <h6 class="card-title text-primary">${categorie}</h6>
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="mb-2">
+                                    <small class="text-muted">Prix Moyen</small>
+                                    <div class="fw-bold text-success">${prixMoyen} FCFA</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="mb-2">
+                                    <small class="text-muted">Quantité Total</small>
+                                    <div class="fw-bold text-info">${quantiteTotal}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted">${data.nombreVentes} vente(s)</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
 }
