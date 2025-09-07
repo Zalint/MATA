@@ -39,6 +39,10 @@ const AchatBoeuf = sequelize.define('achat_boeuf', {
     type: DataTypes.FLOAT,
     allowNull: true
   },
+  prix_achat_kg_sans_abats: {
+    type: DataTypes.FLOAT,
+    allowNull: true
+  },
   commentaire: {
     type: DataTypes.TEXT,
     allowNull: true

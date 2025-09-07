@@ -3942,7 +3942,7 @@ app.get('/api/achats-boeuf', checkAuth, checkReadAccess, async (req, res) => {
 app.post('/api/achats-boeuf', checkAuth, checkWriteAccess, async (req, res) => {
     try {
         // Use original field names matching the updated model
-        const { mois, date, bete, prix, abats, frais_abattage, nbr_kg, prix_achat_kg, commentaire } = req.body;
+        const { mois, date, bete, prix, abats, frais_abattage, nbr_kg, prix_achat_kg, prix_achat_kg_sans_abats, commentaire } = req.body;
         
         // Basic validation
         if (!date || !bete) { // Adjust validation as needed
@@ -3972,6 +3972,7 @@ app.post('/api/achats-boeuf', checkAuth, checkWriteAccess, async (req, res) => {
             frais_abattage: frais_abattage || 0, // Use frais_abattage
             nbr_kg: nbr_kg || 0,           // Use nbr_kg directly
             prix_achat_kg: prix_achat_kg || 0, // Use prix_achat_kg directly
+            prix_achat_kg_sans_abats: prix_achat_kg_sans_abats || 0, // Use prix_achat_kg_sans_abats directly
             commentaire: commentaire || null 
         });
         

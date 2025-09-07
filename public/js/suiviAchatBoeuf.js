@@ -38,6 +38,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (exportBtn) {
         exportBtn.addEventListener('click', exportToExcel);
     }
+
+    // Add event listeners for automatic calculation of prix_achat_kg_sans_abats
+    const prixInput = document.getElementById('prix');
+    const nbrKgInput = document.getElementById('nbrKg');
+    
+    if (prixInput && nbrKgInput) {
+        prixInput.addEventListener('input', calculatePrixKgSansAbats);
+        nbrKgInput.addEventListener('input', calculatePrixKgSansAbats);
+    }
 });
 
 // Function to check user permissions and adjust UI
@@ -276,7 +285,7 @@ function displayAchatsBoeuf(achats) {
     
     if (achats.length === 0) {
         const emptyRow = document.createElement('tr');
-        emptyRow.innerHTML = `<td colspan="9" class="text-center">Aucune donnée disponible</td>`;
+        emptyRow.innerHTML = `<td colspan="10" class="text-center">Aucune donnée disponible</td>`;
         tableBody.appendChild(emptyRow);
         return;
     }
@@ -290,6 +299,8 @@ function displayAchatsBoeuf(achats) {
         const fraisFormatted = parseFloat(achat.frais_abattage).toFixed(2) + ' FCFA';
         const prixKg = parseFloat(achat.prix_achat_kg);
         const prixKgFormatted = prixKg.toFixed(2) + ' FCFA/kg';
+        const prixKgSansAbats = parseFloat(achat.prix_achat_kg_sans_abats || 0);
+        const prixKgSansAbatsFormatted = prixKgSansAbats.toFixed(2) + ' FCFA/kg';
 
         // Determine status based on bete and prix_achat_kg
         let statusHtml = '';
@@ -322,6 +333,7 @@ function displayAchatsBoeuf(achats) {
             <td class="text-end">${fraisFormatted}</td>
             <td class="text-end">${achat.nbr_kg} kg</td>
             <td class="text-end">${prixKgFormatted}</td>
+            <td class="text-end">${prixKgSansAbatsFormatted}</td>
             <td>
                 <button class="btn btn-sm btn-outline-primary edit-btn" data-id="${achat.id}">
                     <i class="fas fa-edit"></i>
@@ -379,7 +391,8 @@ async function handleFormSubmit(e) {
         abats: parseFloat(document.getElementById('abats').value) || 0,
         frais_abattage: parseFloat(document.getElementById('fraisAbattage').value) || 0,
         nbr_kg: parseFloat(document.getElementById('nbrKg').value) || 0,
-        prix_achat_kg: 0
+        prix_achat_kg: 0,
+        prix_achat_kg_sans_abats: 0
     };
 
     // Calculate prix_achat_kg = (prix - abats + frais_abattage) / nbr_kg
@@ -394,6 +407,21 @@ async function handleFormSubmit(e) {
          const prixKgInput = document.getElementById('prixAchatKg');
          if(prixKgInput) {
              prixKgInput.value = ''; // Clear if kg is 0
+         }
+    }
+
+    // Calculate prix_achat_kg_sans_abats = prix / nbr_kg (sans abats ni frais)
+    if (formData.nbr_kg !== 0) {
+        formData.prix_achat_kg_sans_abats = formData.prix / formData.nbr_kg;
+        // Update the input field visually as well
+        const prixKgSansAbatsInput = document.getElementById('prixAchatKgSansAbats');
+        if(prixKgSansAbatsInput) {
+             prixKgSansAbatsInput.value = formData.prix_achat_kg_sans_abats.toFixed(2);
+        }
+    } else {
+         const prixKgSansAbatsInput = document.getElementById('prixAchatKgSansAbats');
+         if(prixKgSansAbatsInput) {
+             prixKgSansAbatsInput.value = ''; // Clear if kg is 0
          }
     }
     
@@ -457,8 +485,12 @@ function calculateAndDisplayStats(achats) {
 
     const boeufPrices = boeufData.map(a => parseFloat(a.prix_achat_kg)).filter(p => !isNaN(p));
     const veauPrices = veauData.map(a => parseFloat(a.prix_achat_kg)).filter(p => !isNaN(p));
+    
+    // Prix sans abats
+    const boeufPricesSansAbats = boeufData.map(a => parseFloat(a.prix_achat_kg_sans_abats || 0)).filter(p => !isNaN(p) && p > 0);
+    const veauPricesSansAbats = veauData.map(a => parseFloat(a.prix_achat_kg_sans_abats || 0)).filter(p => !isNaN(p) && p > 0);
 
-    // Boeuf Stats
+    // Boeuf Stats (avec abats)
     const boeufMean = calculateMean(boeufPrices);
     const boeufMedian = calculateMedian(boeufPrices);
     const boeufStdDev = calculateStdDev(boeufPrices);
@@ -466,13 +498,29 @@ function calculateAndDisplayStats(achats) {
     document.getElementById('boeuf-median').textContent = boeufPrices.length > 0 ? boeufMedian.toFixed(2) : 'N/A';
     document.getElementById('boeuf-stddev').textContent = boeufPrices.length > 0 ? boeufStdDev.toFixed(2) : 'N/A';
 
-    // Veau Stats
+    // Veau Stats (avec abats)
     const veauMean = calculateMean(veauPrices);
     const veauMedian = calculateMedian(veauPrices);
     const veauStdDev = calculateStdDev(veauPrices);
     document.getElementById('veau-mean').textContent = veauPrices.length > 0 ? veauMean.toFixed(2) : 'N/A';
     document.getElementById('veau-median').textContent = veauPrices.length > 0 ? veauMedian.toFixed(2) : 'N/A';
     document.getElementById('veau-stddev').textContent = veauPrices.length > 0 ? veauStdDev.toFixed(2) : 'N/A';
+
+    // Boeuf Stats (sans abats)
+    const boeufMeanSansAbats = calculateMean(boeufPricesSansAbats);
+    const boeufMedianSansAbats = calculateMedian(boeufPricesSansAbats);
+    const boeufStdDevSansAbats = calculateStdDev(boeufPricesSansAbats);
+    document.getElementById('boeuf-mean-sans-abats').textContent = boeufPricesSansAbats.length > 0 ? boeufMeanSansAbats.toFixed(2) : 'N/A';
+    document.getElementById('boeuf-median-sans-abats').textContent = boeufPricesSansAbats.length > 0 ? boeufMedianSansAbats.toFixed(2) : 'N/A';
+    document.getElementById('boeuf-stddev-sans-abats').textContent = boeufPricesSansAbats.length > 0 ? boeufStdDevSansAbats.toFixed(2) : 'N/A';
+
+    // Veau Stats (sans abats)
+    const veauMeanSansAbats = calculateMean(veauPricesSansAbats);
+    const veauMedianSansAbats = calculateMedian(veauPricesSansAbats);
+    const veauStdDevSansAbats = calculateStdDev(veauPricesSansAbats);
+    document.getElementById('veau-mean-sans-abats').textContent = veauPricesSansAbats.length > 0 ? veauMeanSansAbats.toFixed(2) : 'N/A';
+    document.getElementById('veau-median-sans-abats').textContent = veauPricesSansAbats.length > 0 ? veauMedianSansAbats.toFixed(2) : 'N/A';
+    document.getElementById('veau-stddev-sans-abats').textContent = veauPricesSansAbats.length > 0 ? veauStdDevSansAbats.toFixed(2) : 'N/A';
     // === NOUVELLES STATISTIQUES DÉTAILLÉES ===
     
     // Nombre de bêtes
@@ -537,6 +585,31 @@ function calculateAndDisplayStats(achats) {
     document.getElementById('prix-moyen-boeuf').textContent = prixMoyenBoeuf.toLocaleString('fr-FR');
     document.getElementById('prix-moyen-veau').textContent = prixMoyenVeau.toLocaleString('fr-FR');
     document.getElementById('prix-moyen-global').textContent = prixMoyenGlobal.toLocaleString('fr-FR');
+
+    // === NOUVELLES STATISTIQUES SANS ABATS ===
+    
+    // Prix moyens par kg sans abats
+    const prixMoyenKgBoeufSansAbats = boeufPricesSansAbats.length > 0 ? boeufMeanSansAbats : 0;
+    const prixMoyenKgVeauSansAbats = veauPricesSansAbats.length > 0 ? veauMeanSansAbats : 0;
+    const prixMoyenKgGlobalSansAbats = (boeufPricesSansAbats.length + veauPricesSansAbats.length) > 0 
+        ? (boeufMeanSansAbats * boeufPricesSansAbats.length + veauMeanSansAbats * veauPricesSansAbats.length) / (boeufPricesSansAbats.length + veauPricesSansAbats.length) 
+        : 0;
+    
+    document.getElementById('prix-moyen-kg-boeuf-sans-abats').textContent = prixMoyenKgBoeufSansAbats.toFixed(2);
+    document.getElementById('prix-moyen-kg-veau-sans-abats').textContent = prixMoyenKgVeauSansAbats.toFixed(2);
+    document.getElementById('prix-moyen-kg-global-sans-abats').textContent = prixMoyenKgGlobalSansAbats.toFixed(2);
+
+    // Calcul des économies (différence entre prix avec et sans abats)
+    const economieKgBoeuf = boeufPrices.length > 0 && boeufPricesSansAbats.length > 0 ? boeufMean - boeufMeanSansAbats : 0;
+    const economieKgVeau = veauPrices.length > 0 && veauPricesSansAbats.length > 0 ? veauMean - veauMeanSansAbats : 0;
+    
+    // Économie totale (basée sur le poids total)
+    const economieTotale = (economieKgBoeuf * poidsBoeuf.reduce((sum, poids) => sum + poids, 0)) + 
+                          (economieKgVeau * poidsVeau.reduce((sum, poids) => sum + poids, 0));
+    
+    document.getElementById('economie-kg-boeuf').textContent = economieKgBoeuf.toFixed(2);
+    document.getElementById('economie-kg-veau').textContent = economieKgVeau.toFixed(2);
+    document.getElementById('economie-totale').textContent = economieTotale.toLocaleString('fr-FR');
 }
 
 // Create price evolution charts for Boeuf and Veau
@@ -551,9 +624,11 @@ function createPriceEvolutionCharts(achats) {
 
     const boeufLabels = boeufData.map(a => a.date);
     const boeufPrices = boeufData.map(a => parseFloat(a.prix_achat_kg));
+    const boeufPricesSansAbats = boeufData.map(a => parseFloat(a.prix_achat_kg_sans_abats || 0));
 
     const veauLabels = veauData.map(a => a.date);
     const veauPrices = veauData.map(a => parseFloat(a.prix_achat_kg));
+    const veauPricesSansAbats = veauData.map(a => parseFloat(a.prix_achat_kg_sans_abats || 0));
 
     // Destroy previous charts if they exist
     if (boeufChartInstance) {
@@ -571,9 +646,16 @@ function createPriceEvolutionCharts(achats) {
             data: {
                 labels: boeufLabels,
                 datasets: [{
-                    label: 'Prix Achat/kg (Boeuf)',
+                    label: 'Prix Achat/kg (avec abats)',
                     data: boeufPrices,
                     borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    tension: 0.1
+                }, {
+                    label: 'Prix Achat/kg (sans abats)',
+                    data: boeufPricesSansAbats,
+                    borderColor: 'rgb(255, 159, 64)',
+                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
                     tension: 0.1
                 }]
             },
@@ -599,9 +681,16 @@ function createPriceEvolutionCharts(achats) {
             data: {
                 labels: veauLabels,
                 datasets: [{
-                    label: 'Prix Achat/kg (Veau)',
+                    label: 'Prix Achat/kg (avec abats)',
                     data: veauPrices,
                     borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    tension: 0.1
+                }, {
+                    label: 'Prix Achat/kg (sans abats)',
+                    data: veauPricesSansAbats,
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
                     tension: 0.1
                 }]
             },
@@ -1065,5 +1154,24 @@ function exportToExcel() {
     } catch (error) {
         console.error('Error exporting to Excel:', error);
         showNotification('Erreur lors de l\'export Excel : ' + error.message, 'error');
+    }
+}
+
+// Function to calculate prix_achat_kg_sans_abats automatically
+function calculatePrixKgSansAbats() {
+    const prixInput = document.getElementById('prix');
+    const nbrKgInput = document.getElementById('nbrKg');
+    const prixKgSansAbatsInput = document.getElementById('prixAchatKgSansAbats');
+    
+    if (prixInput && nbrKgInput && prixKgSansAbatsInput) {
+        const prix = parseFloat(prixInput.value) || 0;
+        const nbrKg = parseFloat(nbrKgInput.value) || 0;
+        
+        if (nbrKg > 0) {
+            const prixKgSansAbats = prix / nbrKg;
+            prixKgSansAbatsInput.value = prixKgSansAbats.toFixed(2);
+        } else {
+            prixKgSansAbatsInput.value = '';
+        }
     }
 }
