@@ -1811,9 +1811,9 @@ app.post('/api/transferts', checkAuth, checkWriteAccess, checkTimeRestrictions, 
             }
         }
         
-        // Sauvegarder dans le fichier principal
-        await fs.promises.writeFile(TRANSFERTS_PATH, JSON.stringify(allTransferts, null, 2));
-        console.log(`Fichier principal de transferts mis à jour: ${allTransferts.length} transferts au total`);
+        // Note: Le fichier principal n'est pas mis à jour en production pour éviter les erreurs de permissions
+        // Les transferts sont sauvegardés uniquement dans les fichiers par date
+        console.log(`Transferts sauvegardés dans les fichiers par date: ${allTransferts.length} transferts au total`);
         
         res.json({ success: true });
     } catch (error) {
@@ -1934,8 +1934,9 @@ app.delete('/api/transferts', checkAuth, checkWriteAccess, async (req, res) => {
                 // Supprimer le transfert
                 allTransferts.splice(indexToRemove, 1);
                 
-                // Sauvegarder les transferts mis à jour
-                await fsPromises.writeFile(TRANSFERTS_PATH, JSON.stringify(allTransferts, null, 2));
+                // Note: Le fichier principal n'est pas mis à jour en production pour éviter les erreurs de permissions
+                // La suppression est effectuée uniquement dans le fichier par date
+                console.log(`Transfert supprimé du fichier par date, fichier principal non mis à jour (production)`);
             } else {
                 return res.status(404).json({
                     success: false,
