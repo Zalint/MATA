@@ -1747,8 +1747,9 @@ app.post('/api/stock/:type', checkAuth, checkWriteAccess, checkStockTimeRestrict
         // Sauvegarder les données dans le fichier spécifique à la date
         await fsPromises.writeFile(filePath, JSON.stringify(req.body, null, 2));
         
-        // Conserver également une copie dans le fichier principal pour la compatibilité
-        await fsPromises.writeFile(baseFilePath, JSON.stringify(req.body, null, 2));
+        // Note: Le fichier principal n'est pas mis à jour en production pour éviter les erreurs de permissions
+        // Les données de stock sont sauvegardées uniquement dans les fichiers par date
+        console.log(`Données de stock ${type} sauvegardées dans le fichier par date: ${filePath}`);
         
         res.json({ success: true });
     } catch (error) {
