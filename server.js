@@ -12,6 +12,7 @@ const path = require('path');
 const session = require('express-session');
 const axios = require('axios');
 const users = require('./users');
+const PaymentLink = require('./db/models/PaymentLink');
 // Charger les points de vente avec fallback
 let pointsVente;
 try {
@@ -6054,6 +6055,20 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             fetchData('/api/external/transferts', { date })
         ]);
         
+        // Fetch reconciliation comments from database
+        let reconciliationComments = {};
+        try {
+            const Reconciliation = require('./db/models/Reconciliation');
+            const existingReconciliation = await Reconciliation.findOne({ where: { date } });
+            if (existingReconciliation && existingReconciliation.comments) {
+                reconciliationComments = JSON.parse(existingReconciliation.comments);
+                console.log('Comments loaded from database:', reconciliationComments);
+            }
+        } catch (error) {
+            console.error('Error loading reconciliation comments:', error);
+            // Continue without comments if there's an error
+        }
+        
         // Debug logging
         console.log('Successfully fetched all necessary data');
         console.log('Stock Matin Data Structure:', JSON.stringify(stockMatinData).substring(0, 200) + '...');
@@ -6600,8 +6615,11 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             const cashTotal = Math.abs(pdvData.cashPayments);
             pdvData.ecartCashPct = cashTotal > 0 ? (Math.abs(pdvData.ecartCash) / cashTotal * 100).toFixed(2) : 0;
             
+            // Add comment for this point de vente
+            pdvData.commentaire = reconciliationComments[pdvData.pointVente] || '';
+            
             // Log summary for this PDV
-            console.log(`Summary for ${pdvData.pointVente}: Stock Matin=${pdvData.stockMatin}, Stock Soir=${pdvData.stockSoir}, Transferts=${pdvData.transferts}, VentesTheoriques=${pdvData.ventesTheoriques}, VentesSaisies=${pdvData.ventesSaisies}, Cash=${pdvData.cashPayments}`);
+            console.log(`Summary for ${pdvData.pointVente}: Stock Matin=${pdvData.stockMatin}, Stock Soir=${pdvData.stockSoir}, Transferts=${pdvData.transferts}, VentesTheoriques=${pdvData.ventesTheoriques}, VentesSaisies=${pdvData.ventesSaisies}, Cash=${pdvData.cashPayments}, Commentaire=${pdvData.commentaire}`);
         });
         
         // Calculate derived values for detail categories
