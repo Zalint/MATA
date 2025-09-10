@@ -29,8 +29,9 @@ const PaymentLink = sequelize.define('PaymentLink', {
         allowNull: true
     },
     amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: false,
+        validate: { min: 0.01, isDecimal: true }
     },
     currency: {
         type: DataTypes.STRING(10),
