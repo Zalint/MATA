@@ -701,6 +701,7 @@ async function checkAuth() {
         const estimationItem = document.getElementById('estimation-item');
         const suiviAchatBoeufItem = document.getElementById('suivi-achat-boeuf-item');
         const precommandeItem = document.getElementById('precommande-item');
+        const paymentLinksItem = document.getElementById('payment-links-item');
         
         // Masquer les onglets selon les permissions de l'utilisateur
         
@@ -751,6 +752,13 @@ async function checkAuth() {
             if (precommandeItem) precommandeItem.style.display = 'block';
         } else {
             if (precommandeItem) precommandeItem.style.display = 'none';
+        }
+        
+        // Onglet Générer Paiement - pour tous les utilisateurs avec droits d'écriture
+        if (currentUser.canWrite) {
+            if (paymentLinksItem) paymentLinksItem.style.display = 'block';
+        } else {
+            if (paymentLinksItem) paymentLinksItem.style.display = 'none';
         }
         
         // Vérifier l'accès au chat Relevance AI
@@ -4181,6 +4189,7 @@ function afficherOngletsSuivantDroits(userData) {
     const cashPaymentItem = document.getElementById('cash-payment-item');
     const estimationItem = document.getElementById('estimation-item');
     const suiviAchatBoeufItem = document.getElementById('suivi-achat-boeuf-item');
+    const paymentLinksItem = document.getElementById('payment-links-item');
     
     // Onglet Stock inventaire - pour utilisateurs avec accès à tous les points de vente
     if (userData.canAccessAllPointsVente) {
@@ -4215,6 +4224,13 @@ function afficherOngletsSuivantDroits(userData) {
         if (estimationItem) estimationItem.style.display = 'block';
     } else {
         if (estimationItem) estimationItem.style.display = 'none';
+    }
+    
+    // Onglet Générer Paiement - pour tous les utilisateurs avec droits d'écriture
+    if (userData.canWrite) {
+        if (paymentLinksItem) paymentLinksItem.style.display = 'block';
+    } else {
+        if (paymentLinksItem) paymentLinksItem.style.display = 'none';
     }
    
 }
@@ -7022,6 +7038,92 @@ document.getElementById('precommande-tab').addEventListener('click', function(e)
     showSection('precommande-section');
     // Initialiser les dropdowns spécifiquement pour les pré-commandes
     initPrecommandeDropdowns();
+});
+
+document.getElementById('payment-links-tab').addEventListener('click', function(e) {
+    e.preventDefault();
+    showSection('payment-links-section');
+    
+    // Charger les liens de paiement existants via l'iframe
+    setTimeout(() => {
+        const iframe = document.querySelector('#payment-links-section iframe');
+        if (iframe && iframe.contentWindow) {
+            try {
+                iframe.contentWindow.postMessage({ action: 'loadPaymentLinks' }, '*');
+                console.log('Message envoyé à l\'iframe pour charger les liens de paiement');
+                
+                // Ajuster la hauteur de l'iframe après le chargement
+                adjustIframeHeight(iframe);
+            } catch (error) {
+                console.error('Erreur lors de l\'envoi du message à l\'iframe:', error);
+            }
+        }
+    }, 100);
+});
+
+// Fonction pour ajuster la hauteur de l'iframe automatiquement
+function adjustIframeHeight(iframe) {
+    if (!iframe) return;
+    
+    // Attendre que l'iframe soit chargé
+    iframe.onload = function() {
+        try {
+            // Obtenir la hauteur du contenu de l'iframe
+            const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+            const body = iframeDocument.body;
+            const html = iframeDocument.documentElement;
+            
+            // Calculer la hauteur nécessaire
+            const height = Math.max(
+                body.scrollHeight,
+                body.offsetHeight,
+                html.clientHeight,
+                html.scrollHeight,
+                html.offsetHeight
+            );
+            
+            // Ajuster la hauteur de l'iframe
+            iframe.style.height = height + 'px';
+            console.log('Hauteur de l\'iframe ajustée à:', height + 'px');
+            
+        } catch (error) {
+            console.error('Erreur lors de l\'ajustement de la hauteur de l\'iframe:', error);
+        }
+    };
+    
+    // Ajuster aussi après un délai pour s'assurer que le contenu est chargé
+    setTimeout(() => {
+        try {
+            const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+            const body = iframeDocument.body;
+            const html = iframeDocument.documentElement;
+            
+            const height = Math.max(
+                body.scrollHeight,
+                body.offsetHeight,
+                html.clientHeight,
+                html.scrollHeight,
+                html.offsetHeight
+            );
+            
+            iframe.style.height = height + 'px';
+            console.log('Hauteur de l\'iframe ajustée (délai) à:', height + 'px');
+            
+        } catch (error) {
+            console.error('Erreur lors de l\'ajustement de la hauteur de l\'iframe (délai):', error);
+        }
+    }, 500);
+}
+
+// Écouter les messages de l'iframe pour ajuster la hauteur
+window.addEventListener('message', function(event) {
+    if (event.data && event.data.action === 'resizeIframe') {
+        const iframe = document.querySelector('#payment-links-section iframe');
+        if (iframe) {
+            iframe.style.height = event.data.height + 'px';
+            console.log('📏 Hauteur de l\'iframe ajustée via message:', event.data.height + 'px');
+        }
+    }
 });
 
 document.getElementById('visualisation-tab').addEventListener('click', function(e) {

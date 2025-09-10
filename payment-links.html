@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générer Paiement - Matix</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .payment-form {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .payment-link-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status-badge {
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+        }
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status-completed {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-failed {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .amount-input {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .loading-spinner.show {
+            display: inline-block;
+        }
+        
+        /* Styles pour les badges de statut */
+        .badge {
+            font-size: 0.75em;
+        }
+        
+        .badge.status-pending {
+            background-color: #ffc107;
+            color: #000;
+        }
+        
+        .badge.status-completed {
+            background-color: #198754;
+            color: white;
+        }
+        
+        .badge.status-failed {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        /* Actions container - horizontal on desktop, vertical on mobile */
+        .actions-container {
+            display: flex;
+            flex-direction: row;
+            gap: 0.25rem;
+            align-items: center;
+        }
+        
+        /* Enlever le scroll vertical - la pagination gère l'affichage */
+        .table-responsive {
+            overflow-y: visible !important;
+        }
+        
+        /* Styles pour la responsivité mobile */
+        @media (max-width: 768px) {
+            .table-responsive {
+                font-size: 0.875rem;
+                overflow-x: auto;
+                overflow-y: visible;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .table th,
+            .table td {
+                padding: 0.5rem 0.25rem;
+                vertical-align: middle;
+            }
+            
+            .btn-sm {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.75rem;
+            }
+            
+            /* Actions column - vertical layout for mobile */
+            .actions-container {
+                flex-direction: column !important;
+                gap: 0.25rem !important;
+            }
+            
+            /* Ensure table has minimum width for scrolling on all mobile sizes */
+            .table {
+                min-width: 500px;
+            }
+            
+            /* Mobile layout adjustments */
+            @media (max-width: 576px) {
+                .table-responsive {
+                    overflow-x: auto;
+                    overflow-y: visible;
+                    -webkit-overflow-scrolling: touch;
+                }
+                
+                /* Make date columns wider and stick to the right */
+                .table th:nth-child(6),
+                .table td:nth-child(6),
+                .table th:nth-child(7),
+                .table td:nth-child(7) {
+                    min-width: 120px;
+                    white-space: nowrap;
+                }
+                
+                /* Hide admin columns on mobile for space */
+                .table th.admin-only,
+                .table td.admin-only {
+                    display: none !important;
+                }
+                
+                /* Ensure table has minimum width for scrolling */
+                .table {
+                    min-width: 600px;
+                }
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h2><i class="bi bi-credit-card"></i> Générer Paiement</h2>
+            </div>
+        </div>
+
+        <!-- Payment Form -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="payment-form">
+                    <h4 class="mb-4"><i class="bi bi-plus-circle"></i> Nouveau Lien de Paiement</h4>
+                    
+                    <form id="payment-form">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label for="point-vente" class="form-label">Point de Vente *</label>
+                                <select class="form-select" id="point-vente" name="pointVente" required>
+                                    <option value="">Sélectionner un point de vente</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="amount" class="form-label">Montant (XOF) *</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control amount-input" id="amount" name="amount" 
+                                           min="1" step="1" required placeholder="0">
+                                    <span class="input-group-text">XOF</span>
+                                </div>
+                                <div class="form-text">Le montant doit être positif</div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="client-name" class="form-label">Nom du Client</label>
+                                <input type="text" class="form-control" id="client-name" name="clientName">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="phone-number" class="form-label">Numéro de Téléphone</label>
+                                <input type="tel" class="form-control" id="phone-number" name="phoneNumber">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="due-date" class="form-label">Date d'expiration</label>
+                                <input type="datetime-local" class="form-control" id="due-date" name="dueDate">
+                                <div class="form-text">Par défaut: 24h après création</div>
+                            </div>
+                            <div class="col-md-8 mb-3">
+                                <label for="address" class="form-label">Adresse</label>
+                                <textarea class="form-control" id="address" name="address" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12 d-flex justify-content-end">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <span class="loading-spinner spinner-border spinner-border-sm me-2" role="status"></span>
+                                    <i class="bi bi-credit-card"></i> Générer Paiement
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generated Payment Links -->
+        <div class="row">
+            <div class="col-12">
+                <h4 class="mb-4"><i class="bi bi-list-ul"></i> Liens Générés</h4>
+                
+                <!-- Filtres -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="filter-status" class="form-label">Statut</label>
+                                    <select class="form-select" id="filter-status">
+                                        <option value="">Tous les statuts</option>
+                                        <option value="opened">Ouvert</option>
+                                        <option value="paid">Payé</option>
+                                        <option value="paid_in_cash">Payé en espèces</option>
+                                        <option value="expired">Expiré</option>
+                                    </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="filter-name" class="form-label">Nom du Client</label>
+                                <input type="text" class="form-control" id="filter-name" placeholder="Rechercher par nom...">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="filter-phone" class="form-label">Téléphone</label>
+                                <input type="text" class="form-control" id="filter-phone" placeholder="Rechercher par téléphone...">
+                            </div>
+                        </div>
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <button class="btn btn-primary" id="apply-filters">
+                                            <i class="bi bi-funnel"></i> Appliquer les filtres
+                                        </button>
+                                        <button class="btn btn-outline-secondary ms-2" id="clear-filters">
+                                            <i class="bi bi-x-circle"></i> Effacer
+                                        </button>
+                                        <button class="btn btn-warning ms-2 admin-only" id="archive-button" style="display: none;">
+                                            <i class="bi bi-archive"></i> Archiver les anciens
+                                        </button>
+                                        <button class="btn btn-outline-info ms-2 admin-only" id="view-archives-button" style="display: none;">
+                                            <i class="bi bi-clock-history"></i> Voir Archives
+                                        </button>
+                                    </div>
+                                </div>
+                    </div>
+                </div>
+
+                <!-- Tableau des liens -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                                <table class="table table-striped table-hover" id="payment-links-table">
+                                    <thead class="table-dark">
+                                            <tr>
+                                                <th>Actions</th>
+                                                <th>Client</th>
+                                                <th>Téléphone</th>
+                                                <th>Montant</th>
+                                                <th>Statut</th>
+                                                <th>Date Création</th>
+                                                <th>Date d'expiration</th>
+                                                <th>Point de Vente</th>
+                                                <th class="admin-only" style="display: none;">Créateur</th>
+                                                <th class="admin-only" style="display: none;">Timestamp</th>
+                                            </tr>
+                                    </thead>
+                                <tbody id="payment-links-tbody">
+                                    <!-- Les données seront insérées ici -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination -->
+                        <nav aria-label="Pagination des liens de paiement" class="mt-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span id="pagination-info" class="text-muted"></span>
+                                </div>
+                                <ul class="pagination pagination-sm mb-0" id="pagination">
+                                    <!-- Les boutons de pagination seront générés ici -->
+                                </ul>
+                            </div>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Payment Links Script -->
+    <script src="js/payment-links.js"></script>
+</body>
+</html>
