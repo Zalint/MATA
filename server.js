@@ -10,6 +10,7 @@ const { parse } = require('csv-parse');
 const { stringify } = require('csv-stringify');
 const path = require('path');
 const session = require('express-session');
+const axios = require('axios');
 const users = require('./users');
 // Charger les points de vente avec fallback
 let pointsVente;
@@ -90,7 +91,7 @@ let produits = require('./data/by-date/produits');
 let produitsInventaire = require('./data/by-date/produitsInventaire');
 const bcrypt = require('bcrypt');
 const fsPromises = require('fs').promises;
-const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf, Depense, WeightParams, Precommande } = require('./db/models');
+const { Vente, Stock, Transfert, Reconciliation, CashPayment, AchatBoeuf, Depense, WeightParams, Precommande, PaymentLink } = require('./db/models');
 const { testConnection, sequelize } = require('./db');
 const { Op, fn, col, literal } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
@@ -4855,9 +4856,787 @@ app.get('/api/stock/:date/transfert/:pointVente/:produit', async (req, res) => {
     }
 });
 
+// =================== PAYMENT LINKS ROUTES ===================
+// Configuration de l'API Bictorys
+const BICTORYS_API_KEY = process.env.BICTORYS_API_KEY;
+const BICTORYS_BASE_URL = process.env.BICTORYS_BASE_URL || 'https://api.bictorys.com';
+
+if (!BICTORYS_API_KEY) {
+  throw new Error('Missing BICTORYS_API_KEY. Set it in your environment.');
+}
+
+const bictorys = axios.create({
+  baseURL: BICTORYS_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'X-API-Key': BICTORYS_API_KEY,
+    'Content-Type': 'application/json'
+  }
+});
+
+// =================== PAYMENT LINKS DATABASE FUNCTIONS ===================
+
+        // Fonction pour sauvegarder un lien de paiement en base
+        async function savePaymentLinkToDatabase(paymentData, user) {
+            try {
+                const paymentLink = await PaymentLink.create({
+                    payment_link_id: paymentData.paymentLinkId,
+                    point_vente: paymentData.pointVente,
+                    client_name: paymentData.clientName,
+                    phone_number: paymentData.phoneNumber,
+                    address: paymentData.address,
+                    amount: paymentData.amount,
+                    currency: paymentData.currency,
+                    reference: paymentData.reference,
+                    description: paymentData.description,
+                    payment_url: paymentData.paymentUrl,
+                    status: paymentData.status,
+                    created_by: user.username,
+                    due_date: paymentData.dueDate || null,
+                    archived: 0
+                });
+
+                console.log('Lien de paiement sauvegardé avec ID:', paymentLink.id);
+                return paymentLink.id;
+            } catch (error) {
+                console.error('Erreur lors de la sauvegarde en base:', error);
+                throw error;
+            }
+        }
+
+        // Fonction pour mettre à jour le statut d'un lien de paiement
+        async function updatePaymentLinkStatus(paymentLinkId, status) {
+            try {
+                const [updatedRowsCount] = await PaymentLink.update(
+                    { status: status },
+                    { where: { payment_link_id: paymentLinkId } }
+                );
+
+                console.log('Statut mis à jour pour le lien:', paymentLinkId, '->', status);
+                return updatedRowsCount;
+            } catch (error) {
+                console.error('Erreur lors de la mise à jour du statut:', error);
+                throw error;
+            }
+        }
+
+// Mapping des références de paiement aux points de vente
+const PAYMENT_REF_MAPPING = {
+    'V_DHR': 'Dahra',          // ✅ Actif
+    'V_LGR': 'Linguere',       // ✅ Actif  
+    'V_MBA': 'Mbao',           // ✅ Actif
+    'V_KM': 'Keur Massar',     // ✅ Actif
+    'V_OSF': 'O.Foire',        // ✅ Actif
+    'V_SAC': 'Sacre Coeur',    // ✅ Actif
+    'V_ABATS': 'Abattage',     // ✅ Actif
+    'V_TB': 'Touba'            // ⚠️ Inactif mais conservé pour compatibilité
+};
+
+// Mapping inverse pour obtenir la référence à partir du point de vente
+const POINT_VENTE_TO_REF = {};
+Object.entries(PAYMENT_REF_MAPPING).forEach(([ref, pointVente]) => {
+    POINT_VENTE_TO_REF[pointVente] = ref;
+});
+
+// Route pour obtenir les points de vente accessibles par l'utilisateur
+app.get('/api/payment-links/points-vente', checkAuth, (req, res) => {
+    try {
+        const user = req.user;
+        let accessiblePointsVente = [];
+        
+        // Obtenir les points de vente actifs depuis points-vente.js
+        const activePointsVente = Object.entries(pointsVente)
+            .filter(([_, properties]) => properties.active)
+            .map(([name, _]) => name);
+        
+        if (user.canAccessAllPointsVente) {
+            // L'utilisateur a accès à tous les points de vente actifs
+            accessiblePointsVente = activePointsVente;
+        } else {
+            // L'utilisateur a accès seulement à ses points de vente assignés
+            if (Array.isArray(user.pointVente)) {
+                accessiblePointsVente = user.pointVente.filter(pv => pv !== 'tous' && activePointsVente.includes(pv));
+            } else if (user.pointVente !== 'tous') {
+                accessiblePointsVente = activePointsVente.includes(user.pointVente) ? [user.pointVente] : [];
+            }
+        }
+        
+        res.json({
+            success: true,
+            data: accessiblePointsVente
+        });
+        
+    } catch (error) {
+        console.error('Erreur lors de la récupération des points de vente:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur interne du serveur'
+        });
+    }
+});
+
+// Route pour créer un lien de paiement
+app.post('/api/payment-links/create', checkAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        
+        // Validation des données - seulement Point de Vente et Montant sont obligatoires
+        const { pointVente, clientName, phoneNumber, amount, address, dueDate } = req.body;
+        
+        if (!pointVente || !amount) {
+            return res.status(400).json({
+                success: false,
+                message: 'Point de vente et montant sont requis'
+            });
+        }
+        
+        // Validation du montant (doit être positif)
+        const numericAmount = parseFloat(amount);
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Le montant doit être un nombre positif'
+            });
+        }
+        
+        // Traitement de la date d'expiration
+        let processedDueDate = null;
+        if (dueDate) {
+            // Convertir la date locale en format ISO pour Bictorys
+            const date = new Date(dueDate);
+            processedDueDate = date.toISOString();
+            console.log('📅 Date d\'expiration traitée:', processedDueDate);
+        } else {
+            // Date par défaut : 24h après maintenant
+            const now = new Date();
+            const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+            processedDueDate = tomorrow.toISOString();
+            console.log('📅 Date d\'expiration par défaut définie:', processedDueDate);
+        }
+        
+        // Vérifier si l'utilisateur a accès à ce point de vente
+        let hasAccess = false;
+        if (user.canAccessAllPointsVente) {
+            hasAccess = true;
+        } else {
+            if (Array.isArray(user.pointVente)) {
+                hasAccess = user.pointVente.includes('tous') || user.pointVente.includes(pointVente);
+            } else {
+                hasAccess = user.pointVente === 'tous' || user.pointVente === pointVente;
+            }
+        }
+        
+        if (!hasAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Accès non autorisé à ce point de vente'
+            });
+        }
+        
+        // Obtenir la référence du point de vente
+        const paymentRef = POINT_VENTE_TO_REF[pointVente];
+        if (!paymentRef) {
+            return res.status(400).json({
+                success: false,
+                message: 'Point de vente non reconnu'
+            });
+        }
+        
+        // Préparer les données pour l'API Bictorys
+        const paymentData = {
+            amount: numericAmount,
+            currency: 'XOF',
+            reference: paymentRef,
+            description: `Paiement pour ${pointVente}${clientName ? ` - ${clientName}` : ''}`
+        };
+        
+        // Ajouter la date d'expiration si fournie
+        if (processedDueDate) {
+            paymentData.dueDate = processedDueDate;
+        }
+        
+        // Ajouter les informations client directement dans l'objet principal
+        if (clientName) {
+            paymentData.customerName = clientName;
+        }
+        if (phoneNumber) {
+            paymentData.customerPhone = phoneNumber;
+        }
+        if (address) {
+            paymentData.customerAddress = address;
+        }
+        
+        console.log('Création du lien de paiement:', paymentData);
+        console.log('URL de l\'API Bictorys:', `${BICTORYS_BASE_URL}/paymentlink-management/v1/paymentlinks`);
+        console.log('Headers envoyés:', {
+            'X-API-Key': BICTORYS_API_KEY.substring(0, 20) + '...',
+            'Content-Type': 'application/json'
+        });
+        
+        // Appel à l'API Bictorys
+        const response = await axios.post(
+            `${BICTORYS_BASE_URL}/paymentlink-management/v1/paymentlinks`,
+            paymentData,
+            {
+                headers: {
+                    'X-API-Key': BICTORYS_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        
+        console.log('📊 Réponse complète de l\'API Bictorys pour la création:');
+        console.log('Status:', response.status);
+        console.log('Headers:', response.headers);
+        console.log('Data:', JSON.stringify(response.data, null, 2));
+        
+        // La réponse Bictorys contient directement les données (pas de wrapper success)
+        if (response.data && response.data.id) {
+            // Préparer les données pour la sauvegarde en base
+            const paymentDataForDB = {
+                paymentLinkId: response.data.id,
+                paymentUrl: response.data.paymentUrl,
+                amount: response.data.amount,
+                currency: response.data.currency,
+                reference: response.data.reference,
+                pointVente: pointVente,
+                clientName: clientName || null,
+                phoneNumber: phoneNumber || null,
+                address: address || null,
+                status: response.data.status,
+                description: `Paiement pour ${pointVente}${clientName ? ` - ${clientName}` : ''}`,
+                dueDate: processedDueDate
+            };
+            
+            // Sauvegarder en base de données
+            try {
+                console.log('Tentative de sauvegarde en base de données...');
+                console.log('Données à sauvegarder:', paymentDataForDB);
+                console.log('Utilisateur:', user.username);
+                
+                await savePaymentLinkToDatabase(paymentDataForDB, user);
+                console.log('✅ Lien de paiement sauvegardé en base de données avec succès');
+            } catch (dbError) {
+                console.error('❌ Erreur lors de la sauvegarde en base:', dbError);
+                console.error('Détails de l\'erreur:', dbError.message);
+                console.error('Stack trace:', dbError.stack);
+                // On continue même si la sauvegarde en base échoue
+            }
+            
+            res.json({
+                success: true,
+                data: {
+                    paymentLinkId: response.data.id,
+                    paymentUrl: response.data.paymentUrl,
+                    amount: response.data.amount,
+                    currency: response.data.currency,
+                    reference: response.data.reference,
+                    pointVente: pointVente,
+                    clientName: clientName || null,
+                    phoneNumber: phoneNumber || null,
+                    address: address || null,
+                    status: response.data.status,
+                    dueDate: processedDueDate || response.data.dueDate,
+                    createdAt: response.data.createdAt
+                }
+            });
+        } else {
+            console.log('Réponse Bictorys ne contient pas d\'ID de paiement');
+            console.log('Structure de la réponse:', Object.keys(response.data || {}));
+            throw new Error('Réponse invalide de l\'API Bictorys - ID de paiement manquant');
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors de la création du lien de paiement:', error);
+        
+        if (error.response) {
+            // Erreur de l'API Bictorys
+            console.log('Erreur HTTP de Bictorys - Status:', error.response.status);
+            console.log('Erreur HTTP de Bictorys - Headers:', error.response.headers);
+            console.log('Erreur HTTP de Bictorys - Data:', JSON.stringify(error.response.data, null, 2));
+            
+            res.status(error.response.status).json({
+                success: false,
+                message: 'Erreur lors de la création du lien de paiement',
+                details: error.response.data
+            });
+        } else {
+            // Erreur interne
+            console.log('Erreur interne (pas de response):', error.message);
+            res.status(500).json({
+                success: false,
+                message: 'Erreur interne du serveur'
+            });
+        }
+    }
+});
+
+// Route pour obtenir le statut d'un lien de paiement
+app.get('/api/payment-links/status/:paymentLinkId', checkAuth, async (req, res) => {
+    try {
+        const { paymentLinkId } = req.params;
+        
+        if (!paymentLinkId) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID du lien de paiement requis'
+            });
+        }
+        
+        console.log('Vérification du statut du lien de paiement:', paymentLinkId);
+        
+        // Appel à l'API Bictorys pour obtenir les détails
+        const response = await axios.get(
+            `${BICTORYS_BASE_URL}/paymentlink-management/v1/paymentlinks/${paymentLinkId}`,
+            {
+                headers: {
+                    'X-API-Key': BICTORYS_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        
+        console.log('📊 Réponse complète de l\'API Bictorys pour le statut:');
+        console.log('Status:', response.status);
+        console.log('Headers:', response.headers);
+        console.log('Data:', JSON.stringify(response.data, null, 2));
+        
+        if (response.data && response.data.id) {
+            const paymentData = response.data;
+            
+            // Mettre à jour le statut en base de données
+            try {
+                await updatePaymentLinkStatus(paymentLinkId, paymentData.status);
+                console.log('Statut mis à jour en base de données');
+            } catch (dbError) {
+                console.error('Erreur lors de la mise à jour du statut en base:', dbError);
+                // On continue même si la mise à jour en base échoue
+            }
+            
+            res.json({
+                success: true,
+                data: {
+                    paymentLinkId: paymentData.id,
+                    status: paymentData.status,
+                    amount: paymentData.amount,
+                    currency: paymentData.currency,
+                    reference: paymentData.reference,
+                    customer: {
+                        name: paymentData.customerName,
+                        phone: paymentData.customerPhone,
+                        email: paymentData.customerEmail
+                    },
+                    createdAt: paymentData.createdAt,
+                    updatedAt: paymentData.updatedAt,
+                    paymentUrl: paymentData.paymentUrl
+                }
+            });
+        } else {
+            throw new Error('Réponse invalide de l\'API Bictorys');
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors de la vérification du statut:', error);
+        
+        if (error.response) {
+            // Erreur de l'API Bictorys
+            res.status(error.response.status).json({
+                success: false,
+                message: 'Erreur lors de la vérification du statut',
+                details: error.response.data
+            });
+        } else {
+            // Erreur interne
+            res.status(500).json({
+                success: false,
+                message: 'Erreur interne du serveur'
+            });
+        }
+    }
+});
+
+        // Route pour supprimer un lien de paiement
+        app.delete('/api/payment-links/:paymentLinkId', checkAuth, async (req, res) => {
+            try {
+                const { paymentLinkId } = req.params;
+                const user = req.user;
+                
+                console.log('🗑️ Suppression du lien de paiement:', paymentLinkId);
+                
+                // Vérifier que le lien existe et que l'utilisateur a le droit de le supprimer
+                const existingLink = await PaymentLink.findOne({
+                    where: { payment_link_id: paymentLinkId }
+                });
+
+                if (!existingLink) {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Lien de paiement non trouvé'
+                    });
+                }
+
+                // Vérifier les permissions (seul le créateur ou un admin peut supprimer)
+                if (existingLink.created_by !== user.username && !user.canAccessAllPointsVente) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Vous n\'avez pas le droit de supprimer ce lien'
+                    });
+                }
+
+                // Vérifier que le statut permet la suppression
+                if (!['opened', 'expired'].includes(existingLink.status)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Seuls les liens avec le statut "Ouvert" ou "Expiré" peuvent être supprimés'
+                    });
+                }
+                    
+                // Supprimer le lien côté Bictorys d'abord
+                try {
+                    const bictorysResponse = await axios.delete(`${BICTORYS_BASE_URL}/paymentlink-management/v1/paymentlinks/${paymentLinkId}`, {
+                        headers: {
+                            'X-API-Key': BICTORYS_API_KEY,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    console.log('✅ Lien supprimé côté Bictorys:', bictorysResponse.status);
+                    
+                    // Supprimer le lien de la base de données PostgreSQL
+                    await PaymentLink.destroy({
+                        where: { payment_link_id: paymentLinkId }
+                    });
+                    
+                    console.log('✅ Lien de paiement supprimé avec succès (Bictorys + PostgreSQL)');
+                    res.json({
+                        success: true,
+                        message: 'Lien de paiement supprimé avec succès'
+                    });
+                    
+                } catch (bictorysError) {
+                    console.error('❌ Erreur lors de la suppression côté Bictorys:', bictorysError.response?.data || bictorysError.message);
+                    
+                    // Si Bictorys échoue, on ne supprime pas localement pour éviter la désynchronisation
+                    res.status(500).json({
+                        success: false,
+                        message: 'Erreur lors de la suppression côté Bictorys. Le lien n\'a pas été supprimé pour éviter la désynchronisation.'
+                    });
+                }
+                
+            } catch (error) {
+                console.error('Erreur lors de la suppression du lien:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Erreur interne du serveur'
+                });
+            }
+        });
+
+        // Route pour charger les liens de paiement existants
+        app.get('/api/payment-links/list', checkAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        
+        // Construire les conditions de requête selon les permissions de l'utilisateur
+        let whereConditions = {
+            archived: 0
+        };
+        
+        // Si l'utilisateur n'a pas accès à tous les points de vente, filtrer par ses points de vente
+        if (!user.canAccessAllPointsVente) {
+            if (Array.isArray(user.pointVente)) {
+                const userPointsVente = user.pointVente.filter(pv => pv !== 'tous');
+                if (userPointsVente.length > 0) {
+                    whereConditions.point_vente = {
+                        [Op.in]: userPointsVente
+                    };
+                }
+            } else if (user.pointVente !== 'tous') {
+                whereConditions.point_vente = user.pointVente;
+            }
+        }
+        
+        const paymentLinks = await PaymentLink.findAll({
+            where: whereConditions,
+            order: [['created_at', 'DESC']]
+        });
+
+        const formattedLinks = paymentLinks.map(link => ({
+            paymentLinkId: link.payment_link_id,
+            pointVente: link.point_vente,
+            clientName: link.client_name,
+            phoneNumber: link.phone_number,
+            address: link.address,
+            amount: link.amount,
+            currency: link.currency,
+            reference: link.reference,
+            description: link.description,
+            paymentUrl: link.payment_url,
+            status: link.status,
+            createdAt: link.created_at,
+            updatedAt: link.updated_at,
+            createdBy: link.created_by,
+            dueDate: link.due_date
+        }));
+
+        res.json({
+            success: true,
+            data: formattedLinks
+        });
+
+    } catch (error) {
+        console.error('Erreur lors de la récupération des liens de paiement:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur interne du serveur'
+        });
+    }
+});
+
+// Route pour archiver les anciens liens de paiement
+app.post('/api/payment-links/archive-old', checkAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const { forceArchive, testMode } = req.body;
+        
+        console.log('🗄️ Archivage des anciens liens demandé par:', user.username);
+        if (forceArchive) {
+            console.log('🧪 Mode test activé - archivage forcé');
+        }
+
+        // Calculer la date limite
+        let dateLimit;
+        if (forceArchive && testMode) {
+            // Pour le test, utiliser une date dans le futur pour forcer l'archivage
+            dateLimit = new Date();
+            dateLimit.setDate(dateLimit.getDate() + 1); // Demain
+            console.log('📅 Date limite de test (demain):', dateLimit.toISOString());
+        } else {
+            // Date normale (il y a une semaine)
+            dateLimit = new Date();
+            dateLimit.setDate(dateLimit.getDate() - 7);
+            console.log('📅 Date limite d\'archivage:', dateLimit.toISOString());
+        }
+
+        const dateLimitISO = dateLimit.toISOString();
+
+        // Marquer comme archivés les liens avec statut "paid" et date de création > date limite
+        // Utiliser une requête SQL brute avec paramètres nommés
+        const [results] = await sequelize.query(`
+            UPDATE payment_links 
+            SET archived = 1, updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'paid' 
+            AND created_at < :dateLimit
+            AND archived = 0
+        `, {
+            replacements: { dateLimit: dateLimitISO },
+            type: sequelize.QueryTypes.UPDATE
+        });
+        
+        console.log('🔍 Résultats de la requête:', results);
+        console.log('🔍 Type de results:', typeof results);
+        console.log('🔍 Array.isArray(results):', Array.isArray(results));
+        
+        const archivedCount = Array.isArray(results) ? results[0] : results;
+
+        console.log('✅ Archivage terminé:', archivedCount, 'liens archivés');
+        res.json({
+            success: true,
+            archivedCount: archivedCount,
+            message: `${archivedCount} liens archivés avec succès`,
+            testMode: forceArchive && testMode
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur lors de l\'archivage:', error);
+        console.error('❌ Détails de l\'erreur:', error.message);
+        console.error('❌ Stack trace:', error.stack);
+        if (error.parent) {
+            console.error('❌ Erreur parent:', error.parent.message);
+            console.error('❌ Code d\'erreur:', error.parent.code);
+        }
+        res.status(500).json({
+            success: false,
+            message: 'Erreur interne du serveur',
+            error: error.message,
+            details: error.parent ? error.parent.message : null
+        });
+    }
+});
+
+// Route pour voir les archives (superviseurs seulement)
+app.get('/api/payment-links/archives', checkAuth, (req, res) => {
+    // TEMPORAIREMENT DÉSACTIVÉ - EN COURS DE MIGRATION VERS SEQUELIZE
+    return res.status(501).json({
+        success: false,
+        message: 'Route temporairement désactivée - en cours de migration vers PostgreSQL'
+    });
+    
+    try {
+        const user = req.user;
+
+        // Vérifier que l'utilisateur est superviseur ou admin
+        if (!user.canAccessAllPointsVente) {
+            return res.status(403).json({
+                success: false,
+                message: 'Accès refusé. Seuls les superviseurs peuvent voir les archives.'
+            });
+        }
+
+        console.log('📚 Consultation des archives par:', user.username);
+
+        // Récupérer les archives groupées par semaine (liens archivés)
+        const sql = `
+            SELECT 
+                DATE(due_date, 'weekday 0', '-6 days') as week_start,
+                COUNT(*) as count,
+                MIN(due_date) as first_date,
+                MAX(due_date) as last_date
+            FROM payment_links 
+            WHERE status = 'paid' 
+            AND due_date IS NOT NULL
+            AND archived = 1
+            GROUP BY DATE(due_date, 'weekday 0', '-6 days')
+            ORDER BY week_start DESC
+        `;
+
+        db.all(sql, [], (err, rows) => {
+            if (err) {
+                console.error('❌ Erreur lors de la récupération des archives:', err);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Erreur lors de la récupération des archives'
+                });
+            }
+
+            const archives = rows.map(row => {
+                const weekStart = new Date(row.week_start);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+
+                return {
+                    weekStart: row.week_start,
+                    weekLabel: `Semaine du ${weekStart.toLocaleDateString('fr-FR')} au ${weekEnd.toLocaleDateString('fr-FR')}`,
+                    count: row.count,
+                    firstDate: row.first_date,
+                    lastDate: row.last_date
+                };
+            });
+
+            console.log('✅ Archives récupérées:', archives.length, 'semaines');
+            res.json({
+                success: true,
+                data: archives
+            });
+        });
+
+    } catch (error) {
+        console.error('Erreur lors de la récupération des archives:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur interne du serveur'
+        });
+    }
+});
+
+// Route pour voir les archives d'une semaine spécifique
+app.get('/api/payment-links/archives/:weekStart', checkAuth, (req, res) => {
+    // TEMPORAIREMENT DÉSACTIVÉ - EN COURS DE MIGRATION VERS SEQUELIZE
+    return res.status(501).json({
+        success: false,
+        message: 'Route temporairement désactivée - en cours de migration vers PostgreSQL'
+    });
+    
+    try {
+        const user = req.user;
+        const { weekStart } = req.params;
+
+        // Vérifier que l'utilisateur est superviseur ou admin
+        if (!user.canAccessAllPointsVente) {
+            return res.status(403).json({
+                success: false,
+                message: 'Accès refusé. Seuls les superviseurs peuvent voir les archives.'
+            });
+        }
+
+        console.log('📅 Consultation des archives de la semaine:', weekStart, 'par:', user.username);
+
+        // Calculer la fin de semaine
+        const weekStartDate = new Date(weekStart);
+        const weekEndDate = new Date(weekStartDate);
+        weekEndDate.setDate(weekEndDate.getDate() + 6);
+        const weekEndISO = weekEndDate.toISOString();
+
+        // Récupérer les liens archivés de la semaine
+        const sql = `
+            SELECT 
+                payment_link_id, point_vente, client_name, phone_number, address,
+                amount, currency, reference, description, payment_url, status,
+                created_at, updated_at, created_by, due_date, archived
+            FROM payment_links 
+            WHERE status = 'paid' 
+            AND due_date IS NOT NULL
+            AND due_date >= ? 
+            AND due_date <= ?
+            AND archived = 1
+            ORDER BY due_date DESC
+        `;
+
+        db.all(sql, [weekStart, weekEndISO], (err, rows) => {
+            if (err) {
+                console.error('❌ Erreur lors de la récupération des liens de la semaine:', err);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Erreur lors de la récupération des liens de la semaine'
+                });
+            }
+
+            const links = rows.map(row => ({
+                paymentLinkId: row.payment_link_id,
+                pointVente: row.point_vente,
+                clientName: row.client_name,
+                phoneNumber: row.phone_number,
+                address: row.address,
+                amount: row.amount,
+                currency: row.currency,
+                reference: row.reference,
+                description: row.description,
+                paymentUrl: row.payment_url,
+                status: row.status,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+                createdBy: row.created_by,
+                dueDate: row.due_date
+            }));
+
+            console.log('✅ Liens de la semaine récupérés:', links.length);
+            res.json({
+                success: true,
+                data: links
+            });
+        });
+
+    } catch (error) {
+        console.error('Erreur lors de la récupération des liens de la semaine:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur interne du serveur'
+        });
+    }
+});
+
 // Démarrage du serveur
 app.listen(PORT, () => {
     console.log(`Serveur démarré sur le port ${PORT}`);
+    console.log('Routes de paiement disponibles:');
+    console.log('- GET /api/payment-links/points-vente');
+    console.log('- POST /api/payment-links/create');
+    console.log('- GET /api/payment-links/status/:paymentLinkId');
+    console.log('- GET /api/payment-links/list');
+    console.log('- DELETE /api/payment-links/:paymentLinkId');
+    console.log('- POST /api/payment-links/archive-old');
+    console.log('- GET /api/payment-links/archives');
+    console.log('- GET /api/payment-links/archives/:weekStart');
 });
 
 // API endpoint for showing estimation section

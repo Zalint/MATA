@@ -338,6 +338,11 @@
                                 <i class="bi bi-cart-plus"></i> Pré-commande clients
                             </a>
                         </li>
+                        <li class="nav-item" id="payment-links-item">
+                            <a class="nav-link" href="#" id="payment-links-tab">
+                                <i class="bi bi-credit-card"></i> Générer Paiement
+                            </a>
+                        </li>
                     </ul>
                     <div class="navbar-nav">
                         <span class="nav-item nav-link" id="user-info"></span>
@@ -2212,6 +2217,12 @@
             </div>
             <!-- End Estimation Section -->
 
+        <!-- Payment Links Section -->
+        <div id="payment-links-section" class="content-section" style="display: none;">
+            <iframe src="payment-links.html" width="100%" frameborder="0" style="border: none; height: auto; min-height: 100vh;"></iframe>
+        </div>
+        <!-- End Payment Links Section -->
+
         </div>
     </div>
 
@@ -2774,6 +2785,26 @@
         </div>
     </div>
 
+    <!-- Boutons de zoom pour mobile -->
+    <div class="zoom-controls">
+        <button class="zoom-btn" id="zoom-in" title="Zoom In">
+            <i class="bi bi-zoom-in"></i>
+        </button>
+        <button class="zoom-btn" id="zoom-out" title="Zoom Out">
+            <i class="bi bi-zoom-out"></i>
+        </button>
+        <button class="zoom-btn reset" id="zoom-reset" title="Reset Zoom">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+
+    <!-- Indicateur de niveau de zoom -->
+    <div class="zoom-indicator" id="zoom-indicator">
+        Zoom: <span id="zoom-level">100%</span>
+    </div>
+
+    <!-- Script pour les contrôles de zoom -->
+    <script src="js/zoom-controls.js"></script>
       
 </body>
 </html>
