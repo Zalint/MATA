@@ -21,19 +21,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialiser les événements
     initEventListeners();
     
-    // Initialiser la date d'expiration par défaut dès le chargement
-    setTimeout(() => {
-        initializeDefaultDueDate();
-    }, 200);
-
     // Charger les points de vente accessibles
     loadAccessiblePointsVente();
-    
-    // Charger automatiquement les liens de paiement existants
-    setTimeout(() => {
-        console.log('🔄 Chargement automatique des liens de paiement...');
-        loadExistingPaymentLinks();
-    }, 500);
     
         // Écouter les messages du parent (pour recharger les liens quand l'onglet est cliqué)
         window.addEventListener('message', function(event) {
@@ -49,6 +38,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 /**
  * Vérifier l'authentification de l'utilisateur
+ * Cette fonction gère le flux d'authentification et initialise les composants
+ * qui dépendent de l'état d'authentification (liens de paiement, date d'expiration, etc.)
  */
 async function checkAuthentication() {
     try {
@@ -72,17 +63,15 @@ async function checkAuthentication() {
             configureAdminColumns();
             
             // Initialiser la date d'expiration par défaut après authentification
-            setTimeout(() => {
-                initializeDefaultDueDate();
-            }, 100);
-            
-            // Double vérification après un délai plus long
-            setTimeout(() => {
-                initializeDefaultDueDate();
-            }, 500);
+            initializeDefaultDueDate();
             
             // Charger les liens de paiement existants après authentification
-            loadExistingPaymentLinks();
+            console.log('🔄 Chargement automatique des liens de paiement après authentification...');
+            try {
+                await loadExistingPaymentLinks();
+            } catch (error) {
+                console.error('❌ Erreur lors du chargement des liens de paiement:', error);
+            }
         } else {
             // Rediriger vers la page de connexion
             window.location.href = '/login.html';
@@ -207,8 +196,6 @@ function initializeDefaultDueDate() {
             console.log('📅 Date d\'expiration activée pour utilisateur admin/superviseur');
         }
         // Si currentUser est null, on ne fait rien (sera géré plus tard)
-        
-        console.log('📅 Date d\'expiration par défaut définie:', defaultDueDate);
     }
 }
 
