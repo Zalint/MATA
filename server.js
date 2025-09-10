@@ -4858,8 +4858,21 @@ app.get('/api/stock/:date/transfert/:pointVente/:produit', async (req, res) => {
 
 // =================== PAYMENT LINKS ROUTES ===================
 // Configuration de l'API Bictorys
-const BICTORYS_API_KEY = 'secret-65ee2442-d88f-458f-9f1d-af596e7c7de5.sQV5rhXZwEXTMwrAGsB8kJtGZmqLPi7VtKtsJYwmUhdo6SN7zOR83Z3NAKColQnj';
-const BICTORYS_BASE_URL = 'https://api.bictorys.com';
+const BICTORYS_API_KEY = process.env.BICTORYS_API_KEY;
+const BICTORYS_BASE_URL = process.env.BICTORYS_BASE_URL || 'https://api.bictorys.com';
+
+if (!BICTORYS_API_KEY) {
+  throw new Error('Missing BICTORYS_API_KEY. Set it in your environment.');
+}
+
+const bictorys = axios.create({
+  baseURL: BICTORYS_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'X-API-Key': BICTORYS_API_KEY,
+    'Content-Type': 'application/json'
+  }
+});
 
 // =================== PAYMENT LINKS DATABASE FUNCTIONS ===================
 
