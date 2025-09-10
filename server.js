@@ -6019,8 +6019,17 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             });
         }
         
+        // Convert date format to DD/MM/YYYY for database queries
+        // Accept both DD-MM-YYYY and DD/MM/YYYY formats
+        let dbDate = date;
+        if (date.includes('-')) {
+            dbDate = date.replace(/-/g, '/');
+        }
+        // If already in DD/MM/YYYY format, keep as is
+        
         console.log('==== EXTERNAL API - RECONCILIATION ====');
-        console.log('Computing reconciliation for date:', date);
+        console.log('Input date:', date);
+        console.log('Database date format:', dbDate);
         
         // Get stock type parameter value for stock endpoints
         const typeParam = { type: 'matin' };
@@ -6059,10 +6068,24 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
         let reconciliationComments = {};
         try {
             const Reconciliation = require('./db/models/Reconciliation');
-            const existingReconciliation = await Reconciliation.findOne({ where: { date } });
-            if (existingReconciliation && existingReconciliation.comments) {
+            const existingReconciliation = await Reconciliation.findOne({ where: { date: dbDate } });
+            if (existingReconciliation) {
+                // First try to get comments from the separate comments field
+                if (existingReconciliation.comments) {
                 reconciliationComments = JSON.parse(existingReconciliation.comments);
-                console.log('Comments loaded from database:', reconciliationComments);
+                    console.log('Comments loaded from comments field:', reconciliationComments);
+                }
+                
+                // If no comments in separate field, extract from data field
+                if (Object.keys(reconciliationComments).length === 0 && existingReconciliation.data) {
+                    const reconciliationData = JSON.parse(existingReconciliation.data);
+                    Object.keys(reconciliationData).forEach(pointVente => {
+                        if (reconciliationData[pointVente].commentaire) {
+                            reconciliationComments[pointVente] = reconciliationData[pointVente].commentaire;
+                        }
+                    });
+                    console.log('Comments extracted from data field:', reconciliationComments);
+                }
             }
         } catch (error) {
             console.error('Error loading reconciliation comments:', error);
@@ -6691,7 +6714,8 @@ app.get('/api/external/reconciliation', validateApiKey, async (req, res) => {
             resume: Object.values(reconciliationByPDV),
             details: detailsByPDV,
             volumeAbattoirBoeuf: volumeAbattoirBoeuf,
-            volumeAbattoirVeau: volumeAbattoirVeau
+            volumeAbattoirVeau: volumeAbattoirVeau,
+            comments: reconciliationComments
         };
         
         console.log(`Completed reconciliation for ${date} with ${formattedResponse.resume.length} points de vente`);
