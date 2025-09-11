@@ -878,6 +878,11 @@ function createTableRow(link) {
                     <button class="btn btn-outline-success btn-sm" onclick="openPaymentUrl('${link.paymentLinkId}')" title="Ouvrir le lien">
                         <i class="bi bi-box-arrow-up-right"></i>
                     </button>
+                    ${link.status === 'paid' && currentUser && currentUser.role === 'superviseur' ? `
+                    <button class="btn btn-outline-warning btn-sm" onclick="archivePaymentLink('${link.paymentLinkId}')" title="Archiver le lien">
+                        <i class="bi bi-archive"></i>
+                    </button>
+                    ` : ''}
                     ${['opened', 'expired'].includes(link.status) ? `
                     <button class="btn btn-outline-danger btn-sm" onclick="deletePaymentLink('${link.paymentLinkId}')" title="Supprimer le lien">
                         <i class="bi bi-trash"></i>
@@ -1288,6 +1293,69 @@ function openPaymentUrl(paymentLinkId) {
     const link = generatedPaymentLinks.find(l => l.paymentLinkId === paymentLinkId);
     if (link && link.paymentUrl) {
         window.open(link.paymentUrl, '_blank');
+    }
+}
+
+/**
+ * Archiver un lien de paiement individuel (pour superviseurs seulement)
+ */
+async function archivePaymentLink(paymentLinkId) {
+    const link = generatedPaymentLinks.find(l => l.paymentLinkId === paymentLinkId);
+    if (!link) {
+        showError('Lien de paiement non trouvé');
+        return;
+    }
+
+    // Vérifier que le lien a le statut "paid"
+    if (link.status !== 'paid') {
+        showError('Seuls les liens avec le statut "Payé" peuvent être archivés');
+        return;
+    }
+
+    // Demander confirmation
+    const confirmationMessage = `
+Archiver ce lien de paiement ?
+
+Client: ${link.clientName}
+Montant: ${formatAmount(link.amount)} ${link.currency}
+Date de création: ${formatDateTime(link.createdAt)}
+
+Cette action va archiver ce lien de paiement.
+Le lien archivé ne sera plus visible dans le tableau principal 
+mais restera consultable dans les archives.
+    `.trim();
+
+    if (!confirm(confirmationMessage)) {
+        return;
+    }
+
+    try {
+        console.log('🗄️ Archivage du lien de paiement:', paymentLinkId);
+
+        const response = await fetch('/api/payment-links/archive-individual', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                paymentLinkId: paymentLinkId
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess('Lien de paiement archivé avec succès');
+            
+            // Recharger la liste des liens
+            loadExistingPaymentLinks();
+        } else {
+            showError(result.message || 'Erreur lors de l\'archivage du lien');
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'archivage du lien:', error);
+        showError('Erreur lors de l\'archivage du lien de paiement');
     }
 }
 

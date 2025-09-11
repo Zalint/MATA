@@ -5465,6 +5465,84 @@ app.post('/api/payment-links/archive-old', checkAuth, async (req, res) => {
     }
 });
 
+// Route pour archiver un lien de paiement individuel (superviseurs seulement)
+app.post('/api/payment-links/archive-individual', checkAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const { paymentLinkId } = req.body;
+        
+        console.log('🗄️ Archivage individuel demandé par:', user.username, 'pour le lien:', paymentLinkId);
+
+        // Vérifier que l'utilisateur est superviseur
+        if (user.role !== 'superviseur') {
+            return res.status(403).json({
+                success: false,
+                message: 'Accès refusé. Seuls les superviseurs peuvent archiver des liens individuellement.'
+            });
+        }
+
+        if (!paymentLinkId) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID du lien de paiement requis'
+            });
+        }
+
+        // Vérifier que le lien existe
+        const existingLink = await PaymentLink.findOne({
+            where: { payment_link_id: paymentLinkId }
+        });
+
+        if (!existingLink) {
+            return res.status(404).json({
+                success: false,
+                message: 'Lien de paiement non trouvé'
+            });
+        }
+
+        // Vérifier que le lien a le statut "paid"
+        if (existingLink.status !== 'paid') {
+            return res.status(400).json({
+                success: false,
+                message: 'Seuls les liens avec le statut "Payé" peuvent être archivés'
+            });
+        }
+
+        // Vérifier que le lien n'est pas déjà archivé
+        if (existingLink.archived === 1) {
+            return res.status(400).json({
+                success: false,
+                message: 'Ce lien est déjà archivé'
+            });
+        }
+
+        // Archiver le lien
+        await PaymentLink.update(
+            { 
+                archived: 1, 
+                updated_at: new Date() 
+            },
+            { 
+                where: { payment_link_id: paymentLinkId } 
+            }
+        );
+
+        console.log('✅ Lien de paiement archivé avec succès:', paymentLinkId);
+
+        res.json({
+            success: true,
+            message: 'Lien de paiement archivé avec succès'
+        });
+
+    } catch (error) {
+        console.error('Erreur lors de l\'archivage individuel:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur interne du serveur'
+        });
+    }
+});
+
 // Route pour voir les archives (superviseurs seulement)
 app.get('/api/payment-links/archives', checkAuth, (req, res) => {
     // TEMPORAIREMENT DÉSACTIVÉ - EN COURS DE MIGRATION VERS SEQUELIZE
@@ -5636,6 +5714,7 @@ app.listen(PORT, () => {
     console.log('- GET /api/payment-links/list');
     console.log('- DELETE /api/payment-links/:paymentLinkId');
     console.log('- POST /api/payment-links/archive-old');
+    console.log('- POST /api/payment-links/archive-individual');
     console.log('- GET /api/payment-links/archives');
     console.log('- GET /api/payment-links/archives/:weekStart');
 });
