@@ -883,6 +883,33 @@ const dateFinPicker = flatpickr("#date-fin", {
     }
 });
 
+// Configuration des dates pour le tableau des ventes par point de vente
+const dateDebutPointVentePicker = flatpickr("#dateDebutPointVente", {
+    locale: "fr",
+    dateFormat: "d/m/Y",
+    defaultDate: "today",
+    onChange: function(selectedDates, dateStr) {
+        console.log('Date de début Point de Vente changée:', dateStr);
+        // Mettre à jour le tableau si le filtre par dates est actif
+        if (document.getElementById('filterTypePointVente').value === 'dates') {
+            creerTableauVentesParPointVente();
+        }
+    }
+});
+
+const dateFinPointVentePicker = flatpickr("#dateFinPointVente", {
+    locale: "fr",
+    dateFormat: "d/m/Y",
+    defaultDate: "today",
+    onChange: function(selectedDates, dateStr) {
+        console.log('Date de fin Point de Vente changée:', dateStr);
+        // Mettre à jour le tableau si le filtre par dates est actif
+        if (document.getElementById('filterTypePointVente').value === 'dates') {
+            creerTableauVentesParPointVente();
+        }
+    }
+});
+
 // Configuration des dates pour les filtres des pré-commandes - exactement comme visualisation
 const precommandeFilterDateDebutPicker = flatpickr("#filter-precommande-date-debut", {
     locale: "fr",
@@ -2384,8 +2411,11 @@ function creerGraphiqueVentesParProduit(donnees) {
         // Créer également le tableau des ventes par point de vente
         creerTableauVentesParPointVente(donnees);
         
-        // Ajouter l'event listener pour le filtre de mois si pas encore fait
+        // Ajouter l'event listener pour les filtres si pas encore fait
         ajouterEventListenerFiltreMois();
+        
+        // Initialiser le tableau avec le filtrage par dates par défaut
+        initialiserTableauPointVente();
         return;
     }
 
@@ -2423,8 +2453,11 @@ function creerGraphiqueVentesParProduit(donnees) {
     // Créer également le tableau des ventes par point de vente
     creerTableauVentesParPointVente(donnees);
     
-    // Ajouter l'event listener pour le filtre de mois si pas encore fait
+    // Ajouter l'event listener pour les filtres si pas encore fait
     ajouterEventListenerFiltreMois();
+    
+    // Initialiser le tableau avec le filtrage par dates par défaut
+    initialiserTableauPointVente();
 }
 
 // Fonction pour créer le tableau des ventes par point de vente
@@ -2432,6 +2465,42 @@ async function creerTableauVentesParPointVente(donnees = null, moisFiltre = null
     console.log('Création du tableau des ventes par point de vente');
     
     try {
+        // Déterminer le type de filtrage à utiliser
+        const filterType = document.getElementById('filterTypePointVente').value;
+        console.log('Type de filtrage sélectionné:', filterType);
+        
+        let toutesLesVentes;
+        
+        if (filterType === 'dates') {
+            // Utiliser les données filtrées par dates de la fonction chargerVentes
+            // Récupérer les dates des filtres principaux
+            const dateDebut = document.getElementById('date-debut').value;
+            const dateFin = document.getElementById('date-fin').value;
+            const pointVente = document.getElementById('point-vente-select').value;
+            
+            console.log('Filtrage par plage de dates:', { dateDebut, dateFin, pointVente });
+            
+            // Construire l'URL avec les paramètres de filtrage
+            const params = new URLSearchParams();
+            if (dateDebut) params.append('dateDebut', dateDebut);
+            if (dateFin) params.append('dateFin', dateFin);
+            if (pointVente && pointVente !== '') params.append('pointVente', pointVente);
+            
+            const ventesResponse = await fetch(`/api/ventes?${params.toString()}`);
+            const ventesData = await ventesResponse.json();
+            
+            if (!ventesData.success) {
+                throw new Error('Erreur lors de la récupération des ventes filtrées');
+            }
+            
+            toutesLesVentes = ventesData.ventes;
+            console.log('Ventes filtrées par plage de dates:', toutesLesVentes.length);
+            
+            // Mettre à jour le titre du tableau avec la plage de dates
+            updateTitreTableauAvecDates(dateDebut, dateFin);
+            
+        } else {
+            // Mode mois (comportement original)
         // Initialiser le filtre de mois si pas encore fait
         if (!moisFiltre) {
             initialiserFiltreDefautMois();
@@ -2447,8 +2516,12 @@ async function creerTableauVentesParPointVente(donnees = null, moisFiltre = null
         }
         
         // Utiliser toutes les ventes disponibles, pas les données partielles
-        const toutesLesVentes = ventesData.dernieresVentes;
+            toutesLesVentes = ventesData.dernieresVentes;
         console.log('Toutes les ventes récupérées pour le tableau:', toutesLesVentes.length);
+            
+            // Mettre à jour le titre du tableau avec le mois sélectionné
+            updateTitreTableauAvecMois(moisFiltre);
+        }
         
         // Récupérer la liste des points de vente actifs via l'API
         const response = await fetch('/api/points-vente');
@@ -2457,7 +2530,9 @@ async function creerTableauVentesParPointVente(donnees = null, moisFiltre = null
         
         // Filtrer les données par mois si un filtre est spécifié
         let donneesFiltered = toutesLesVentes;
-        if (moisFiltre && moisFiltre !== '') {
+        
+        // Appliquer le filtrage par mois seulement si le mode mois est sélectionné
+        if (filterType === 'mois' && moisFiltre && moisFiltre !== '') {
             donneesFiltered = toutesLesVentes.filter(vente => {
                 const dateVente = vente.Date || vente.date || '';
                 if (dateVente) {
@@ -2619,11 +2694,60 @@ function updateTitreTableauAvecMois(moisFiltre) {
     }
 }
 
+// Fonction pour mettre à jour le titre du tableau avec la plage de dates
+function updateTitreTableauAvecDates(dateDebut, dateFin) {
+    console.log('Mise à jour du titre avec la plage de dates:', { dateDebut, dateFin });
+    const tableCard = document.getElementById('ventesParPointVenteTable')?.closest('.card');
+    const titre = tableCard?.querySelector('.card-title');
+    
+    if (titre && dateDebut && dateFin) {
+        // Convertir les dates au format DD/MM/YYYY si nécessaire
+        const formatDate = (dateStr) => {
+            if (dateStr.includes('/')) {
+                return dateStr;
+            } else if (dateStr.includes('-')) {
+                const [jour, mois, annee] = dateStr.split('-');
+                return `${jour}/${mois}/${annee}`;
+            }
+            return dateStr;
+        };
+        
+        const debutFormate = formatDate(dateDebut);
+        const finFormate = formatDate(dateFin);
+        titre.textContent = `Ventes par Point de Vente - ${debutFormate} au ${finFormate}`;
+    } else if (titre) {
+        titre.textContent = 'Ventes par Point de Vente';
+    }
+}
+
 // Variable globale pour stocker les données des ventes (pour le filtrage)
 let donneesVentesGlobales = [];
 
-// Fonction pour ajouter l'event listener du filtre de mois
+// Fonction pour initialiser le tableau des ventes par point de vente avec le filtrage par dates par défaut
+function initialiserTableauPointVente() {
+    const filterTypeSelect = document.getElementById('filterTypePointVente');
+    if (filterTypeSelect && !filterTypeSelect.hasAttribute('data-initialized')) {
+        // Définir le filtrage par dates comme option par défaut
+        filterTypeSelect.value = 'dates';
+        
+        // Afficher/masquer les contrôles appropriés
+        const moisContainer = document.getElementById('moisFilterContainer');
+        const datesContainer = document.getElementById('datesFilterContainer');
+        
+        if (moisContainer && datesContainer) {
+            moisContainer.style.display = 'none';
+            datesContainer.style.display = 'flex';
+        }
+        
+        // Marquer comme initialisé
+        filterTypeSelect.setAttribute('data-initialized', 'true');
+        console.log('Tableau des ventes par point de vente initialisé avec le filtrage par dates par défaut');
+    }
+}
+
+// Fonction pour ajouter les event listeners des filtres du tableau des ventes par point de vente
 function ajouterEventListenerFiltreMois() {
+    // Event listener pour le filtre de mois
     const moisFilter = document.getElementById('moisFilterPointVente');
     if (moisFilter && !moisFilter.hasAttribute('data-listener-added')) {
         moisFilter.addEventListener('change', function() {
@@ -2638,6 +2762,47 @@ function ajouterEventListenerFiltreMois() {
         // Marquer que l'event listener a été ajouté
         moisFilter.setAttribute('data-listener-added', 'true');
         console.log('Event listener ajouté au filtre de mois');
+    }
+    
+    // Event listener pour le changement de type de filtrage
+    const filterTypeSelect = document.getElementById('filterTypePointVente');
+    if (filterTypeSelect && !filterTypeSelect.hasAttribute('data-listener-added')) {
+        filterTypeSelect.addEventListener('change', function() {
+            const filterType = this.value;
+            console.log(`Type de filtrage changé: ${filterType}`);
+            
+            // Afficher/masquer les contrôles appropriés
+            const moisContainer = document.getElementById('moisFilterContainer');
+            const datesContainer = document.getElementById('datesFilterContainer');
+            
+            if (filterType === 'dates') {
+                moisContainer.style.display = 'none';
+                datesContainer.style.display = 'flex';
+                
+                // Synchroniser les dates avec les filtres principaux
+                const dateDebut = document.getElementById('date-debut').value;
+                const dateFin = document.getElementById('date-fin').value;
+                
+                if (dateDebut && dateFin) {
+                    dateDebutPointVentePicker.setDate(dateDebut);
+                    dateFinPointVentePicker.setDate(dateFin);
+                }
+                
+                // Recharger le tableau avec le filtrage par dates
+                creerTableauVentesParPointVente();
+                
+            } else {
+                moisContainer.style.display = 'flex';
+                datesContainer.style.display = 'none';
+                
+                // Recharger le tableau avec le filtrage par mois
+                creerTableauVentesParPointVente();
+            }
+        });
+        
+        // Marquer que l'event listener a été ajouté
+        filterTypeSelect.setAttribute('data-listener-added', 'true');
+        console.log('Event listener ajouté au sélecteur de type de filtrage');
     }
 }
 
@@ -2865,6 +3030,17 @@ function creerGraphiqueVentesParCategorie(donnees) {
         ventesParCategorieChart.data.datasets[0].data = data;
         ventesParCategorieChart.data.datasets[0].backgroundColor = backgroundColors;
         ventesParCategorieChart.data.datasets[0].borderColor = borderColors;
+        
+        // Mettre à jour les options du plugin datalabels avec les nouvelles données
+        if (ventesParCategorieChart.options.plugins.datalabels) {
+            ventesParCategorieChart.options.plugins.datalabels.formatter = (value, ctx) => {
+                if (totalVentes === 0) return '0%';
+                let percentage = ((value / totalVentes) * 100).toFixed(1);
+                // Afficher le pourcentage même s'il est inférieur à 1%
+                return percentage + '%';
+            };
+        }
+        
         ventesParCategorieChart.update('none'); // Mise à jour sans animation
         console.log('Graphique catégorie mis à jour avec succès');
         return;
@@ -2916,8 +3092,8 @@ function creerGraphiqueVentesParCategorie(donnees) {
                     formatter: (value, ctx) => {
                         if (totalVentes === 0) return '0%';
                         let percentage = ((value / totalVentes) * 100).toFixed(1);
-                        // Only display label if percentage is significant (e.g., > 1%)
-                        return parseFloat(percentage) > 1 ? percentage + '%' : '';
+                        // Afficher le pourcentage même s'il est inférieur à 1%
+                        return percentage + '%';
                     },
                     color: '#fff', // Color of the labels
                     font: {
