@@ -5544,13 +5544,7 @@ app.post('/api/payment-links/archive-individual', checkAuth, async (req, res) =>
 });
 
 // Route pour voir les archives (superviseurs seulement)
-app.get('/api/payment-links/archives', checkAuth, (req, res) => {
-    // TEMPORAIREMENT DÉSACTIVÉ - EN COURS DE MIGRATION VERS SEQUELIZE
-    return res.status(501).json({
-        success: false,
-        message: 'Route temporairement désactivée - en cours de migration vers PostgreSQL'
-    });
-    
+app.get('/api/payment-links/archives', checkAuth, async (req, res) => {
     try {
         const user = req.user;
 
@@ -5565,9 +5559,10 @@ app.get('/api/payment-links/archives', checkAuth, (req, res) => {
         console.log('📚 Consultation des archives par:', user.username);
 
         // Récupérer les archives groupées par semaine (liens archivés)
-        const sql = `
+        // Utiliser une requête SQL brute avec Sequelize pour PostgreSQL
+        const results = await sequelize.query(`
             SELECT 
-                DATE(due_date, 'weekday 0', '-6 days') as week_start,
+                DATE_TRUNC('week', due_date) as week_start,
                 COUNT(*) as count,
                 MIN(due_date) as first_date,
                 MAX(due_date) as last_date
@@ -5575,38 +5570,30 @@ app.get('/api/payment-links/archives', checkAuth, (req, res) => {
             WHERE status = 'paid' 
             AND due_date IS NOT NULL
             AND archived = 1
-            GROUP BY DATE(due_date, 'weekday 0', '-6 days')
+            GROUP BY DATE_TRUNC('week', due_date)
             ORDER BY week_start DESC
-        `;
+        `, {
+            type: sequelize.QueryTypes.SELECT
+        });
 
-        db.all(sql, [], (err, rows) => {
-            if (err) {
-                console.error('❌ Erreur lors de la récupération des archives:', err);
-                return res.status(500).json({
-                    success: false,
-                    message: 'Erreur lors de la récupération des archives'
-                });
-            }
+        const archives = results.map(row => {
+            const weekStart = new Date(row.week_start);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekEnd.getDate() + 6);
 
-            const archives = rows.map(row => {
-                const weekStart = new Date(row.week_start);
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekEnd.getDate() + 6);
+            return {
+                weekStart: row.week_start,
+                weekLabel: `Semaine du ${weekStart.toLocaleDateString('fr-FR')} au ${weekEnd.toLocaleDateString('fr-FR')}`,
+                count: parseInt(row.count),
+                firstDate: row.first_date,
+                lastDate: row.last_date
+            };
+        });
 
-                return {
-                    weekStart: row.week_start,
-                    weekLabel: `Semaine du ${weekStart.toLocaleDateString('fr-FR')} au ${weekEnd.toLocaleDateString('fr-FR')}`,
-                    count: row.count,
-                    firstDate: row.first_date,
-                    lastDate: row.last_date
-                };
-            });
-
-            console.log('✅ Archives récupérées:', archives.length, 'semaines');
-            res.json({
-                success: true,
-                data: archives
-            });
+        console.log('✅ Archives récupérées:', archives.length, 'semaines');
+        res.json({
+            success: true,
+            data: archives
         });
 
     } catch (error) {
@@ -5619,13 +5606,7 @@ app.get('/api/payment-links/archives', checkAuth, (req, res) => {
 });
 
 // Route pour voir les archives d'une semaine spécifique
-app.get('/api/payment-links/archives/:weekStart', checkAuth, (req, res) => {
-    // TEMPORAIREMENT DÉSACTIVÉ - EN COURS DE MIGRATION VERS SEQUELIZE
-    return res.status(501).json({
-        success: false,
-        message: 'Route temporairement désactivée - en cours de migration vers PostgreSQL'
-    });
-    
+app.get('/api/payment-links/archives/:weekStart', checkAuth, async (req, res) => {
     try {
         const user = req.user;
         const { weekStart } = req.params;
@@ -5646,8 +5627,8 @@ app.get('/api/payment-links/archives/:weekStart', checkAuth, (req, res) => {
         weekEndDate.setDate(weekEndDate.getDate() + 6);
         const weekEndISO = weekEndDate.toISOString();
 
-        // Récupérer les liens archivés de la semaine
-        const sql = `
+        // Récupérer les liens archivés de la semaine avec Sequelize
+        const results = await sequelize.query(`
             SELECT 
                 payment_link_id, point_vente, client_name, phone_number, address,
                 amount, currency, reference, description, payment_url, status,
@@ -5655,44 +5636,40 @@ app.get('/api/payment-links/archives/:weekStart', checkAuth, (req, res) => {
             FROM payment_links 
             WHERE status = 'paid' 
             AND due_date IS NOT NULL
-            AND due_date >= ? 
-            AND due_date <= ?
+            AND due_date >= :weekStart 
+            AND due_date <= :weekEnd
             AND archived = 1
             ORDER BY due_date DESC
-        `;
+        `, {
+            replacements: { 
+                weekStart: weekStart, 
+                weekEnd: weekEndISO 
+            },
+            type: sequelize.QueryTypes.SELECT
+        });
 
-        db.all(sql, [weekStart, weekEndISO], (err, rows) => {
-            if (err) {
-                console.error('❌ Erreur lors de la récupération des liens de la semaine:', err);
-                return res.status(500).json({
-                    success: false,
-                    message: 'Erreur lors de la récupération des liens de la semaine'
-                });
-            }
+        const links = results.map(row => ({
+            paymentLinkId: row.payment_link_id,
+            pointVente: row.point_vente,
+            clientName: row.client_name,
+            phoneNumber: row.phone_number,
+            address: row.address,
+            amount: row.amount,
+            currency: row.currency,
+            reference: row.reference,
+            description: row.description,
+            paymentUrl: row.payment_url,
+            status: row.status,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            createdBy: row.created_by,
+            dueDate: row.due_date
+        }));
 
-            const links = rows.map(row => ({
-                paymentLinkId: row.payment_link_id,
-                pointVente: row.point_vente,
-                clientName: row.client_name,
-                phoneNumber: row.phone_number,
-                address: row.address,
-                amount: row.amount,
-                currency: row.currency,
-                reference: row.reference,
-                description: row.description,
-                paymentUrl: row.payment_url,
-                status: row.status,
-                createdAt: row.created_at,
-                updatedAt: row.updated_at,
-                createdBy: row.created_by,
-                dueDate: row.due_date
-            }));
-
-            console.log('✅ Liens de la semaine récupérés:', links.length);
-            res.json({
-                success: true,
-                data: links
-            });
+        console.log('✅ Liens de la semaine récupérés:', links.length);
+        res.json({
+            success: true,
+            data: links
         });
 
     } catch (error) {
