@@ -2480,10 +2480,34 @@ async function creerTableauVentesParPointVente(donnees = null, moisFiltre = null
             
             console.log('Filtrage par plage de dates:', { dateDebut, dateFin, pointVente });
             
+            // Convertir les dates au format API (YYYY-MM-DD)
+            const formatDateForApi = (dateStr, isEndDate = false) => {
+                if (!dateStr) return '';
+                const [jour, mois, annee] = dateStr.split('/');
+                
+                let year = parseInt(annee);
+                let month = parseInt(mois);
+                let day = parseInt(jour);
+                
+                if (isEndDate) {
+                    const tempDate = new Date(year, month - 1, day + 1);
+                    year = tempDate.getFullYear();
+                    month = tempDate.getMonth() + 1;
+                    day = tempDate.getDate();
+                }
+                
+                return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            };
+            
+            const debut = formatDateForApi(dateDebut);
+            const fin = formatDateForApi(dateFin, true);
+            
+            console.log('Dates converties pour API:', { debut, fin });
+            
             // Construire l'URL avec les paramètres de filtrage
             const params = new URLSearchParams();
-            if (dateDebut) params.append('dateDebut', dateDebut);
-            if (dateFin) params.append('dateFin', dateFin);
+            if (debut) params.append('dateDebut', debut);
+            if (fin) params.append('dateFin', fin);
             if (pointVente && pointVente !== '') params.append('pointVente', pointVente);
             
             const ventesResponse = await fetch(`/api/ventes?${params.toString()}`);
@@ -2495,6 +2519,9 @@ async function creerTableauVentesParPointVente(donnees = null, moisFiltre = null
             
             toutesLesVentes = ventesData.ventes;
             console.log('Ventes filtrées par plage de dates:', toutesLesVentes.length);
+            console.log('URL utilisée:', `/api/ventes?${params.toString()}`);
+            console.log('Premières ventes récupérées:', toutesLesVentes.slice(0, 3));
+            console.log('Dates des premières ventes:', toutesLesVentes.slice(0, 3).map(v => v.Date || v.date));
             
             // Mettre à jour le titre du tableau avec la plage de dates
             updateTitreTableauAvecDates(dateDebut, dateFin);
