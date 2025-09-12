@@ -97,6 +97,8 @@ const Precommande = sequelize.define('Precommande', {
 }, {
   tableName: 'precommandes',
   timestamps: true, // Ajoute automatiquement createdAt et updatedAt
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt', // S'assurer que Sequelize utilise le bon nom de colonne
   hooks: {
     beforeBulkCreate: async (instances, options) => {
       // Vérifier si les instances ont déjà un ID

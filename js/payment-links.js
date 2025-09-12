@@ -114,6 +114,18 @@ function initEventListeners() {
         amountInput.addEventListener('input', validateAmount);
     }
     
+    // Checkbox versement
+    const versementCheckbox = document.getElementById('versement-checkbox');
+    if (versementCheckbox) {
+        versementCheckbox.addEventListener('change', handleVersementToggle);
+    }
+    
+    // Point de vente pour générer le nom client automatique
+    const pointVenteSelect = document.getElementById('point-vente');
+    if (pointVenteSelect) {
+        pointVenteSelect.addEventListener('change', handlePointVenteChange);
+    }
+    
     // Bouton d'archivage
     const archiveButton = document.getElementById('archive-button');
     if (archiveButton) {
@@ -269,6 +281,78 @@ function validateAmount(event) {
 }
 
 /**
+ * Gérer le toggle du checkbox versement
+ */
+function handleVersementToggle(event) {
+    const isVersement = event.target.checked;
+    const clientNameInput = document.getElementById('client-name');
+    const phoneNumberInput = document.getElementById('phone-number');
+    const pointVenteSelect = document.getElementById('point-vente');
+    
+    if (isVersement) {
+        // Mode versement : griser les champs client et téléphone
+        clientNameInput.disabled = true;
+        clientNameInput.style.backgroundColor = '#f8f9fa';
+        clientNameInput.style.color = '#6c757d';
+        
+        phoneNumberInput.disabled = true;
+        phoneNumberInput.style.backgroundColor = '#f8f9fa';
+        phoneNumberInput.style.color = '#6c757d';
+        
+        // Générer le nom client automatique si un point de vente est sélectionné
+        if (pointVenteSelect.value) {
+            generateVersementClientName();
+        }
+    } else {
+        // Mode normal : réactiver les champs
+        clientNameInput.disabled = false;
+        clientNameInput.style.backgroundColor = '';
+        clientNameInput.style.color = '';
+        
+        phoneNumberInput.disabled = false;
+        phoneNumberInput.style.backgroundColor = '';
+        phoneNumberInput.style.color = '';
+        
+        // Vider le champ nom client
+        clientNameInput.value = '';
+    }
+}
+
+/**
+ * Gérer le changement de point de vente pour générer le nom client automatique
+ */
+function handlePointVenteChange(event) {
+    const versementCheckbox = document.getElementById('versement-checkbox');
+    if (versementCheckbox && versementCheckbox.checked) {
+        generateVersementClientName();
+    }
+}
+
+/**
+ * Générer le nom client automatique pour un versement
+ */
+function generateVersementClientName() {
+    const pointVenteSelect = document.getElementById('point-vente');
+    const clientNameInput = document.getElementById('client-name');
+    
+    if (pointVenteSelect.value) {
+        // Générer un timestamp au format YYYY-MM-DD_HH-MM-SS
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        
+        const timestamp = `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+        const clientName = `${pointVenteSelect.value}_V_${timestamp}`;
+        
+        clientNameInput.value = clientName;
+    }
+}
+
+/**
  * Gérer la soumission du formulaire de paiement
  */
 async function handlePaymentFormSubmit(event) {
@@ -291,14 +375,26 @@ async function handlePaymentFormSubmit(event) {
         console.log('📅 Date d\'expiration auto-définie à +24h:', dueDate);
     }
     
+    // Vérifier si c'est un versement et générer le nom client automatiquement
+    const versementCheckbox = document.getElementById('versement-checkbox');
+    const isVersement = versementCheckbox && versementCheckbox.checked;
+    
+    let clientName = formData.get('clientName');
+    if (isVersement && !clientName) {
+        // Générer le nom client automatiquement pour un versement
+        generateVersementClientName();
+        clientName = document.getElementById('client-name').value;
+    }
+    
     // Validation des données
     const paymentData = {
         pointVente: formData.get('pointVente'),
-        clientName: formData.get('clientName'),
+        clientName: clientName,
         phoneNumber: formData.get('phoneNumber'),
         amount: parseFloat(formData.get('amount')),
         address: formData.get('address'),
-        dueDate: dueDate
+        dueDate: dueDate,
+        isVersement: isVersement
     };
     
     // Validation côté client
@@ -360,18 +456,28 @@ function validatePaymentData(data) {
         return false;
     }
     
-    // Validation optionnelle des champs client
-    if (data.clientName && data.clientName.trim().length < 2) {
-        showError('Le nom du client doit contenir au moins 2 caractères');
-        return false;
-    }
+    // Vérifier si c'est un versement
+    const versementCheckbox = document.getElementById('versement-checkbox');
+    const isVersement = versementCheckbox && versementCheckbox.checked;
     
-    // Validation du numéro de téléphone (accepte + et numéros, pas de minimum)
-    if (data.phoneNumber && data.phoneNumber.trim()) {
-        const phoneRegex = /^[\d\s\+\-\(\)]+$/;
-        if (!phoneRegex.test(data.phoneNumber.trim())) {
-            showError('Le numéro de téléphone ne peut contenir que des chiffres, espaces, +, - et ()');
+    if (isVersement) {
+        // Pour un versement, le nom client est généré automatiquement
+        // Pas de validation nécessaire pour les champs client et téléphone
+        console.log('Mode versement détecté - validation simplifiée');
+    } else {
+        // Validation optionnelle des champs client en mode normal
+        if (data.clientName && data.clientName.trim().length < 2) {
+            showError('Le nom du client doit contenir au moins 2 caractères');
             return false;
+        }
+        
+        // Validation du numéro de téléphone (accepte + et numéros, pas de minimum)
+        if (data.phoneNumber && data.phoneNumber.trim()) {
+            const phoneRegex = /^[\d\s\+\-\(\)]+$/;
+            if (!phoneRegex.test(data.phoneNumber.trim())) {
+                showError('Le numéro de téléphone ne peut contenir que des chiffres, espaces, +, - et ()');
+                return false;
+            }
         }
     }
     
