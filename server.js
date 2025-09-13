@@ -117,11 +117,7 @@ console.log('Estimation.create:', typeof Estimation.create === 'function' ? 'fun
     console.log('Running database schema updates...');
     await updateSchema();
     await updateVenteSchema();
-    
-    // Fix the updated_at column issue
-    const { fixUpdatedAtColumn } = require('./db/fix-updated-at-column');
-    await fixUpdatedAtColumn();
-    
+        
     // Add commentaire column if it doesn't exist
     try {
         console.log('Checking and adding commentaire column...');
