@@ -7456,13 +7456,13 @@ app.get('/api/external/achats-boeuf', validateApiKey, async (req, res) => {
                 nbrVeau: veauAchats.length,
                 
                 // Totaux Bœuf
-                totalPrixBoeuf: boeufAchats.reduce((sum, achat) => sum + achat.prix, 0),
+                totalPrixBoeuf: boeufAchats.reduce((sum, achat) => sum + (achat.prix_achat_kg * achat.nbr_kg), 0),
                 totalAbatsBoeuf: boeufAchats.reduce((sum, achat) => sum + achat.abats, 0),
                 totalFraisAbattageBoeuf: boeufAchats.reduce((sum, achat) => sum + achat.frais_abattage, 0),
                 totalKgBoeuf: boeufAchats.reduce((sum, achat) => sum + achat.nbr_kg, 0),
                 
                 // Totaux Veau
-                totalPrixVeau: veauAchats.reduce((sum, achat) => sum + achat.prix, 0),
+                totalPrixVeau: veauAchats.reduce((sum, achat) => sum + (achat.prix_achat_kg * achat.nbr_kg), 0),
                 totalAbatsVeau: veauAchats.reduce((sum, achat) => sum + achat.abats, 0),
                 totalFraisAbattageVeau: veauAchats.reduce((sum, achat) => sum + achat.frais_abattage, 0),
                 totalKgVeau: veauAchats.reduce((sum, achat) => sum + achat.nbr_kg, 0),
@@ -7475,18 +7475,18 @@ app.get('/api/external/achats-boeuf', validateApiKey, async (req, res) => {
             };
             
             // Calculs moyennes Bœuf
-            if (totals.totalKgBoeuf > 0) {
-                totals.avgPrixKgBoeuf = totals.totalPrixBoeuf / totals.totalKgBoeuf;
-                totals.avgPrixKgSansAbatsBoeuf = totals.totalPrixBoeuf / totals.totalKgBoeuf;
+            if (boeufAchats.length > 0) {
+                totals.avgPrixKgBoeuf = boeufAchats.reduce((sum, achat) => sum + achat.prix_achat_kg, 0) / boeufAchats.length;
+                totals.avgPrixKgSansAbatsBoeuf = totals.avgPrixKgBoeuf;
             } else {
                 totals.avgPrixKgBoeuf = 0;
                 totals.avgPrixKgSansAbatsBoeuf = 0;
             }
             
             // Calculs moyennes Veau
-            if (totals.totalKgVeau > 0) {
-                totals.avgPrixKgVeau = totals.totalPrixVeau / totals.totalKgVeau;
-                totals.avgPrixKgSansAbatsVeau = totals.totalPrixVeau / totals.totalKgVeau;
+            if (veauAchats.length > 0) {
+                totals.avgPrixKgVeau = veauAchats.reduce((sum, achat) => sum + achat.prix_achat_kg, 0) / veauAchats.length;
+                totals.avgPrixKgSansAbatsVeau = totals.avgPrixKgVeau;
             } else {
                 totals.avgPrixKgVeau = 0;
                 totals.avgPrixKgSansAbatsVeau = 0;

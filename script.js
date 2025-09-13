@@ -761,6 +761,56 @@ async function checkAuth() {
             if (paymentLinksItem) paymentLinksItem.style.display = 'none';
         }
         
+        // Section Analytics des Ventes - visible uniquement pour les superviseurs
+        const analyticsSection = document.getElementById('analytics-section');
+        const btnAnalyticsPopup = document.getElementById('btn-analytics-popup');
+        const analyticsContent = document.getElementById('analytics-content');
+        
+        if (currentUser.role === 'superviseur') {
+            if (analyticsSection) analyticsSection.style.display = 'block';
+            if (btnAnalyticsPopup) btnAnalyticsPopup.style.display = 'inline-block';
+            
+            // Gérer le clic sur le bouton analytics
+            if (btnAnalyticsPopup) {
+                btnAnalyticsPopup.addEventListener('click', function() {
+                    if (analyticsContent) {
+                        if (analyticsContent.style.display === 'none') {
+                            analyticsContent.style.display = 'block';
+                            btnAnalyticsPopup.innerHTML = '<i class="fas fa-eye-slash me-2"></i>Masquer les Analytics';
+                            btnAnalyticsPopup.classList.remove('btn-outline-info');
+                            btnAnalyticsPopup.classList.add('btn-info');
+                            
+                            // Charger les analytics quand on les affiche
+                            // Récupérer les ventes actuelles depuis la variable globale
+                            afficherAnalyticsVentes(allVentes || []);
+                        } else {
+                            analyticsContent.style.display = 'none';
+                            btnAnalyticsPopup.innerHTML = '<i class="fas fa-chart-line me-2"></i>Voir les Analytics';
+                            btnAnalyticsPopup.classList.remove('btn-info');
+                            btnAnalyticsPopup.classList.add('btn-outline-info');
+                        }
+                    }
+                });
+            }
+            
+            // Ajouter les événements pour recalculer les proxy marges
+            const prixAchatPoulet = document.getElementById('prix-achat-poulet');
+            const prixAchatAgneau = document.getElementById('prix-achat-agneau');
+            const prixAchatOeuf = document.getElementById('prix-achat-oeuf');
+            
+            if (prixAchatPoulet) {
+                prixAchatPoulet.addEventListener('input', recalculerProxyMarges);
+            }
+            if (prixAchatAgneau) {
+                prixAchatAgneau.addEventListener('input', recalculerProxyMarges);
+            }
+            if (prixAchatOeuf) {
+                prixAchatOeuf.addEventListener('input', recalculerProxyMarges);
+            }
+        } else {
+            if (analyticsSection) analyticsSection.style.display = 'none';
+        }
+        
         // Vérifier l'accès au chat Relevance AI
         if (!currentUser.canAccessChat) {
             // Désactiver le chat pour les utilisateurs non autorisés
@@ -3104,7 +3154,7 @@ function creerGraphiqueVentesParCategorie(donnees) {
                                 label += ': ';
                             }
                             if (context.parsed !== null) {
-                                label += new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'FCFA' }).format(context.parsed);
+                                label += new Intl.NumberFormat('fr-FR', { style: 'decimal' }).format(context.parsed) + ' FCFA';
                                 if (totalVentes > 0) {
                                     const percentage = ((context.parsed / totalVentes) * 100).toFixed(1);
                                     label += ` (${percentage}%)`;
@@ -3258,7 +3308,7 @@ async function chargerVentes() {
             creerGraphiqueVentesParCategorie(ventesFormatees);
             
             // Mettre à jour les analytics
-            afficherAnalyticsVentes(ventesFormatees);
+            await afficherAnalyticsVentes(ventesFormatees);
         } else {
             throw new Error(data.message || 'Erreur lors du chargement des ventes');
         }
@@ -10771,15 +10821,65 @@ function calculerAnalyticsVentes(ventes) {
         'Agneau': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 }
     };
 
-    // Catégories regroupées (nouvelles)
+    // Catégories regroupées (nouvelles) - Agneau en première position
     const categoriesRegroupees = {
+        'Agneau': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
         'Boeuf': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
         'Veau': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
-        'Poulet': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 }
+        'Poulet': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Oeuf': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Packs': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Divers': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Autre': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 }
     };
 
+    // Debug: Afficher toutes les catégories trouvées
+    console.log('🔍 DEBUG - Toutes les catégories dans les ventes:');
+    if (!ventes || !Array.isArray(ventes)) {
+        console.error('❌ ERREUR: ventes est undefined ou pas un tableau:', ventes);
+        return { individuelles: {}, regroupees: {} };
+    }
+    const categoriesTrouvees = [...new Set(ventes.map(v => v.Categorie).filter(c => c))];
+    console.log('Catégories uniques:', categoriesTrouvees);
+    
+    // Debug: Afficher les ventes avec nom contenant "pack"
+    const ventesPack = ventes.filter(v => v.Produit && v.Produit.toLowerCase().includes('pack'));
+    console.log(`🔍 DEBUG - Ventes avec nom contenant "pack": ${ventesPack.length}`);
+    ventesPack.forEach(v => {
+        console.log(`  - ${v.Produit}: PU=${v.PU}, Qté=${v.Nombre}, Catégorie=${v.Categorie || 'undefined'}`);
+    });
+    
+    // Debug: Afficher les ventes détectées comme "Divers"
+    const ventesDivers = ventes.filter(v => {
+        const produit = v.Produit ? v.Produit.toLowerCase() : '';
+        return produit.includes('sans os') || 
+               produit.includes('foie') || 
+               produit.includes('peaux') || 
+               produit.includes('jarret') || 
+               produit.includes('yell') || 
+               produit.includes('dechet') || 
+               produit.includes('viande hachée') || 
+               produit.includes('viande hachee') || 
+               produit.includes('autre viande') || 
+               produit.includes('tete agneau') || 
+               produit.includes('tête agneau');
+    });
+    console.log(`🔍 DEBUG - Ventes détectées comme "Divers": ${ventesDivers.length}`);
+    ventesDivers.forEach(v => {
+        console.log(`  - ${v.Produit}: PU=${v.PU}, Qté=${v.Nombre}, Montant=${(parseFloat(v.PU) || 0) * (parseFloat(v.Nombre) || 0)}`);
+    });
+
+    // Debug: Compter les ventes exclues
+    const ventesAbattage = ventes.filter(v => v['Point de Vente'] && v['Point de Vente'].toLowerCase() === 'abattage');
+    console.log(`🔍 DEBUG - Ventes exclues (Point de vente "Abattage"): ${ventesAbattage.length}`);
+    
     // Parcourir toutes les ventes et calculer les statistiques
     ventes.forEach(vente => {
+        // Exclure les ventes du point de vente "Abattage"
+        if (vente['Point de Vente'] && vente['Point de Vente'].toLowerCase() === 'abattage') {
+            return; // Skip cette vente
+        }
+        
         const produit = vente.Produit || '';
         const prixUnitaire = parseFloat(vente.PU) || 0;
         const quantite = parseFloat(vente.Nombre) || 0;
@@ -10806,8 +10906,34 @@ function calculerAnalyticsVentes(ventes) {
         } else if (produit.toLowerCase().includes('poulet en détail') || produit.toLowerCase().includes('poulet en detail')) {
             categorieIndividuelle = 'Poulet en détail';
             categorieRegroupee = 'Poulet';
-        } else if (produit.toLowerCase().includes('agneau')) {
+        } else if (produit.toLowerCase() === 'agneau') {
             categorieIndividuelle = 'Agneau';
+            categorieRegroupee = 'Agneau';
+        } else if (produit.toLowerCase() === 'oeuf' || produit.toLowerCase() === 'œuf') {
+            categorieIndividuelle = 'Oeuf';
+            categorieRegroupee = 'Oeuf';
+            console.log(`🔍 Détection Oeuf: ${produit} - PU: ${vente.PU}, Qté: ${vente.Nombre}, Montant: ${prixUnitaire * quantite}`);
+        } else if (produit.toLowerCase().includes('pack')) {
+            categorieIndividuelle = 'Packs';
+            categorieRegroupee = 'Packs';
+            console.log(`🔍 Détection Pack: ${produit} (par nom) - PU: ${vente.PU}, Qté: ${vente.Nombre}`);
+        } else if (produit.toLowerCase().includes('autre viande')) {
+            categorieIndividuelle = 'Autre';
+            categorieRegroupee = 'Autre';
+            console.log(`🔍 Détection Autre: ${produit} - PU: ${vente.PU}, Qté: ${vente.Nombre}, Montant: ${prixUnitaire * quantite}`);
+        } else if (produit.toLowerCase().includes('sans os') || 
+                   produit.toLowerCase().includes('foie') || 
+                   produit.toLowerCase().includes('peaux') || 
+                   produit.toLowerCase().includes('jarret') || 
+                   produit.toLowerCase().includes('yell') || 
+                   produit.toLowerCase().includes('dechet') || 
+                   produit.toLowerCase().includes('viande hachée') || 
+                   produit.toLowerCase().includes('viande hachee') || 
+                   produit.toLowerCase().includes('tete agneau') || 
+                   produit.toLowerCase().includes('tête agneau')) {
+            categorieIndividuelle = 'Divers';
+            categorieRegroupee = 'Divers';
+            console.log(`🔍 Détection Divers: ${produit} - PU: ${vente.PU}, Qté: ${vente.Nombre}, Montant: ${prixUnitaire * quantite}`);
         }
 
         // Ajouter aux catégories individuelles
@@ -10822,6 +10948,11 @@ function calculerAnalyticsVentes(ventes) {
             categoriesRegroupees[categorieRegroupee].prixTotal += prixUnitaire;
             categoriesRegroupees[categorieRegroupee].quantiteTotal += quantite;
             categoriesRegroupees[categorieRegroupee].nombreVentes += 1;
+        }
+        
+        // Debug: Afficher les catégories non reconnues
+        if (!categorieRegroupee) {
+            console.log(`⚠️ Catégorie non reconnue: "${produit}" (Catégorie: ${vente.Categorie})`);
         }
     });
 
@@ -10846,6 +10977,26 @@ function calculerAnalyticsVentes(ventes) {
             nombreVentes: data.nombreVentes
         };
     });
+    
+    // Debug: Afficher les totaux calculés pour Packs
+    console.log('🔍 DEBUG - Totaux calculés pour Packs:');
+    console.log('  - categoriesRegroupees.Packs:', categoriesRegroupees.Packs);
+    console.log('  - resultatsRegroupes.Packs:', resultatsRegroupes.Packs);
+    
+    // Debug: Afficher les totaux calculés pour Oeuf
+    console.log('🔍 DEBUG - Totaux calculés pour Oeuf:');
+    console.log('  - categoriesRegroupees.Oeuf:', categoriesRegroupees.Oeuf);
+    console.log('  - resultatsRegroupes.Oeuf:', resultatsRegroupes.Oeuf);
+    
+    // Debug: Afficher les totaux calculés pour Divers
+    console.log('🔍 DEBUG - Totaux calculés pour Divers:');
+    console.log('  - categoriesRegroupees.Divers:', categoriesRegroupees.Divers);
+    console.log('  - resultatsRegroupes.Divers:', resultatsRegroupes.Divers);
+    
+    // Debug: Afficher les totaux calculés pour Autre
+    console.log('🔍 DEBUG - Totaux calculés pour Autre:');
+    console.log('  - categoriesRegroupees.Autre:', categoriesRegroupees.Autre);
+    console.log('  - resultatsRegroupes.Autre:', resultatsRegroupes.Autre);
 
     return {
         individuelles: resultatsIndividuels,
@@ -10854,11 +11005,14 @@ function calculerAnalyticsVentes(ventes) {
 }
 
 // Fonction pour afficher les analytics dans l'interface
-function afficherAnalyticsVentes(ventes) {
+async function afficherAnalyticsVentes(ventes) {
     const container = document.getElementById('analytics-container');
     if (!container) return;
 
     const analytics = calculerAnalyticsVentes(ventes);
+    
+    // Calculer les proxy marges
+    await calculerEtAfficherProxyMarges(analytics.regroupees);
     
     // Créer le HTML pour afficher les analytics
     let html = '';
@@ -10930,4 +11084,269 @@ function afficherAnalyticsVentes(ventes) {
     });
     
     container.innerHTML = html;
+}
+
+// Fonction pour calculer et afficher les proxy marges
+async function calculerEtAfficherProxyMarges(analyticsRegroupees) {
+    const proxyMargesContainer = document.getElementById('proxy-marges-container');
+    if (!proxyMargesContainer) return;
+
+    try {
+        // Récupérer les dates de la période actuelle
+        const dateDebut = document.getElementById('date-debut').value;
+        const dateFin = document.getElementById('date-fin').value;
+        
+        if (!dateDebut || !dateFin) {
+            proxyMargesContainer.innerHTML = '<div class="text-muted">Sélectionnez une période pour calculer les proxy marges</div>';
+            return;
+        }
+        
+        console.log(`🔍 Calcul des proxy marges pour la période: ${dateDebut} à ${dateFin}`);
+
+        // Récupérer les prix d'achat fixes
+        const prixAchatPoulet = parseFloat(document.getElementById('prix-achat-poulet').value) || 2600;
+        const prixAchatAgneau = parseFloat(document.getElementById('prix-achat-agneau').value) || 4000;
+        const prixAchatOeuf = parseFloat(document.getElementById('prix-achat-oeuf').value) || 2200;
+
+        // Récupérer les données d'achat pour la période
+        const response = await fetch(`/api/achats-boeuf`, {
+            credentials: 'include'
+        });
+
+        let prixAchatBoeuf = 0;
+        let prixAchatVeau = 0;
+        let poidsTotalBoeuf = 0;
+        let poidsTotalVeau = 0;
+        let achatsPeriode = [];
+
+        if (response.ok) {
+            const achats = await response.json();
+            
+            // Filtrer les achats par période
+            achatsPeriode = achats.filter(achat => {
+                // Convertir la date de l'achat au format YYYY-MM-DD
+                const achatDate = new Date(achat.date);
+                
+                // Convertir les dates de début et fin au format YYYY-MM-DD
+                const [jourDebut, moisDebut, anneeDebut] = dateDebut.split('/');
+                const [jourFin, moisFin, anneeFin] = dateFin.split('/');
+                
+                const debut = new Date(parseInt(anneeDebut), parseInt(moisDebut) - 1, parseInt(jourDebut));
+                const fin = new Date(parseInt(anneeFin), parseInt(moisFin) - 1, parseInt(jourFin));
+                
+                return achatDate >= debut && achatDate <= fin;
+            });
+            
+            // Séparer par type d'animal
+            const boeufAchats = achatsPeriode.filter(achat => achat.bete && achat.bete.toLowerCase() === 'boeuf');
+            const veauAchats = achatsPeriode.filter(achat => achat.bete && achat.bete.toLowerCase() === 'veau');
+            
+            // Calculer les moyennes et totaux
+            console.log(`🔍 Debug Proxy Marges - Période: ${dateDebut} à ${dateFin}`);
+            console.log(`📊 Total achats récupérés: ${achats.length}`);
+            console.log(`📊 Achats filtrés pour la période: ${achatsPeriode.length}`);
+            console.log(`📊 Achats boeuf: ${boeufAchats.length}, Achats veau: ${veauAchats.length}`);
+            
+            if (boeufAchats.length > 0) {
+                console.log(`🐄 DÉTAIL ACHATS BOEUF (${boeufAchats.length} achats):`);
+                boeufAchats.forEach((achat, index) => {
+                    console.log(`   ${index + 1}. Date: ${achat.date}, Prix/kg: ${achat.prix_achat_kg} FCFA, Poids: ${achat.nbr_kg} kg, Prix total: ${achat.prix} FCFA`);
+                });
+                
+                prixAchatBoeuf = boeufAchats.reduce((sum, achat) => sum + parseFloat(achat.prix_achat_kg), 0) / boeufAchats.length;
+                poidsTotalBoeuf = boeufAchats.reduce((sum, achat) => sum + parseFloat(achat.nbr_kg), 0);
+                console.log(`🐄 Boeuf - Prix moyen: ${prixAchatBoeuf.toFixed(2)} FCFA/kg, Poids total: ${poidsTotalBoeuf} kg`);
+            }
+            
+            if (veauAchats.length > 0) {
+                console.log(`🐂 DÉTAIL ACHATS VEAU (${veauAchats.length} achats):`);
+                veauAchats.forEach((achat, index) => {
+                    console.log(`   ${index + 1}. Date: ${achat.date}, Prix/kg: ${achat.prix_achat_kg} FCFA, Poids: ${achat.nbr_kg} kg, Prix total: ${achat.prix} FCFA`);
+                });
+                
+                prixAchatVeau = veauAchats.reduce((sum, achat) => sum + parseFloat(achat.prix_achat_kg), 0) / veauAchats.length;
+                poidsTotalVeau = veauAchats.reduce((sum, achat) => sum + parseFloat(achat.nbr_kg), 0);
+                console.log(`🐂 Veau - Prix moyen: ${prixAchatVeau.toFixed(2)} FCFA/kg, Poids total: ${poidsTotalVeau} kg`);
+            }
+        }
+        
+        // Si aucune donnée d'achat trouvée, afficher un message
+        if (achatsPeriode.length === 0) {
+            console.log('⚠️ Aucun achat trouvé pour cette période');
+            proxyMargesContainer.innerHTML = '<div class="text-warning">Aucun achat trouvé pour cette période</div>';
+            return;
+        }
+
+        // Calculer les proxy marges
+        const proxyMarges = {};
+        
+        Object.keys(analyticsRegroupees).forEach(categorie => {
+            const data = analyticsRegroupees[categorie];
+            const chiffreAffaires = data.prixMoyen * data.quantiteTotal;
+            let coutAchat = 0;
+            
+            switch (categorie) {
+                case 'Boeuf':
+                    coutAchat = prixAchatBoeuf * poidsTotalBoeuf;
+                    console.log(`💰 CALCUL PROXY MARGE BOEUF:`);
+                    console.log(`   - Prix moyen vente: ${data.prixMoyen.toFixed(0)} FCFA`);
+                    console.log(`   - Quantité totale: ${data.quantiteTotal} kg`);
+                    console.log(`   - Chiffre d'affaires: ${chiffreAffaires.toFixed(0)} FCFA`);
+                    console.log(`   - Prix moyen achat: ${prixAchatBoeuf.toFixed(2)} FCFA/kg`);
+                    console.log(`   - Poids total achat: ${poidsTotalBoeuf} kg`);
+                    console.log(`   - Coût d'achat: ${coutAchat.toFixed(0)} FCFA`);
+                    break;
+                case 'Veau':
+                    coutAchat = prixAchatVeau * poidsTotalVeau;
+                    console.log(`💰 CALCUL PROXY MARGE VEAU:`);
+                    console.log(`   - Prix moyen vente: ${data.prixMoyen.toFixed(0)} FCFA`);
+                    console.log(`   - Quantité totale: ${data.quantiteTotal} kg`);
+                    console.log(`   - Chiffre d'affaires: ${chiffreAffaires.toFixed(0)} FCFA`);
+                    console.log(`   - Prix moyen achat: ${prixAchatVeau.toFixed(2)} FCFA/kg`);
+                    console.log(`   - Poids total achat: ${poidsTotalVeau} kg`);
+                    console.log(`   - Coût d'achat: ${coutAchat.toFixed(0)} FCFA`);
+                    break;
+                case 'Poulet':
+                    coutAchat = prixAchatPoulet * data.quantiteTotal;
+                    break;
+                case 'Agneau':
+                    coutAchat = prixAchatAgneau * data.quantiteTotal;
+                    break;
+                case 'Oeuf':
+                    coutAchat = prixAchatOeuf * data.quantiteTotal;
+                    break;
+                case 'Packs':
+                    // Pas de coût d'achat pour cette catégorie
+                    coutAchat = 0;
+                    console.log(`💰 CALCUL PROXY MARGE ${categorie.toUpperCase()}:`);
+                    console.log(`   - Composition: Tous les produits avec catégorie "Pack"`);
+                    console.log(`   - Prix moyen vente: ${data.prixMoyen.toFixed(0)} FCFA`);
+                    console.log(`   - Quantité totale: ${data.quantiteTotal} kg`);
+                    console.log(`   - Chiffre d'affaires: ${chiffreAffaires.toFixed(0)} FCFA`);
+                    console.log(`   - Pas de coût d'achat (produits dérivés)`);
+                    break;
+                case 'Divers':
+                    // Pas de coût d'achat pour cette catégorie
+                    coutAchat = 0;
+                    console.log(`💰 CALCUL PROXY MARGE ${categorie.toUpperCase()}:`);
+                    console.log(`   - Composition: Sans Os, Foie, Peaux, Jarret, Yell, Dechet, Viande hachée, Tete Agneau`);
+                    console.log(`   - Prix moyen vente: ${data.prixMoyen.toFixed(0)} FCFA`);
+                    console.log(`   - Quantité totale: ${data.quantiteTotal} kg`);
+                    console.log(`   - Chiffre d'affaires: ${chiffreAffaires.toFixed(0)} FCFA`);
+                    console.log(`   - Pas de coût d'achat (produits dérivés)`);
+                    break;
+                case 'Autre':
+                    // Pas de coût d'achat pour cette catégorie
+                    coutAchat = 0;
+                    console.log(`💰 CALCUL PROXY MARGE ${categorie.toUpperCase()}:`);
+                    console.log(`   - Composition: Autre viande`);
+                    console.log(`   - Prix moyen vente: ${data.prixMoyen.toFixed(0)} FCFA`);
+                    console.log(`   - Quantité totale: ${data.quantiteTotal} kg`);
+                    console.log(`   - Chiffre d'affaires: ${chiffreAffaires.toFixed(0)} FCFA`);
+                    console.log(`   - Pas de coût d'achat (produits dérivés)`);
+                    break;
+            }
+            
+            proxyMarges[categorie] = {
+                chiffreAffaires: chiffreAffaires,
+                coutAchat: coutAchat,
+                proxyMarge: chiffreAffaires - coutAchat,
+                prixAchat: categorie === 'Boeuf' ? prixAchatBoeuf : 
+                          categorie === 'Veau' ? prixAchatVeau :
+                          categorie === 'Poulet' ? prixAchatPoulet : 
+                          categorie === 'Agneau' ? prixAchatAgneau :
+                          categorie === 'Oeuf' ? prixAchatOeuf : 0
+            };
+        });
+
+        // Calculer le total des proxy marges
+        const totalProxyMarges = Object.values(proxyMarges).reduce((total, marge) => total + marge.proxyMarge, 0);
+        
+        // Afficher les proxy marges
+        let html = '';
+        Object.keys(proxyMarges).forEach(categorie => {
+            const marge = proxyMarges[categorie];
+            const couleur = marge.proxyMarge >= 0 ? 'success' : 'danger';
+            let icone = marge.proxyMarge >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+            
+            // Icônes spécifiques par catégorie
+            if (categorie === 'Packs') {
+                icone = 'fa-box';
+            } else if (categorie === 'Divers') {
+                icone = 'fa-ellipsis-h';
+            }
+            
+            // Récupérer la quantité depuis les analytics
+            const quantiteVendue = analyticsRegroupees[categorie] ? analyticsRegroupees[categorie].quantiteTotal : 0;
+            const quantiteAbattue = categorie === 'Boeuf' ? poidsTotalBoeuf : categorie === 'Veau' ? poidsTotalVeau : quantiteVendue;
+            
+            // Calculer le ratio de perte (valeur absolue)
+            const ratioPerte = quantiteAbattue > 0 ? Math.abs(((quantiteVendue / quantiteAbattue) - 1) * 100) : 0;
+            const couleurRatio = 'warning'; // Toujours en orange car c'est une perte
+            
+            html += `
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">${categorie}</span>
+                        <span class="badge bg-${couleur}">
+                            <i class="fas ${icone} me-1"></i>
+                            ${marge.proxyMarge.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA
+                        </span>
+                    </div>
+                    ${categorie === 'Divers' ? '<small class="text-muted d-block mb-2"><i class="fas fa-info-circle me-1"></i>Sans Os, Foie, Peaux, Jarret, Yell, Dechet, Viande hachée, Tete Agneau</small>' : ''}
+                    ${categorie === 'Autre' ? '<small class="text-muted d-block mb-2"><i class="fas fa-info-circle me-1"></i>Autre viande</small>' : ''}
+                    <div class="row mt-1">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Prix vente: ${analyticsRegroupees[categorie].prixMoyen.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA/${categorie === 'Poulet' || categorie === 'Oeuf' ? 'unité' : 'kg'}</small>
+                            ${marge.prixAchat > 0 ? `<small class="text-muted d-block">Prix achat: ${marge.prixAchat.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA/${categorie === 'Poulet' || categorie === 'Oeuf' ? 'unité' : 'kg'}</small>` : '<small class="text-info d-block">Pas de coût d\'achat</small>'}
+                            <small class="text-muted d-block">Qté vendue: ${quantiteVendue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ${categorie === 'Poulet' || categorie === 'Oeuf' ? 'unité' : 'kg'}</small>
+                            ${categorie !== 'Packs' && categorie !== 'Divers' && categorie !== 'Poulet' && categorie !== 'Oeuf' ? `<small class="text-muted d-block">Qté abattue: ${quantiteAbattue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kg</small>` : ''}
+                            ${categorie !== 'Packs' && categorie !== 'Divers' && categorie !== 'Poulet' && categorie !== 'Oeuf' ? `<small class="text-${couleurRatio} d-block">Ratio perte: ${ratioPerte.toFixed(1)}%</small>` : ''}
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">CA: ${marge.chiffreAffaires.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA</small>
+                            <small class="text-muted d-block">Coût: ${marge.coutAchat.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        // Ajouter le total des proxy marges
+        const couleurTotal = totalProxyMarges >= 0 ? 'success' : 'danger';
+        const iconeTotal = totalProxyMarges >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+        
+        // Formater le total avec des espaces pour faciliter la lecture
+        const totalFormate = totalProxyMarges.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        
+        html += `
+            <hr>
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="fw-bold">TOTAL PROXY MARGES</span>
+                <span class="badge bg-${couleurTotal} fs-6">
+                    <i class="fas ${iconeTotal} me-1"></i>
+                    ${totalFormate} FCFA
+                </span>
+            </div>
+        `;
+
+        proxyMargesContainer.innerHTML = html;
+
+    } catch (error) {
+        console.error('Erreur lors du calcul des proxy marges:', error);
+        proxyMargesContainer.innerHTML = '<div class="text-danger">Erreur lors du calcul des proxy marges</div>';
+    }
+}
+
+// Fonction pour recalculer les proxy marges quand les prix changent
+async function recalculerProxyMarges() {
+    // Récupérer les analytics actuelles depuis le container
+    const analyticsContainer = document.getElementById('analytics-container');
+    if (!analyticsContainer) return;
+    
+    // Recalculer les analytics depuis les ventes actuelles
+    if (allVentes && allVentes.length > 0) {
+        const analytics = calculerAnalyticsVentes(allVentes);
+        await calculerEtAfficherProxyMarges(analytics.regroupees);
+    }
 }

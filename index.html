@@ -845,14 +845,60 @@
                         </div>
                     </div>
                 </div>
-                <!-- Section Analytics -->
-                <div class="row mb-4 visualisation-charts">
+                <!-- Section Analytics - Visible uniquement pour les superviseurs -->
+                <div class="row mb-4 visualisation-charts" id="analytics-section" style="display: none;">
                     <div class="col-12">
                         <div class="card">
                             <div class="card-body">
                                 <h5 class="card-title">Analytics des Ventes</h5>
-                                <div class="row" id="analytics-container">
-                                    <!-- Les données analytics seront chargées dynamiquement ici -->
+                                
+                                <!-- Bouton pour ouvrir les analytics (visible uniquement pour les superviseurs) -->
+                                <div class="text-center mb-3">
+                                    <button class="btn btn-outline-info" id="btn-analytics-popup" style="display: none;">
+                                        <i class="fas fa-chart-line me-2"></i>Voir les Analytics
+                                    </button>
+                                </div>
+                                
+                                <!-- Contenu des analytics (masqué par défaut) -->
+                                <div id="analytics-content" style="display: none;">
+                                    <!-- Configuration des prix d'achat fixes -->
+                                    <div class="row mb-4">
+                                        <div class="col-md-6">
+                                            <div class="card border-warning">
+                                                <div class="card-body">
+                                                    <h6 class="card-title text-warning">Configuration des Prix d'Achat</h6>
+                                                    <div class="row">
+                                                        <div class="col-4">
+                                                            <label for="prix-achat-poulet" class="form-label">Prix Achat Poulet (FCFA/kg)</label>
+                                                            <input type="number" class="form-control" id="prix-achat-poulet" value="2600" min="0" step="0.01">
+                                                        </div>
+                                                        <div class="col-4">
+                                                            <label for="prix-achat-agneau" class="form-label">Prix Achat Agneau (FCFA/kg)</label>
+                                                            <input type="number" class="form-control" id="prix-achat-agneau" value="4000" min="0" step="0.01">
+                                                        </div>
+                                                        <div class="col-4">
+                                                            <label for="prix-achat-oeuf" class="form-label">Prix Achat Oeuf (FCFA/kg)</label>
+                                                            <input type="number" class="form-control" id="prix-achat-oeuf" value="2200" min="0" step="0.01">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card border-info">
+                                                <div class="card-body">
+                                                    <h6 class="card-title text-info">Proxy Marges</h6>
+                                                    <div id="proxy-marges-container">
+                                                        <!-- Les proxy marges seront calculées et affichées ici -->
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row" id="analytics-container">
+                                        <!-- Les données analytics seront chargées dynamiquement ici -->
+                                    </div>
                                 </div>
                             </div>
                         </div>
