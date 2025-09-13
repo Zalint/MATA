@@ -453,7 +453,7 @@ function getPathByDate(baseFile, date) {
     return finalPath;
 }
 
-// Fonction pour standardiser une date au format DD-MM-YYYY
+// Fonction pour standardiser une date au format ISO (YYYY-MM-DD)
 function standardiserDateFormat(dateStr) {
     if (!dateStr) return '';
     
@@ -467,8 +467,8 @@ function standardiserDateFormat(dateStr) {
         // Format DD-MM-YYYY, YYYY-MM-DD, ou DD-MM-YY
         const parts = dateStr.split('-');
         if (parts[0].length === 4) {
-            // Format YYYY-MM-DD
-            [annee, mois, jour] = parts;
+            // Format YYYY-MM-DD (déjà au bon format)
+            return dateStr;
         } else {
             // Format DD-MM-YYYY ou DD-MM-YY
             [jour, mois, annee] = parts;
@@ -495,8 +495,18 @@ function standardiserDateFormat(dateStr) {
         return dateStr; // Retourner l'original si invalide
     }
 
-    // Retourner la date au format standardisé DD-MM-YYYY
-    return `${jour}-${mois}-${annee}`;
+    // Validation supplémentaire des valeurs
+    const jourNum = parseInt(jour);
+    const moisNum = parseInt(mois);
+    const anneeNum = parseInt(annee);
+    
+    if (jourNum < 1 || jourNum > 31 || moisNum < 1 || moisNum > 12 || anneeNum < 1900 || anneeNum > 2100) {
+        console.error('Date invalide:', {jour, mois, annee});
+        return dateStr; // Retourner l'original si invalide
+    }
+
+    // Retourner la date au format ISO (YYYY-MM-DD) - universellement accepté par PostgreSQL
+    return `${annee}-${mois}-${jour}`;
 }
 
 // Route pour la connexion
