@@ -2539,18 +2539,14 @@ async function creerTableauVentesParPointVente(donnees = null, moisFiltre = null
                 let month = parseInt(mois);
                 let day = parseInt(jour);
                 
-                if (isEndDate) {
-                    const tempDate = new Date(year, month - 1, day + 1);
-                    year = tempDate.getFullYear();
-                    month = tempDate.getMonth() + 1;
-                    day = tempDate.getDate();
-                }
+                // Ne pas ajouter de jour supplémentaire pour la date de fin
+                // La logique de filtrage côté serveur gère déjà correctement les limites
                 
                 return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             };
             
             const debut = formatDateForApi(dateDebut);
-            const fin = formatDateForApi(dateFin, true);
+            const fin = formatDateForApi(dateFin);
             
             console.log('Dates converties pour API:', { debut, fin });
             
@@ -3229,19 +3225,14 @@ async function chargerVentes() {
             let month = parseInt(mois);
             let day = parseInt(jour);
             
-            // Si c'est une date de fin, ajouter un jour pour inclure la date
-            if (isEndDate) {
-                const tempDate = new Date(year, month - 1, day + 1);
-                year = tempDate.getFullYear();
-                month = tempDate.getMonth() + 1;
-                day = tempDate.getDate();
-            }
+            // Ne pas ajouter de jour supplémentaire pour la date de fin
+            // La logique de filtrage côté serveur gère déjà correctement les limites
             
             return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         };
 
         const debut = formatDateForApi(dateDebut);
-        const fin = formatDateForApi(dateFin, false); // Traiter la date de fin comme la date de début
+        const fin = formatDateForApi(dateFin);
 
         console.log('Chargement des ventes avec les paramètres:', { 
             dateDebut, 
@@ -8504,19 +8495,14 @@ async function exportVisualisationToExcel() {
             let month = parseInt(mois);
             let day = parseInt(jour);
             
-            // Si c'est une date de fin, ajouter un jour pour inclure la date
-            if (isEndDate) {
-                const tempDate = new Date(year, month - 1, day + 1);
-                year = tempDate.getFullYear();
-                month = tempDate.getMonth() + 1;
-                day = tempDate.getDate();
-            }
+            // Ne pas ajouter de jour supplémentaire pour la date de fin
+            // La logique de filtrage côté serveur gère déjà correctement les limites
             
             return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         };
 
         const debut = formatDateForApi(dateDebut);
-        const fin = formatDateForApi(dateFin, false);
+        const fin = formatDateForApi(dateFin);
 
         // Fetch all data from API (not just current page)
         const response = await fetch(`/api/ventes?dateDebut=${debut}&dateFin=${fin}&pointVente=${pointVente}`, {
@@ -10830,7 +10816,8 @@ function calculerAnalyticsVentes(ventes) {
         'Oeuf': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
         'Packs': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
         'Divers': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
-        'Autre': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 }
+        'Autre': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 },
+        'Stock Soir': { prixTotal: 0, quantiteTotal: 0, nombreVentes: 0 }
     };
 
     // Debug: Afficher toutes les catégories trouvées
@@ -10872,7 +10859,7 @@ function calculerAnalyticsVentes(ventes) {
     // Debug: Compter les ventes exclues
     const ventesAbattage = ventes.filter(v => v['Point de Vente'] && v['Point de Vente'].toLowerCase() === 'abattage');
     console.log(`🔍 DEBUG - Ventes exclues (Point de vente "Abattage"): ${ventesAbattage.length}`);
-    
+
     // Parcourir toutes les ventes et calculer les statistiques
     ventes.forEach(vente => {
         // Exclure les ventes du point de vente "Abattage"
@@ -11002,6 +10989,56 @@ function calculerAnalyticsVentes(ventes) {
         individuelles: resultatsIndividuels,
         regroupees: resultatsRegroupes
     };
+}
+
+// Fonction pour récupérer et calculer le stock soir
+async function calculerStockSoir(dateFin) {
+    try {
+        console.log(`🔍 Récupération du stock soir pour la date: ${dateFin}`);
+        
+        const response = await fetch(`/api/external/stock/soir?date=${encodeURIComponent(dateFin)}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': 'b326e72b67a9b508c88270b9954c5ca1'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erreur API stock soir: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('📊 Données stock soir reçues:', data);
+
+        if (!data || Object.keys(data).length === 0) {
+            console.log('⚠️ Aucune donnée de stock soir disponible');
+            return { montantTotal: 0, nombreItems: 0 };
+        }
+
+        // Les données sont déjà filtrées par date par l'API
+        // Calculer le montant total de tous les items
+        let montantTotal = 0;
+        let nombreItems = 0;
+        
+        Object.entries(data).forEach(([key, item]) => {
+            const montant = parseFloat(item.Montant) || 0;
+            montantTotal += montant;
+            nombreItems++;
+            console.log(`  - ${item.Produit || key}: ${montant} FCFA`);
+        });
+
+        console.log(`💰 Montant total stock soir: ${montantTotal} FCFA`);
+
+        return {
+            montantTotal: montantTotal,
+            nombreItems: nombreItems
+        };
+
+    } catch (error) {
+        console.error('❌ Erreur lors du calcul du stock soir:', error);
+        return { montantTotal: 0, nombreItems: 0 };
+    }
 }
 
 // Fonction pour afficher les analytics dans l'interface
@@ -11177,13 +11214,24 @@ async function calculerEtAfficherProxyMarges(analyticsRegroupees) {
             return;
         }
 
+        // Récupérer le stock soir
+        const stockSoir = await calculerStockSoir(dateFin);
+        console.log(`📊 Stock soir récupéré: ${stockSoir.montantTotal} FCFA (${stockSoir.nombreItems} items)`);
+
         // Calculer les proxy marges
         const proxyMarges = {};
         
         Object.keys(analyticsRegroupees).forEach(categorie => {
             const data = analyticsRegroupees[categorie];
-            const chiffreAffaires = data.prixMoyen * data.quantiteTotal;
+            let chiffreAffaires;
             let coutAchat = 0;
+            
+            // Calcul spécial pour Stock Soir
+            if (categorie === 'Stock Soir') {
+                chiffreAffaires = stockSoir.montantTotal;
+            } else {
+                chiffreAffaires = data.prixMoyen * data.quantiteTotal;
+            }
             
             switch (categorie) {
                 case 'Boeuf':
@@ -11245,6 +11293,15 @@ async function calculerEtAfficherProxyMarges(analyticsRegroupees) {
                     console.log(`   - Chiffre d'affaires: ${chiffreAffaires.toFixed(0)} FCFA`);
                     console.log(`   - Pas de coût d'achat (produits dérivés)`);
                     break;
+                case 'Stock Soir':
+                    // Pas de coût d'achat pour cette catégorie
+                    coutAchat = 0;
+                    console.log(`💰 CALCUL PROXY MARGE ${categorie.toUpperCase()}:`);
+                    console.log(`   - Composition: Stock soir (date: ${dateFin})`);
+                    console.log(`   - Montant total: ${stockSoir.montantTotal.toFixed(0)} FCFA`);
+                    console.log(`   - Nombre d'items: ${stockSoir.nombreItems}`);
+                    console.log(`   - Pas de coût d'achat (stock)`);
+                    break;
             }
             
             proxyMarges[categorie] = {
@@ -11295,13 +11352,22 @@ async function calculerEtAfficherProxyMarges(analyticsRegroupees) {
                     </div>
                     ${categorie === 'Divers' ? '<small class="text-muted d-block mb-2"><i class="fas fa-info-circle me-1"></i>Sans Os, Foie, Peaux, Jarret, Yell, Dechet, Viande hachée, Tete Agneau</small>' : ''}
                     ${categorie === 'Autre' ? '<small class="text-muted d-block mb-2"><i class="fas fa-info-circle me-1"></i>Autre viande</small>' : ''}
+                    ${categorie === 'Stock Soir' ? '<small class="text-muted d-block mb-2"><i class="fas fa-info-circle me-1"></i>Stock soir (date de fin)</small>' : ''}
                     <div class="row mt-1">
                         <div class="col-6">
-                            <small class="text-muted d-block">Prix vente: ${analyticsRegroupees[categorie].prixMoyen.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA/${categorie === 'Poulet' || categorie === 'Oeuf' ? 'unité' : 'kg'}</small>
-                            ${marge.prixAchat > 0 ? `<small class="text-muted d-block">Prix achat: ${marge.prixAchat.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA/${categorie === 'Poulet' || categorie === 'Oeuf' ? 'unité' : 'kg'}</small>` : '<small class="text-info d-block">Pas de coût d\'achat</small>'}
-                            <small class="text-muted d-block">Qté vendue: ${quantiteVendue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ${categorie === 'Poulet' || categorie === 'Oeuf' ? 'unité' : 'kg'}</small>
-                            ${categorie !== 'Packs' && categorie !== 'Divers' && categorie !== 'Poulet' && categorie !== 'Oeuf' ? `<small class="text-muted d-block">Qté abattue: ${quantiteAbattue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kg</small>` : ''}
-                            ${categorie !== 'Packs' && categorie !== 'Divers' && categorie !== 'Poulet' && categorie !== 'Oeuf' ? `<small class="text-${couleurRatio} d-block">Ratio perte: ${ratioPerte.toFixed(1)}%</small>` : ''}
+                            ${categorie === 'Stock Soir' ? 
+                                `<small class="text-muted d-block">Montant total: ${marge.chiffreAffaires.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA</small>
+                                 <small class="text-muted d-block">Nombre d'items: ${stockSoir.nombreItems}</small>
+                                 <small class="text-info d-block">Pas de coût d'achat</small>
+                                 <button class="btn btn-sm btn-outline-info mt-1" onclick="afficherDetailStockSoir()" title="Voir le détail par point de vente et produit">
+                                     <i class="fas fa-info-circle"></i> Détail
+                                 </button>` :
+                                `<small class="text-muted d-block">Prix vente: ${analyticsRegroupees[categorie].prixMoyen.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA/${categorie === 'Poulet' || categorie === 'Oeuf' ? 'unité' : 'kg'}</small>
+                                 ${marge.prixAchat > 0 ? `<small class="text-muted d-block">Prix achat: ${marge.prixAchat.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA/${categorie === 'Poulet' || categorie === 'Oeuf' ? 'unité' : 'kg'}</small>` : '<small class="text-info d-block">Pas de coût d\'achat</small>'}
+                                 <small class="text-muted d-block">Qté vendue: ${quantiteVendue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ${categorie === 'Poulet' || categorie === 'Oeuf' ? 'unité' : 'kg'}</small>
+                                 ${categorie !== 'Packs' && categorie !== 'Divers' && categorie !== 'Autre' && categorie !== 'Stock Soir' && categorie !== 'Poulet' && categorie !== 'Oeuf' ? `<small class="text-muted d-block">Qté abattue: ${quantiteAbattue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kg</small>` : ''}
+                                 ${categorie !== 'Packs' && categorie !== 'Divers' && categorie !== 'Autre' && categorie !== 'Stock Soir' && categorie !== 'Poulet' && categorie !== 'Oeuf' ? `<small class="text-${couleurRatio} d-block">Ratio perte: ${ratioPerte.toFixed(1)}%</small>` : ''}`
+                            }
                         </div>
                         <div class="col-6">
                             <small class="text-muted d-block">CA: ${marge.chiffreAffaires.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA</small>
@@ -11348,5 +11414,191 @@ async function recalculerProxyMarges() {
     if (allVentes && allVentes.length > 0) {
         const analytics = calculerAnalyticsVentes(allVentes);
         await calculerEtAfficherProxyMarges(analytics.regroupees);
+    }
+}
+
+// Fonction pour afficher le détail du stock soir par point de vente et produit
+async function afficherDetailStockSoir() {
+    try {
+        // Récupérer la date de fin depuis les filtres
+        const dateFin = document.getElementById('date-fin').value;
+        if (!dateFin) {
+            alert('Veuillez sélectionner une date de fin pour voir le détail du stock soir.');
+            return;
+        }
+
+        // Convertir la date au format API
+        const [jour, mois, annee] = dateFin.split('/');
+        const dateApi = `${annee}-${mois.padStart(2, '0')}-${jour.padStart(2, '0')}`;
+
+        // Récupérer les données du stock soir depuis l'API
+        const response = await fetch(`/api/stock/soir?date=${dateApi}`, {
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error('Erreur lors de la récupération des données du stock soir');
+        }
+
+        const data = await response.json();
+        
+        // L'API retourne directement les données du stock soir
+        if (!data || Object.keys(data).length === 0) {
+            throw new Error('Aucune donnée de stock soir trouvée pour cette date');
+        }
+
+        // Organiser les données par point de vente
+        const stockParPointVente = {};
+        let totalGeneral = 0;
+        let nombreItemsGeneral = 0;
+
+        Object.entries(data).forEach(([key, item]) => {
+            const [pointVente, produit] = key.split('-');
+            
+            if (!stockParPointVente[pointVente]) {
+                stockParPointVente[pointVente] = {
+                    produits: [],
+                    total: 0,
+                    nombreItems: 0
+                };
+            }
+
+            const montant = parseFloat(item.Montant) || 0;
+            const quantite = parseFloat(item.Quantite || item.Nombre) || 0;
+            const prixUnitaire = parseFloat(item.PU) || 0;
+
+            stockParPointVente[pointVente].produits.push({
+                produit: produit,
+                quantite: quantite,
+                prixUnitaire: prixUnitaire,
+                montant: montant
+            });
+
+            stockParPointVente[pointVente].total += montant;
+            stockParPointVente[pointVente].nombreItems++;
+            totalGeneral += montant;
+            nombreItemsGeneral++;
+        });
+
+        // Créer le contenu HTML du modal
+        let html = `
+            <div class="modal fade" id="modalDetailStockSoir" tabindex="-1" aria-labelledby="modalDetailStockSoirLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalDetailStockSoirLabel">
+                                <i class="fas fa-boxes me-2"></i>Détail du Stock Soir - ${dateFin}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="card border-info">
+                                        <div class="card-body text-center">
+                                            <h6 class="card-title text-info">Total Général</h6>
+                                            <div class="h4 text-info">${totalGeneral.toLocaleString('fr-FR')} FCFA</div>
+                                            <small class="text-muted">${nombreItemsGeneral} items</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border-secondary">
+                                        <div class="card-body text-center">
+                                            <h6 class="card-title text-secondary">Points de Vente</h6>
+                                            <div class="h4 text-secondary">${Object.keys(stockParPointVente).length}</div>
+                                            <small class="text-muted">avec stock</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+        `;
+
+        // Afficher le détail par point de vente
+        Object.entries(stockParPointVente)
+            .sort(([,a], [,b]) => b.total - a.total) // Trier par montant décroissant
+            .forEach(([pointVente, data]) => {
+                const pourcentage = totalGeneral > 0 ? (data.total / totalGeneral * 100) : 0;
+                
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-store me-2"></i>${pointVente}
+                            </h6>
+                            <div>
+                                <span class="badge bg-primary me-2">${data.total.toLocaleString('fr-FR')} FCFA</span>
+                                <span class="badge bg-secondary">${pourcentage.toFixed(1)}%</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Produit</th>
+                                            <th class="text-end">Quantité</th>
+                                            <th class="text-end">Prix Unitaire</th>
+                                            <th class="text-end">Montant</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                `;
+
+                // Trier les produits par montant décroissant
+                data.produits
+                    .sort((a, b) => b.montant - a.montant)
+                    .forEach(produit => {
+                        html += `
+                            <tr>
+                                <td>${produit.produit}</td>
+                                <td class="text-end">${produit.quantite.toFixed(2)}</td>
+                                <td class="text-end">${produit.prixUnitaire.toLocaleString('fr-FR')} FCFA</td>
+                                <td class="text-end fw-bold">${produit.montant.toLocaleString('fr-FR')} FCFA</td>
+                            </tr>
+                        `;
+                    });
+
+                html += `
+                                    </tbody>
+                                    <tfoot class="table-light">
+                                        <tr>
+                                            <th colspan="3">Total ${pointVente}</th>
+                                            <th class="text-end">${data.total.toLocaleString('fr-FR')} FCFA</th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+        html += `
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Supprimer le modal existant s'il y en a un
+        const existingModal = document.getElementById('modalDetailStockSoir');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // Ajouter le modal au DOM
+        document.body.insertAdjacentHTML('beforeend', html);
+
+        // Afficher le modal
+        const modal = new bootstrap.Modal(document.getElementById('modalDetailStockSoir'));
+        modal.show();
+
+    } catch (error) {
+        console.error('Erreur lors de l\'affichage du détail du stock soir:', error);
+        alert('Erreur lors de la récupération des données du stock soir: ' + error.message);
     }
 }
